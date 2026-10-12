@@ -2,14 +2,14 @@ import { resolve } from 'path'
 
 import { defineConfig } from 'vite'
 
-// The same symbol library, as a plain script for the Node-RED editor (window.HmiSymbols)
+// Symbols and the drag-and-drop editor as a plain script for the Node-RED editor (window.HmiEditor)
 export default defineConfig({
     build: {
         lib: {
-            entry: resolve(import.meta.dirname, 'ui/symbols/index.js'),
-            name: 'HmiSymbols',
+            entry: resolve(import.meta.dirname, 'ui/editor/bundle.js'),
+            name: 'HmiEditor',
             formats: ['iife'],
-            fileName: () => 'hmi-symbols.js'
+            fileName: () => 'hmi-editor.js'
         },
         outDir: 'resources',
         emptyOutDir: false,

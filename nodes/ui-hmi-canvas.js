@@ -1,18 +1,22 @@
 'use strict'
 
 const { mergeValues } = require('./values')
+const setupAdmin = require('./admin')
 
 module.exports = function (RED) {
     function UIHmiCanvasNode (config) {
         RED.nodes.createNode(this, config)
         const node = this
 
-        const group = RED.nodes.getNode(config.group)
-        if (!group) {
-            node.error('No group configured')
+        // whole page (default) or inside a group; 0.0.1 flows only had a group
+        const scope = config.scope || (config.group && !config.page ? 'group' : 'page')
+        const group = scope === 'group' && config.group ? RED.nodes.getNode(config.group) : null
+        const page = scope === 'page' && config.page ? RED.nodes.getNode(config.page) : null
+        if (!group && !page) {
+            node.error(scope === 'group' ? 'No group configured' : 'No page configured')
             return
         }
-        const base = group.getBase()
+        const base = (group || page).getBase()
 
         // Latest value of every key, so a page refresh shows the whole screen at once.
         const values = {}
@@ -34,8 +38,10 @@ module.exports = function (RED) {
             }
         }
 
-        group.register(node, config, evts)
+        if (group) group.register(node, config, evts)
+        else page.register(null, node, { ...config, group: '' }, evts)
     }
 
     RED.nodes.registerType('ui-hmi-canvas', UIHmiCanvasNode)
+    setupAdmin(RED)
 }

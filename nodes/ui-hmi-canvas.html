@@ -1,251 +1,82 @@
-<script src="resources/node-red-dashboard-2-hmi/hmi-symbols.js"></script>
+<script src="resources/node-red-dashboard-2-hmi/hmi-editor.js"></script>
 
-<style>
-    .hmi-ed { border: 1px solid var(--red-ui-form-input-border-color, #ccc); border-radius: 4px; background: var(--red-ui-secondary-background, #f3f3f3); display: flex; flex-direction: column; }
-    .hmi-ed.hmi-ed-full { position: fixed; inset: 0; z-index: 2000; border-radius: 0; background: var(--red-ui-primary-background, #fff); }
-    .hmi-ed-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--red-ui-form-input-border-color, #ccc); }
-    .hmi-ed-toolbar .hmi-ed-spacer { flex: 1; }
-    .hmi-ed-toolbar label { display: inline-flex; align-items: center; width: auto; margin: 0 6px 0 0; }
-    .hmi-ed-toolbar label input { width: auto; margin: 0 4px 0 0; vertical-align: middle; }
-    .hmi-ed-pal { cursor: grab; }
-    .hmi-ed-body { display: flex; gap: 0; min-height: 260px; flex: 1; overflow: hidden; }
-    .hmi-ed-stage { flex: 1; min-width: 0; padding: 8px; overflow: auto; outline: none; }
-    .hmi-ed-stage svg { display: block; width: 100%; height: auto; box-shadow: 0 0 0 1px var(--red-ui-form-input-border-color, #ccc); user-select: none; touch-action: none; }
-    .hmi-ed-full .hmi-ed-stage svg { max-height: calc(100vh - 70px); }
-    .hmi-ed-stage .hmi-symbol { cursor: move; }
-    .hmi-ed-sel { fill: none; stroke: #1e88e5; stroke-width: 1.5; stroke-dasharray: 5 3; pointer-events: none; }
-    .hmi-ed-handle { fill: #1e88e5; stroke: #fff; stroke-width: 1; cursor: nwse-resize; }
-    .hmi-ed-grid { stroke: rgba(0, 0, 0, .08); stroke-width: 1; }
-    .hmi-theme-classic .hmi-ed-grid { stroke: rgba(255, 255, 255, .07); }
-    .hmi-ed-props { width: 220px; flex: none; padding: 8px; border-left: 1px solid var(--red-ui-form-input-border-color, #ccc); overflow: auto; }
-    .hmi-ed-props .hmi-ed-f { margin-bottom: 6px; }
-    .hmi-ed-props .hmi-ed-f label { display: block; width: auto; margin: 0 0 2px 0; font-size: 12px; }
-    .hmi-ed-props .hmi-ed-f input, .hmi-ed-props .hmi-ed-f select { width: 100%; box-sizing: border-box; }
-    .hmi-ed-props .hmi-ed-pair { display: flex; gap: 6px; }
-    .hmi-ed-props .hmi-ed-pair > div { flex: 1; min-width: 0; }
-    .hmi-ed-props h4 { margin: 4px 0 8px 0; }
-    .hmi-ed-props .hmi-ed-hint { font-size: 12px; opacity: .75; line-height: 1.5; }
-</style>
 
 <script type="text/javascript">
 (function () {
-    const GRID = 10
-    const clone = o => JSON.parse(JSON.stringify(o || []))
 
-    function parsePreview (text) {
-        if (text === undefined || text === null || text === '') return undefined
-        if (text === 'true') return true
-        if (text === 'false') return false
-        const n = Number(String(text).replace(',', '.'))
-        return isFinite(n) ? n : text
+    function authHeaders () {
+        const t = RED.settings.get('auth-tokens') || {}
+        return t.access_token ? { Authorization: (t.token_type || 'Bearer') + ' ' + t.access_token } : {}
+    }
+
+    // URL of the dashboard page that shows this canvas
+    function dashboardUrl (node) {
+        const scope = $('#node-input-scope').val()
+        let pageId = $('#node-input-page').val()
+        if (scope === 'group') {
+            const g = RED.nodes.node($('#node-input-group').val())
+            pageId = g && g.page
+        }
+        const page = RED.nodes.node(pageId)
+        const base = page && RED.nodes.node(page.ui)
+        if (!page || !base) return null
+        const trim = s => String(s || '').replace(/^\/+|\/+$/g, '')
+        const parts = []
+        const httpRoot = RED.settings.httpNodeRoot
+        if (httpRoot && typeof httpRoot === 'string' && httpRoot !== '/') parts.push(trim(httpRoot))
+        parts.push(trim(base.path || 'dashboard'))
+        parts.push(trim(page.path))
+        return new URL('/' + parts.filter(Boolean).join('/'), window.location.origin)
+    }
+
+    function openInDashboard (node, editor) {
+        if (editor._dirty || node.changed || !node.symbols) {
+            RED.notify('Clique em Concluído e faça o Deploy antes de editar no dashboard.', 'warning')
+            return
+        }
+        const url = dashboardUrl(node)
+        if (!url) {
+            RED.notify('Escolha a página do dashboard e faça o Deploy.', 'warning')
+            return
+        }
+        $.ajax({
+            url: 'hmi-canvas/' + encodeURIComponent(node.id) + '/edit',
+            type: 'PATCH',
+            headers: authHeaders(),
+            success: function (data) {
+                url.searchParams.set('hmi-canvas', node.id)
+                url.searchParams.set('hmi-edit', data.key)
+                url.searchParams.set('hmi-admin', new URL('hmi-canvas/', window.location.href).pathname)
+                window.open(url.toString(), 'hmi-edit-' + node.id)
+            },
+            error: function (xhr) {
+                const nd = xhr.responseJSON && xhr.responseJSON.code === 'NOT_DEPLOYED'
+                RED.notify(nd ? 'Faça o Deploy antes de editar no dashboard.' : 'Não foi possível abrir: ' + (xhr.responseText || xhr.status), 'error')
+            }
+        })
     }
 
     function startEditor (node) {
-        const S = window.HmiSymbols
-        const $ed = $('#hmi-ed')
-        if (!S) {
-            $ed.text('Could not load resources/node-red-dashboard-2-hmi/hmi-symbols.js')
+        const H = window.HmiEditor
+        const root = document.getElementById('hmi-ed')
+        if (!H) {
+            root.textContent = 'Could not load resources/node-red-dashboard-2-hmi/hmi-editor.js'
             return null
         }
-        S.injectStyles(document)
-
-        const ed = { symbols: clone(node.symbols), sel: null, drag: null }
-        const svg = $ed.find('svg')[0]
-        const $props = $ed.find('.hmi-ed-props')
-        const $stage = $ed.find('.hmi-ed-stage')
-
-        const view = () => ({
-            w: Math.max(100, Number($('#node-input-viewW').val()) || 1280),
-            h: Math.max(100, Number($('#node-input-viewH').val()) || 720)
+        const editor = H.createEditor(root, {
+            symbols: node.symbols,
+            buttonClass: 'red-ui-button',
+            getView: () => ({ w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() }),
+            getTheme: () => $('#node-input-theme').val(),
+            getLocale: () => $('#node-input-locale').val(),
+            onChange: () => { editor._dirty = true },
+            actions: [
+                { label: 'Tela cheia', title: 'Abrir este editor na tela toda', onClick: ed => ed.toggleFull() },
+                { label: 'Editar no dashboard', title: 'Abrir a página do dashboard em outra aba, em modo de edição', onClick: () => openInDashboard(node, editor) }
+            ]
         })
-        const gridOn = () => $('#hmi-ed-grid').is(':checked')
-        const snap = v => gridOn() ? Math.round(v / GRID) * GRID : Math.round(v)
-        const selected = () => ed.symbols.find(s => s.id === ed.sel)
-
-        function toSvg (e) {
-            const pt = svg.createSVGPoint()
-            pt.x = e.clientX
-            pt.y = e.clientY
-            return pt.matrixTransform(svg.getScreenCTM().inverse())
-        }
-
-        function draw () {
-            const v = view()
-            const theme = $('#node-input-theme').val() === 'classic' ? 'classic' : 'isa101'
-            svg.setAttribute('viewBox', '0 0 ' + v.w + ' ' + v.h)
-            svg.setAttribute('class', 'hmi-root hmi-theme-' + theme)
-            let out = '<rect class="hmi-bg" x="0" y="0" width="' + v.w + '" height="' + v.h + '"/>'
-            if (gridOn()) {
-                let g = ''
-                for (let x = 50; x < v.w; x += 50) g += 'M' + x + ' 0V' + v.h
-                for (let y = 50; y < v.h; y += 50) g += 'M0 ' + y + 'H' + v.w
-                out += '<path class="hmi-ed-grid" d="' + g + '"/>'
-            }
-            // symbols that share a key show the same test value
-            const previews = {}
-            for (const s of ed.symbols) if (s.key && s.preview !== undefined && !(s.key in previews)) previews[s.key] = s.preview
-            for (const s of ed.symbols) if (s.key && S.SYMBOLS[s.type] && !(s.key in previews)) previews[s.key] = S.SYMBOLS[s.type].preview
-            for (const s of ed.symbols) {
-                const def = S.SYMBOLS[s.type]
-                if (!def) continue
-                const value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
-                out += S.renderSymbol(s, value, { locale: $('#node-input-locale').val() })
-            }
-            const s = selected()
-            if (s) {
-                const rot = Number(s.rot) || 0
-                out += '<g transform="translate(' + s.x + ',' + s.y + ')' + (rot ? ' rotate(' + rot + ',' + s.w / 2 + ',' + s.h / 2 + ')' : '') + '">' +
-                    '<rect class="hmi-ed-sel" x="-3" y="-3" width="' + (s.w + 6) + '" height="' + (s.h + 6) + '"/>' +
-                    '<rect class="hmi-ed-handle" data-handle="1" x="' + (s.w - 2) + '" y="' + (s.h - 2) + '" width="10" height="10"/></g>'
-            }
-            svg.innerHTML = out
-        }
-
-        function field (label, value, type, onChange, options) {
-            const $f = $('<div class="hmi-ed-f">')
-            $('<label>').text(label).appendTo($f)
-            let $in
-            if (type === 'select') {
-                $in = $('<select>')
-                for (const [val, text] of options) $('<option>').val(val).text(text).appendTo($in)
-                $in.val(String(value === undefined ? '' : value))
-            } else {
-                $in = $('<input>').attr('type', type === 'number' ? 'number' : 'text').val(value === undefined ? '' : value)
-            }
-            $in.on('input change', () => { onChange($in.val()); draw() })
-            $in.on('keydown', e => e.stopPropagation())
-            $f.append($in)
-            return $f
-        }
-
-        function showProps () {
-            $props.empty()
-            const s = selected()
-            if (!s) {
-                $('<div class="hmi-ed-hint">').html('Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover, use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10).').appendTo($props)
-                return
-            }
-            const def = S.SYMBOLS[s.type]
-            $('<h4>').text(def.label).appendTo($props)
-            $props.append(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
-            const $pos = $('<div class="hmi-ed-pair">').appendTo($props)
-            $('<div>').append(field('X', s.x, 'number', v => { s.x = Number(v) || 0 })).appendTo($pos)
-            $('<div>').append(field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })).appendTo($pos)
-            const $size = $('<div class="hmi-ed-pair">').appendTo($props)
-            $('<div>').append(field('Largura', s.w, 'number', v => { s.w = Math.max(10, Number(v) || 10) })).appendTo($size)
-            $('<div>').append(field('Altura', s.h, 'number', v => { s.h = Math.max(10, Number(v) || 10) })).appendTo($size)
-            $props.append(field('Rotação', s.rot || 0, 'select', v => { s.rot = Number(v) }, [['0', '0°'], ['90', '90°'], ['180', '180°'], ['270', '270°']]))
-            for (const fd of def.fields) {
-                $props.append(field(fd.label, s.props[fd.key], fd.type, v => { s.props[fd.key] = fd.type === 'number' && v !== '' ? Number(v) : v }, fd.options))
-            }
-            $props.append(field('Valor de teste (só no editor)', s.preview === undefined ? '' : String(s.preview), 'text', v => {
-                const p = parsePreview(v)
-                if (p === undefined) delete s.preview
-                else s.preview = p
-            }))
-        }
-
-        function refresh () { draw(); showProps() }
-
-        function add (type, cx, cy) {
-            const def = S.SYMBOLS[type]
-            const s = S.createSymbol(type, snap(cx - def.w / 2), snap(cy - def.h / 2))
-            ed.symbols.push(s)
-            ed.sel = s.id
-            refresh()
-        }
-
-        function remove () {
-            if (!ed.sel) return
-            ed.symbols = ed.symbols.filter(s => s.id !== ed.sel)
-            ed.sel = null
-            refresh()
-        }
-
-        function duplicate () {
-            const s = selected()
-            if (!s) return
-            const c = S.createSymbol(s.type, s.x + 20, s.y + 20)
-            Object.assign(c, clone(s), { id: c.id, x: s.x + 20, y: s.y + 20 })
-            ed.symbols.push(c)
-            ed.sel = c.id
-            refresh()
-        }
-
-        // palette
-        const $pal = $ed.find('.hmi-ed-palette')
-        for (const [type, def] of Object.entries(S.SYMBOLS)) {
-            $('<button type="button" class="red-ui-button hmi-ed-pal" draggable="true">')
-                .text('+ ' + def.label)
-                .attr('title', 'Arraste para a tela ou clique')
-                .on('dragstart', e => { e.originalEvent.dataTransfer.setData('text/plain', 'hmi:' + type) })
-                .on('click', () => { const v = view(); add(type, v.w / 2, v.h / 2) })
-                .appendTo($pal)
-        }
-        $stage.on('dragover', e => { e.preventDefault() })
-        $stage.on('drop', e => {
-            const data = e.originalEvent.dataTransfer.getData('text/plain') || ''
-            if (!data.startsWith('hmi:')) return
-            e.preventDefault()
-            const p = toSvg(e.originalEvent)
-            add(data.slice(4), p.x, p.y)
-        })
-
-        // move and resize
-        svg.addEventListener('pointerdown', e => {
-            $stage.trigger('focus')
-            const p = toSvg(e)
-            if (e.target.closest('[data-handle]')) {
-                const s = selected()
-                ed.drag = { mode: 'size', start: p, w: s.w, h: s.h }
-            } else {
-                const g = e.target.closest('.hmi-symbol')
-                if (!g) { ed.sel = null; refresh(); return }
-                ed.sel = g.getAttribute('data-id')
-                const s = selected()
-                ed.drag = { mode: 'move', start: p, x: s.x, y: s.y }
-                refresh()
-            }
-            svg.setPointerCapture(e.pointerId)
-            e.preventDefault()
-        })
-        svg.addEventListener('pointermove', e => {
-            const d = ed.drag
-            const s = selected()
-            if (!d || !s) return
-            const p = toSvg(e)
-            if (d.mode === 'move') {
-                s.x = snap(d.x + p.x - d.start.x)
-                s.y = snap(d.y + p.y - d.start.y)
-            } else {
-                s.w = Math.max(20, snap(d.w + p.x - d.start.x))
-                s.h = Math.max(20, snap(d.h + p.y - d.start.y))
-            }
-            draw()
-        })
-        const endDrag = () => { if (ed.drag) { ed.drag = null; showProps() } }
-        svg.addEventListener('pointerup', endDrag)
-        svg.addEventListener('pointercancel', endDrag)
-
-        $stage.on('keydown', e => {
-            const s = selected()
-            if (!s) return
-            const step = e.shiftKey ? 10 : 1
-            const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
-            if (e.key === 'Delete' || e.key === 'Backspace') remove()
-            else if (moves[e.key]) { s.x += moves[e.key][0]; s.y += moves[e.key][1]; refresh() }
-            else return
-            e.preventDefault()
-            e.stopPropagation()
-        })
-
-        $('#hmi-ed-del').on('click', remove)
-        $('#hmi-ed-dup').on('click', duplicate)
-        $('#hmi-ed-full').on('click', () => { $ed.toggleClass('hmi-ed-full'); draw() })
-        $('#hmi-ed-grid, #node-input-theme, #node-input-viewW, #node-input-viewH, #node-input-locale').on('change input', draw)
-
-        refresh()
-        return ed
+        $('#node-input-theme, #node-input-viewW, #node-input-viewH, #node-input-locale').on('change input', () => editor.redraw())
+        return editor
     }
 
     RED.nodes.registerType('ui-hmi-canvas', {
@@ -253,12 +84,24 @@
         color: RED._('@flowfuse/node-red-dashboard/ui-base:ui-base.colors.light'),
         defaults: {
             name: { value: '' },
-            group: { type: 'ui-group', required: true },
+            scope: { value: 'page' },
+            page: {
+                type: 'ui-page',
+                required: false,
+                validate: function (v) { return (this.scope || 'page') !== 'page' || !!v }
+            },
+            group: {
+                type: 'ui-group',
+                required: false,
+                validate: function (v) { return this.scope !== 'group' || !!v }
+            },
+            fit: { value: 'screen' },
             order: { value: 0 },
             width: {
                 value: 0,
                 validate: function (v) {
                     const width = v || 0
+                    if (this.scope !== 'group') return true
                     const currentGroup = $('#node-input-group').val() || this.group
                     const groupNode = RED.nodes.node(currentGroup)
                     const valid = !groupNode || +width <= +groupNode.width
@@ -282,6 +125,16 @@
             return this.name || 'hmi canvas'
         },
         oneditprepare: function () {
+            if (!this.scope) {
+                // 0.0.1 flows only had a group
+                this.scope = this.group && !this.page ? 'group' : 'page'
+                $('#node-input-scope').val(this.scope)
+            }
+            $('#node-input-scope').on('change', function () {
+                const g = $(this).val() === 'group'
+                $('.hmi-row-group').toggle(g)
+                $('.hmi-row-page').toggle(!g)
+            }).trigger('change')
             $('#node-input-size').elementSizer({
                 width: '#node-input-width',
                 height: '#node-input-height',
@@ -291,8 +144,10 @@
         },
         oneditsave: function () {
             const ed = this._hmiEditor
-            if (ed) this.symbols = clone(ed.symbols)
+            if (ed) this.symbols = ed.getSymbols()
             delete this._hmiEditor
+            if ($('#node-input-scope').val() === 'group') $('#node-input-page').val('_ADD_')
+            else $('#node-input-group').val('_ADD_')
         },
         oneditcancel: function () {
             delete this._hmiEditor
@@ -303,10 +158,21 @@
 
 <script type="text/html" data-template-name="ui-hmi-canvas">
     <div class="form-row">
+        <label for="node-input-scope"><i class="fa fa-desktop"></i> Show in</label>
+        <select id="node-input-scope" style="width: 200px">
+            <option value="page">Página inteira</option>
+            <option value="group">Grupo</option>
+        </select>
+    </div>
+    <div class="form-row hmi-row-page">
+        <label for="node-input-page"><i class="fa fa-file-o"></i> Page</label>
+        <input type="text" id="node-input-page">
+    </div>
+    <div class="form-row hmi-row-group">
         <label for="node-input-group"><i class="fa fa-table"></i> Group</label>
         <input type="text" id="node-input-group">
     </div>
-    <div class="form-row">
+    <div class="form-row hmi-row-group">
         <label><i class="fa fa-object-group"></i> Size</label>
         <input type="hidden" id="node-input-width">
         <input type="hidden" id="node-input-height">
@@ -316,6 +182,13 @@
         <label for="node-input-viewW"><i class="fa fa-arrows-alt"></i> Screen</label>
         <input type="number" id="node-input-viewW" style="width: 90px"> ×
         <input type="number" id="node-input-viewH" style="width: 90px"> px
+    </div>
+    <div class="form-row">
+        <label for="node-input-fit"><i class="fa fa-expand"></i> Fit</label>
+        <select id="node-input-fit" style="width: 200px">
+            <option value="screen">Caber na tela</option>
+            <option value="width">Largura toda</option>
+        </select>
     </div>
     <div class="form-row">
         <label for="node-input-theme"><i class="fa fa-paint-brush"></i> Theme</label>
@@ -337,20 +210,7 @@
         <input type="text" id="node-input-name">
     </div>
     <div class="form-row">
-        <div id="hmi-ed" class="hmi-ed">
-            <div class="hmi-ed-toolbar">
-                <span class="hmi-ed-palette"></span>
-                <span class="hmi-ed-spacer"></span>
-                <label><input type="checkbox" id="hmi-ed-grid" checked>Grade</label>
-                <button type="button" class="red-ui-button" id="hmi-ed-dup" title="Duplicar"><i class="fa fa-clone"></i></button>
-                <button type="button" class="red-ui-button" id="hmi-ed-del" title="Excluir"><i class="fa fa-trash"></i></button>
-                <button type="button" class="red-ui-button" id="hmi-ed-full" title="Tela cheia"><i class="fa fa-expand"></i></button>
-            </div>
-            <div class="hmi-ed-body">
-                <div class="hmi-ed-stage" tabindex="0"><svg xmlns="http://www.w3.org/2000/svg"></svg></div>
-                <div class="hmi-ed-props"></div>
-            </div>
-        </div>
+        <div id="hmi-ed"></div>
     </div>
 </script>
 

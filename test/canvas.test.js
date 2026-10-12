@@ -23,3 +23,11 @@ test('nothing usable is reported', () => {
     assert.strictEqual(mergeValues(v, { payload: [1, 2] }), false)
     assert.deepStrictEqual(v, {})
 })
+
+test('symbols saved from the dashboard are cleaned', () => {
+    const { cleanSymbols } = require('../nodes/admin')
+    assert.strictEqual(cleanSymbols('x'), null)
+    assert.strictEqual(cleanSymbols([{ type: 'tag' }]), null)
+    const [s] = cleanSymbols([{ id: 'a', type: 'tag', x: '10', y: 'oops', w: 1, h: 64, key: 'rpm', props: { title: 'RPM' }, preview: { bad: 1 }, extra: 1 }])
+    assert.deepStrictEqual(s, { id: 'a', type: 'tag', x: 10, y: 0, w: 10, h: 64, rot: 0, key: 'rpm', props: { title: 'RPM' } })
+})

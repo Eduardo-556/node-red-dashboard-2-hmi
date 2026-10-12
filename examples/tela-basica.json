@@ -66,26 +66,10 @@
   "disabled": "false"
  },
  {
-  "id": "hx_grp",
-  "type": "ui-group",
-  "name": "Tela",
-  "page": "hx_page",
-  "width": "12",
-  "height": "1",
-  "order": 1,
-  "showTitle": false,
-  "visible": "true",
-  "disabled": "false",
-  "groupType": "default"
- },
- {
   "id": "hx_canvas",
   "type": "ui-hmi-canvas",
   "name": "Linha",
-  "group": "hx_grp",
   "order": 1,
-  "width": "12",
-  "height": "0",
   "viewW": 800,
   "viewH": 360,
   "theme": "isa101",
@@ -165,7 +149,10 @@
   ],
   "x": 420,
   "y": 100,
-  "wires": []
+  "wires": [],
+  "scope": "page",
+  "page": "hx_page",
+  "fit": "screen"
  },
  {
   "id": "hx_run",

@@ -201,6 +201,7 @@ export const CSS = `
   --hmi-line: #7b8895; --hmi-text: #e8edf1; --hmi-text-dim: #9aa4ae; --hmi-tag-bg: #1c2025;
   --hmi-alarm: #ef4444; --hmi-warn: #f59e0b; --hmi-low: #c084fc; --hmi-ok: #22c55e;
 }
+.hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
 .hmi-root text { text-anchor: middle; }
 .hmi-root .hmi-label { fill: var(--hmi-text); font-size: 14px; font-weight: 600; }
