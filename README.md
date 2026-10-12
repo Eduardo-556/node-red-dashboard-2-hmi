@@ -1,0 +1,67 @@
+# node-red-dashboard-2-hmi
+
+Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols onto a canvas. Wire one object (for example the output of `node-red-contrib-schneider-modbus-tags`) into the canvas and every symbol shows its own key. No SVG or Vue to write.
+
+> **Status: prototype (0.0.x).** Two symbols (reel and tag) and the drag-and-drop editor. Not published to npm yet.
+
+[Português](#português) · [English](#english)
+
+---
+
+## Português
+
+### Como usa
+
+1. Arraste o nó **hmi canvas** (categoria Dashboard 2) para o fluxo e escolha o grupo, o tamanho da tela em pixels e o tema.
+2. Na janela do nó, arraste os símbolos da barra de cima para a tela. Clique num símbolo para editar: chave do payload, posição, tamanho, rotação e opções do símbolo. O botão de expandir abre o editor em tela cheia.
+3. Ligue no canvas qualquer nó que mande um objeto, por exemplo `{ "rpm": 1450, "velocidade": 42.5 }`. Cada símbolo mostra a chave dele. As chaves vão se somando: uma mensagem só com `rpm` não apaga `velocidade`.
+4. Para mandar um valor solto, use `msg.topic` como chave: `msg.topic = "temp"`, `msg.payload = 21.5`.
+
+### Símbolos
+
+| Símbolo | Mostra |
+|---|---|
+| Bobina | Ligada (valor ≠ 0, ou acima de um limite) ou parada. No tema Clássico ela gira. |
+| Tag | Título, valor formatado e unidade. Com escala e faixa normal, mostra uma barra; fora da faixa, entra em alarme com indicador de prioridade. |
+
+### Temas
+
+- **ISA-101** (padrão): cinza e plano, cor só para condição anormal e alarme. Equipamento ligado fica cinza escuro, parado fica claro. O alarme usa cor, forma e número da prioridade.
+- **Clássico**: escuro, no estilo dos painéis em SVG feitos à mão, com bobinas girando.
+
+### Opções do canvas
+
+| Opção | Para quê |
+|---|---|
+| Screen | Tamanho da tela em pixels. No dashboard ela se ajusta à largura do grupo. |
+| Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
+| Number format | Formato dos números, ex. `pt-BR` (1.450,5) ou `en-US` (1,450.5). |
+
+### Exemplo
+
+**Menu → Importar → Exemplos → node-red-dashboard-2-hmi → tela-basica**. Abre em `/dashboard/hmi`.
+
+---
+
+## English
+
+1. Drop an **hmi canvas** node (Dashboard 2 category) into your flow, pick the group, the screen size in pixels and the theme.
+2. In the node's edit dialog, drag symbols from the bar onto the screen. Click a symbol to set its payload key, position, size, rotation and options. The expand button opens the editor full screen.
+3. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`.
+4. For a single value, use `msg.topic` as the key.
+
+Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
+
+## Development
+
+```
+npm install
+npm run build   # widget (resources/ui-hmi-canvas.umd.js) and editor library (resources/hmi-symbols.js)
+npm test
+```
+
+The symbol library in `ui/symbols/` is shared: the dashboard widget and the editor preview draw with the same code.
+
+## License
+
+MIT

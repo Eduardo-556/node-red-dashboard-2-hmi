@@ -1,0 +1,58 @@
+{
+  "name": "node-red-dashboard-2-hmi",
+  "version": "0.0.1",
+  "description": "Build machine HMI screens for Node-RED Dashboard 2.0 by dragging symbols onto a canvas (ISA-101 and classic themes)",
+  "keywords": [
+    "node-red",
+    "node-red-dashboard-2",
+    "hmi",
+    "scada",
+    "isa-101",
+    "synoptic",
+    "svg"
+  ],
+  "homepage": "https://github.com/Eduardo-556/node-red-dashboard-2-hmi#readme",
+  "bugs": {
+    "url": "https://github.com/Eduardo-556/node-red-dashboard-2-hmi/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eduardo-556/node-red-dashboard-2-hmi.git"
+  },
+  "license": "MIT",
+  "author": "Eduardo",
+  "files": [
+    "nodes",
+    "resources",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --config vite.editor.config.mjs",
+    "test": "node --test test/symbols.test.mjs test/canvas.test.js"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vite": "^8.0.0",
+    "vue": "^3.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "node-red": {
+    "version": ">=3.0.0",
+    "nodes": {
+      "ui-hmi-canvas": "nodes/ui-hmi-canvas.js"
+    }
+  },
+  "node-red-dashboard-2": {
+    "version": "1.0.0",
+    "widgets": {
+      "ui-hmi-canvas": {
+        "output": "ui-hmi-canvas.umd.js",
+        "component": "UIHmiCanvas"
+      }
+    }
+  }
+}

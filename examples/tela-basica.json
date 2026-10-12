@@ -1,0 +1,237 @@
+[
+ {
+  "id": "hx_cmt",
+  "type": "comment",
+  "name": "Abra o hmi canvas para ver o editor de arrastar. Dashboard em /dashboard/hmi",
+  "info": "",
+  "x": 300,
+  "y": 40,
+  "wires": []
+ },
+ {
+  "id": "hx_base",
+  "type": "ui-base",
+  "name": "Dashboard",
+  "path": "/dashboard",
+  "includeClientData": true,
+  "acceptsClientConfig": [
+   "ui-notification",
+   "ui-control"
+  ],
+  "showPathInSidebar": false,
+  "navigationStyle": "none",
+  "titleBarStyle": "hidden"
+ },
+ {
+  "id": "hx_theme",
+  "type": "ui-theme",
+  "name": "Default",
+  "colors": {
+   "surface": "#ffffff",
+   "primary": "#0094CE",
+   "bgPage": "#eeeeee",
+   "groupBg": "#ffffff",
+   "groupOutline": "#cccccc"
+  },
+  "sizes": {
+   "pagePadding": "12px",
+   "groupGap": "12px",
+   "groupBorderRadius": "4px",
+   "widgetGap": "12px"
+  }
+ },
+ {
+  "id": "hx_page",
+  "type": "ui-page",
+  "name": "HMI",
+  "ui": "hx_base",
+  "path": "/hmi",
+  "icon": "home",
+  "layout": "grid",
+  "theme": "hx_theme",
+  "breakpoints": [
+   {
+    "name": "Default",
+    "px": "0",
+    "cols": "3"
+   },
+   {
+    "name": "Desktop",
+    "px": "1024",
+    "cols": "12"
+   }
+  ],
+  "order": 1,
+  "visible": "true",
+  "disabled": "false"
+ },
+ {
+  "id": "hx_grp",
+  "type": "ui-group",
+  "name": "Tela",
+  "page": "hx_page",
+  "width": "12",
+  "height": "1",
+  "order": 1,
+  "showTitle": false,
+  "visible": "true",
+  "disabled": "false",
+  "groupType": "default"
+ },
+ {
+  "id": "hx_canvas",
+  "type": "ui-hmi-canvas",
+  "name": "Linha",
+  "group": "hx_grp",
+  "order": 1,
+  "width": "12",
+  "height": "0",
+  "viewW": 800,
+  "viewH": 360,
+  "theme": "isa101",
+  "offlineAfter": 10,
+  "locale": "pt-BR",
+  "symbols": [
+   {
+    "id": "a",
+    "type": "reel",
+    "x": 90,
+    "y": 100,
+    "w": 180,
+    "h": 180,
+    "rot": 0,
+    "key": "rpm",
+    "props": {
+     "label": "Desbobinador",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "b",
+    "type": "tag",
+    "x": 300,
+    "y": 80,
+    "w": 200,
+    "h": 70,
+    "rot": 0,
+    "key": "rpm",
+    "props": {
+     "title": "DESBOBINADOR",
+     "unit": "rpm",
+     "decimals": 0,
+     "min": 0,
+     "max": 2000,
+     "lo": "",
+     "hi": 1800,
+     "priority": "1"
+    }
+   },
+   {
+    "id": "c",
+    "type": "tag",
+    "x": 300,
+    "y": 180,
+    "w": 200,
+    "h": 70,
+    "rot": 0,
+    "key": "velocidade",
+    "props": {
+     "title": "VELOCIDADE",
+     "unit": "m/min",
+     "decimals": 1,
+     "min": "",
+     "max": "",
+     "lo": "",
+     "hi": "",
+     "priority": "2"
+    }
+   },
+   {
+    "id": "d",
+    "type": "reel",
+    "x": 560,
+    "y": 80,
+    "w": 180,
+    "h": 180,
+    "rot": 0,
+    "key": "rpmBob",
+    "props": {
+     "label": "Rebobinador",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   }
+  ],
+  "x": 420,
+  "y": 100,
+  "wires": []
+ },
+ {
+  "id": "hx_run",
+  "type": "inject",
+  "name": "rodando",
+  "props": [
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "once": true,
+  "onceDelay": "1",
+  "topic": "",
+  "payload": "{\"rpm\":1450,\"velocidade\":42.5,\"rpmBob\":0}",
+  "payloadType": "json",
+  "x": 150,
+  "y": 100,
+  "wires": [
+   [
+    "hx_canvas"
+   ]
+  ]
+ },
+ {
+  "id": "hx_alarm",
+  "type": "inject",
+  "name": "alarme (rpm acima de 1800)",
+  "props": [
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "once": false,
+  "topic": "",
+  "payload": "{\"rpm\":1950,\"rpmBob\":900}",
+  "payloadType": "json",
+  "x": 150,
+  "y": 180,
+  "wires": [
+   [
+    "hx_canvas"
+   ]
+  ]
+ },
+ {
+  "id": "hx_stop",
+  "type": "inject",
+  "name": "parado",
+  "props": [
+   {
+    "p": "payload"
+   }
+  ],
+  "repeat": "",
+  "once": false,
+  "topic": "",
+  "payload": "{\"rpm\":0,\"velocidade\":0,\"rpmBob\":0}",
+  "payloadType": "json",
+  "x": 150,
+  "y": 140,
+  "wires": [
+   [
+    "hx_canvas"
+   ]
+  ]
+ }
+]
