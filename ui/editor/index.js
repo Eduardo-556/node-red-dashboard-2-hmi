@@ -1,10 +1,11 @@
 // Drag-and-drop screen editor. Plain DOM, no framework, so the same editor
 // runs inside the Node-RED edit dialog and inside the dashboard page.
-import { SYMBOLS, createSymbol, renderSymbol, injectStyles } from '../symbols/index.js'
+import { SYMBOLS, createSymbol, renderSymbol, injectStyles, linePoints } from '../symbols/index.js'
 
 const GRID = 10
 const CSS_ID = 'hmi-editor-style'
 const clone = o => JSON.parse(JSON.stringify(o || []))
+let clipboard = null // shared by every editor on the page
 
 const CSS = `
 .hmi-ed { --hmi-ed-border: var(--red-ui-form-input-border-color, #c8ccd0); --hmi-ed-panel: var(--red-ui-secondary-background, #f3f4f5); --hmi-ed-bg: var(--red-ui-primary-background, #ffffff); --hmi-ed-text: var(--red-ui-primary-text-color, #222);
@@ -40,6 +41,13 @@ const CSS = `
 .hmi-ed-props h4 { margin: 4px 0 8px 0; font-size: 14px; }
 .hmi-ed-hint { font-size: 12px; opacity: .75; line-height: 1.5; }
 .hmi-ed-msg { font-size: 12px; }
+.hmi-ed-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.hmi-ed-palgroup { font-size: 11px; opacity: .65; margin: 0 2px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+.hmi-ed-palgroup:first-child { margin-left: 0; }
+.hmi-ed-btn.hmi-ed-small { padding: 2px 8px; min-height: 26px; font-size: 12px; }
+.hmi-ed-btnrow { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px 0; }
+.hmi-ed-point { fill: #fff; stroke: #1e88e5; stroke-width: 2; cursor: move; }
+.hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
 `
 
 function el (tag, attrs, text) {
@@ -61,7 +69,7 @@ export function parsePreview (text) {
 }
 
 /**
- * opts: symbols, getView() -> {w,h}, getTheme(), getLocale(), buttonClass,
+ * opts: symbols, getView() -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
  *       getValues() -> live values shown instead of test values,
  *       actions: [{ label, title, primary, onClick(editor) }], title, fill, onChange()
  */
@@ -74,7 +82,8 @@ export function createEditor (root, opts) {
     }
     const o = opts || {}
     const btnClass = 'hmi-ed-btn ' + (o.buttonClass || '')
-    const ed = { symbols: clone(o.symbols), sel: null, drag: null }
+    const ed = { symbols: clone(o.symbols), sel: null, drag: null, history: [], future: [] }
+    ed.history.push(clone(ed.symbols))
 
     root.classList.add('hmi-ed')
     if (o.fill) root.classList.add('hmi-ed-fill')
@@ -98,8 +107,8 @@ export function createEditor (root, opts) {
         toolbar.appendChild(b)
         return b
     }
-    btn('Duplicar', 'Duplicar o símbolo selecionado', () => duplicate())
-    btn('Excluir', 'Excluir o símbolo selecionado (Delete)', () => remove())
+    btn('↶', 'Desfazer (Ctrl+Z)', () => undo())
+    btn('↷', 'Refazer (Ctrl+Y)', () => redo())
     const api = {}
     for (const a of (o.actions || [])) a.button = btn(a.label, a.title, () => a.onClick(api), a.primary)
 
@@ -120,7 +129,29 @@ export function createEditor (root, opts) {
     }
     const snap = v => gridBox.checked ? Math.round(v / GRID) * GRID : Math.round(v)
     const selected = () => ed.symbols.find(s => s.id === ed.sel)
-    const changed = () => { if (o.onChange) o.onChange(api) }
+    const changed = () => {
+        ed.history.push(clone(ed.symbols))
+        if (ed.history.length > 100) ed.history.shift()
+        ed.future = []
+        if (o.onChange) o.onChange(api)
+    }
+    function restore (list) {
+        ed.symbols = clone(list)
+        if (!selected()) ed.sel = null
+        refresh()
+        if (o.onChange) o.onChange(api)
+    }
+    function undo () {
+        if (ed.history.length < 2) return
+        ed.future.push(ed.history.pop())
+        restore(ed.history[ed.history.length - 1])
+    }
+    function redo () {
+        if (!ed.future.length) return
+        const next = ed.future.pop()
+        ed.history.push(next)
+        restore(next)
+    }
 
     function toSvg (e) {
         const pt = svg.createSVGPoint()
@@ -133,7 +164,7 @@ export function createEditor (root, opts) {
         const v = view()
         const theme = (o.getTheme && o.getTheme()) === 'classic' ? 'classic' : 'isa101'
         svg.setAttribute('viewBox', '0 0 ' + v.w + ' ' + v.h)
-        svg.setAttribute('class', 'hmi-root hmi-theme-' + theme)
+        svg.setAttribute('class', 'hmi-root hmi-theme-' + theme + ((o.getBackground && o.getBackground()) === 'transparent' ? ' hmi-transparent' : ''))
         let out = '<rect class="hmi-bg" x="0" y="0" width="' + v.w + '" height="' + v.h + '"/>'
         if (gridBox.checked) {
             let g = ''
@@ -147,14 +178,23 @@ export function createEditor (root, opts) {
         for (const s of ed.symbols) if (s.key && s.preview !== undefined && !(s.key in previews)) previews[s.key] = s.preview
         for (const s of ed.symbols) if (s.key && SYMBOLS[s.type] && !(s.key in previews)) previews[s.key] = s.key in live ? live[s.key] : SYMBOLS[s.type].preview
         const locale = o.getLocale && o.getLocale()
+        const values = { ...live, ...previews }
         for (const s of ed.symbols) {
             const def = SYMBOLS[s.type]
             if (!def) continue
             const value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
-            out += renderSymbol(s, value, { locale })
+            out += renderSymbol(s, value, { locale, values, editor: true })
         }
         const s = selected()
-        if (s) {
+        if (s && SYMBOLS[s.type] && SYMBOLS[s.type].line) {
+            const pts = linePoints(s)
+            out += '<g transform="translate(' + s.x + ',' + s.y + ')">'
+            for (let i = 0; i < pts.length - 1; i++) {
+                out += '<circle class="hmi-ed-mid" data-mid="' + i + '" cx="' + (pts[i][0] + pts[i + 1][0]) / 2 + '" cy="' + (pts[i][1] + pts[i + 1][1]) / 2 + '" r="5"/>'
+            }
+            pts.forEach((pt, i) => { out += '<circle class="hmi-ed-point" data-point="' + i + '" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>' })
+            out += '</g>'
+        } else if (s) {
             const rot = Number(s.rot) || 0
             out += '<g transform="translate(' + s.x + ',' + s.y + ')' + (rot ? ' rotate(' + rot + ',' + s.w / 2 + ',' + s.h / 2 + ')' : '') + '">' +
                 '<rect class="hmi-ed-sel" x="-3" y="-3" width="' + (s.w + 6) + '" height="' + (s.h + 6) + '"/>' +
@@ -198,16 +238,27 @@ export function createEditor (root, opts) {
         const s = selected()
         if (!s) {
             const h = el('div', { class: 'hmi-ed-hint' })
-            h.innerHTML = 'Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10).'
+            h.innerHTML = 'Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica.'
             props.appendChild(h)
             return
         }
         const def = SYMBOLS[s.type]
         props.appendChild(el('h4', {}, def.label))
+        const row = el('div', { class: 'hmi-ed-btnrow' })
+        for (const [label, title, fn] of [['Duplicar', 'Ctrl+D', duplicate], ['Frente', 'Trazer para a frente', () => order(1)], ['Trás', 'Mandar para trás', () => order(-1)], ['Excluir', 'Delete', remove]]) {
+            const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
+            b.addEventListener('click', fn)
+            row.appendChild(b)
+        }
+        props.appendChild(row)
         props.appendChild(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
         props.appendChild(pair(field('X', s.x, 'number', v => { s.x = Number(v) || 0 }), field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })))
-        props.appendChild(pair(field('Largura', s.w, 'number', v => { s.w = Math.max(10, Number(v) || 10) }), field('Altura', s.h, 'number', v => { s.h = Math.max(10, Number(v) || 10) })))
-        props.appendChild(field('Rotação', s.rot || 0, 'select', v => { s.rot = Number(v) }, [['0', '0°'], ['90', '90°'], ['180', '180°'], ['270', '270°']]))
+        if (def.line) {
+            props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga.'))
+        } else {
+            props.appendChild(pair(field('Largura', s.w, 'number', v => { s.w = Math.max(10, Number(v) || 10) }), field('Altura', s.h, 'number', v => { s.h = Math.max(10, Number(v) || 10) })))
+            props.appendChild(field('Rotação', s.rot || 0, 'select', v => { s.rot = Number(v) }, [['0', '0°'], ['90', '90°'], ['180', '180°'], ['270', '270°']]))
+        }
         for (const fd of def.fields) {
             props.appendChild(field(fd.label, s.props[fd.key], fd.type, v => { s.props[fd.key] = fd.type === 'number' && v !== '' ? Number(v) : v }, fd.options))
         }
@@ -238,18 +289,44 @@ export function createEditor (root, opts) {
         changed()
     }
 
-    function duplicate () {
-        const s = selected()
-        if (!s) return
-        const c = createSymbol(s.type, s.x + 20, s.y + 20)
-        Object.assign(c, clone(s), { id: c.id, x: s.x + 20, y: s.y + 20 })
+    function paste (src) {
+        if (!src || !SYMBOLS[src.type]) return
+        const c = createSymbol(src.type, src.x + 20, src.y + 20)
+        Object.assign(c, clone(src), { id: c.id, x: src.x + 20, y: src.y + 20 })
         ed.symbols.push(c)
         ed.sel = c.id
         refresh()
         changed()
+        return c
+    }
+    function duplicate () { paste(selected()) }
+    function order (dir) {
+        const i = ed.symbols.findIndex(s => s.id === ed.sel)
+        if (i < 0) return
+        const [s] = ed.symbols.splice(i, 1)
+        if (dir > 0) ed.symbols.push(s)
+        else ed.symbols.unshift(s)
+        draw()
+        changed()
+    }
+    function normalizeLine (s) {
+        const pts = linePoints(s)
+        if (!pts.length) return
+        const minX = Math.min(...pts.map(p => p[0]))
+        const minY = Math.min(...pts.map(p => p[1]))
+        s.x += minX
+        s.y += minY
+        s.props.points = pts.map(p => [p[0] - minX, p[1] - minY])
+        s.w = Math.max(1, Math.max(...s.props.points.map(p => p[0])))
+        s.h = Math.max(1, Math.max(...s.props.points.map(p => p[1])))
     }
 
+    let lastGroup = null
     for (const [type, def] of Object.entries(SYMBOLS)) {
+        if (def.group && def.group !== lastGroup) {
+            palette.appendChild(el('span', { class: 'hmi-ed-palgroup' }, def.group))
+            lastGroup = def.group
+        }
         const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-pal', draggable: 'true', title: 'Arraste para a tela ou clique' }, '+ ' + def.label)
         b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', 'hmi:' + type) })
         b.addEventListener('click', () => { const v = view(); add(type, v.w / 2, v.h / 2) })
@@ -267,7 +344,25 @@ export function createEditor (root, opts) {
     svg.addEventListener('pointerdown', e => {
         stage.focus()
         const p = toSvg(e)
-        if (e.target.closest('[data-handle]')) {
+        const pointEl = e.target.closest('[data-point], [data-mid]')
+        if (pointEl && selected()) {
+            const s = selected()
+            let i = Number(pointEl.getAttribute('data-point'))
+            if (pointEl.hasAttribute('data-mid')) {
+                i = Number(pointEl.getAttribute('data-mid')) + 1
+                const pts = linePoints(s)
+                pts.splice(i, 0, [p.x - s.x, p.y - s.y])
+                s.props.points = pts
+            }
+            if (e.detail === 2 && pointEl.hasAttribute('data-point') && linePoints(s).length > 2) {
+                s.props.points = linePoints(s).filter((pt, k) => k !== i)
+                normalizeLine(s)
+                refresh()
+                changed()
+                return
+            }
+            ed.drag = { mode: 'point', i, start: p, moved: pointEl.hasAttribute('data-mid') }
+        } else if (e.target.closest('[data-handle]')) {
             const s = selected()
             ed.drag = { mode: 'size', start: p, w: s.w, h: s.h }
         } else {
@@ -286,7 +381,13 @@ export function createEditor (root, opts) {
         const s = selected()
         if (!d || !s) return
         const p = toSvg(e)
-        if (d.mode === 'move') {
+        if (d.mode === 'point') {
+            const pts = linePoints(s)
+            pts[d.i] = [snap(p.x) - s.x, snap(p.y) - s.y]
+            s.props.points = pts
+            s.w = Math.max(1, ...pts.map(q => q[0]))
+            s.h = Math.max(1, ...pts.map(q => q[1]))
+        } else if (d.mode === 'move') {
             s.x = snap(d.x + p.x - d.start.x)
             s.y = snap(d.y + p.y - d.start.y)
         } else {
@@ -299,7 +400,10 @@ export function createEditor (root, opts) {
     const endDrag = () => {
         if (!ed.drag) return
         const moved = ed.drag.moved
+        const s = selected()
+        if (ed.drag.mode === 'point' && s) normalizeLine(s)
         ed.drag = null
+        draw()
         showProps()
         if (moved) changed()
     }
@@ -307,6 +411,18 @@ export function createEditor (root, opts) {
     svg.addEventListener('pointercancel', endDrag)
 
     stage.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase()
+        if (e.ctrlKey || e.metaKey) {
+            if (k === 'z' && !e.shiftKey) undo()
+            else if (k === 'y' || (k === 'z' && e.shiftKey)) redo()
+            else if (k === 'c' && selected()) clipboard = clone(selected())
+            else if (k === 'v' && clipboard) clipboard = paste(clipboard) || clipboard
+            else if (k === 'd') duplicate()
+            else return
+            e.preventDefault()
+            e.stopPropagation()
+            return
+        }
         const s = selected()
         if (!s) return
         const step = e.shiftKey ? 10 : 1

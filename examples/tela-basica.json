@@ -68,21 +68,107 @@
  {
   "id": "hx_canvas",
   "type": "ui-hmi-canvas",
-  "name": "Linha",
+  "name": "Slitter",
   "order": 1,
-  "viewW": 800,
-  "viewH": 360,
+  "viewW": 1000,
+  "viewH": 520,
   "theme": "isa101",
   "offlineAfter": 10,
   "locale": "pt-BR",
   "symbols": [
    {
-    "id": "a",
-    "type": "reel",
-    "x": 90,
-    "y": 100,
+    "id": "t1",
+    "type": "text",
+    "x": 20,
+    "y": 14,
+    "w": 400,
+    "h": 30,
+    "rot": 0,
+    "key": "",
+    "props": {
+     "text": "SLITTER - LINHA 1",
+     "size": 22,
+     "align": "start",
+     "bold": "yes",
+     "tone": "normal",
+     "unit": "",
+     "decimals": ""
+    }
+   },
+   {
+    "id": "ch",
+    "type": "chip",
+    "x": 800,
+    "y": 12,
     "w": 180,
-    "h": 180,
+    "h": 34,
+    "rot": 0,
+    "key": "rodando",
+    "props": {
+     "textOn": "RODANDO",
+     "textOff": "PARADA",
+     "color": "auto",
+     "blink": "no",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "fr",
+    "type": "frame",
+    "x": 30,
+    "y": 120,
+    "w": 940,
+    "h": 250,
+    "rot": 0,
+    "key": "",
+    "props": {
+     "shape": "round",
+     "tone": "equip",
+     "label": ""
+    }
+   },
+   {
+    "id": "ln1",
+    "type": "line",
+    "x": 200,
+    "y": 210,
+    "w": 600,
+    "h": 40,
+    "rot": 0,
+    "key": "velocidade",
+    "props": {
+     "style": "strip",
+     "flow": "auto",
+     "points": [
+      [
+       0,
+       40
+      ],
+      [
+       200,
+       0
+      ],
+      [
+       400,
+       0
+      ],
+      [
+       600,
+       40
+      ]
+     ],
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "u",
+    "type": "reel",
+    "x": 110,
+    "y": 170,
+    "w": 160,
+    "h": 160,
     "rot": 0,
     "key": "rpm",
     "props": {
@@ -92,16 +178,78 @@
     }
    },
    {
-    "id": "b",
-    "type": "tag",
-    "x": 300,
-    "y": 80,
-    "w": 200,
+    "id": "r1",
+    "type": "roller",
+    "x": 388,
+    "y": 198,
+    "w": 24,
+    "h": 24,
+    "rot": 0,
+    "key": "velocidade",
+    "props": {
+     "dir": "cw",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "r2",
+    "type": "roller",
+    "x": 588,
+    "y": 198,
+    "w": 24,
+    "h": 24,
+    "rot": 0,
+    "key": "velocidade",
+    "props": {
+     "dir": "cw",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "w",
+    "type": "reel",
+    "x": 730,
+    "y": 170,
+    "w": 160,
+    "h": 160,
+    "rot": 0,
+    "key": "rpmBob",
+    "props": {
+     "label": "Rebobinador",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "m",
+    "type": "motor",
+    "x": 465,
+    "y": 270,
+    "w": 70,
     "h": 70,
+    "rot": 0,
+    "key": "rodando",
+    "props": {
+     "label": "M1",
+     "faultKey": "falhaM1",
+     "priority": "1",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "tg1",
+    "type": "tag",
+    "x": 40,
+    "y": 56,
+    "w": 160,
+    "h": 64,
     "rot": 0,
     "key": "rpm",
     "props": {
-     "title": "DESBOBINADOR",
+     "title": "DESBOB. RPM",
      "unit": "rpm",
      "decimals": 0,
      "min": 0,
@@ -112,12 +260,12 @@
     }
    },
    {
-    "id": "c",
+    "id": "tg2",
     "type": "tag",
-    "x": 300,
-    "y": 180,
-    "w": 200,
-    "h": 70,
+    "x": 220,
+    "y": 56,
+    "w": 160,
+    "h": 64,
     "rot": 0,
     "key": "velocidade",
     "props": {
@@ -132,16 +280,69 @@
     }
    },
    {
-    "id": "d",
-    "type": "reel",
-    "x": 560,
-    "y": 80,
-    "w": 180,
-    "h": 180,
+    "id": "k",
+    "type": "kpi",
+    "x": 620,
+    "y": 390,
+    "w": 300,
+    "h": 110,
     "rot": 0,
-    "key": "rpmBob",
+    "key": "bobinas",
     "props": {
-     "label": "Rebobinador",
+     "title": "BOBINAS PRONTAS",
+     "unit": "",
+     "decimals": 0,
+     "subtitle": "turno atual"
+    }
+   },
+   {
+    "id": "l1",
+    "type": "led",
+    "x": 60,
+    "y": 410,
+    "w": 28,
+    "h": 28,
+    "rot": 0,
+    "key": "rodando",
+    "props": {
+     "label": "Rodando",
+     "color": "auto",
+     "blink": "no",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "l2",
+    "type": "led",
+    "x": 140,
+    "y": 410,
+    "w": 28,
+    "h": 28,
+    "rot": 0,
+    "key": "falhaM1",
+    "props": {
+     "label": "Falha M1",
+     "color": "alarm",
+     "blink": "yes",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "al",
+    "type": "alarm",
+    "x": 200,
+    "y": 390,
+    "w": 400,
+    "h": 96,
+    "rot": 0,
+    "key": "emergencia",
+    "props": {
+     "text": "EMERGÊNCIA ACIONADA",
+     "sub": "Verifique os botões de emergência",
+     "priority": "1",
+     "blink": "yes",
      "onWhen": "nonzero",
      "threshold": 0
     }
@@ -152,7 +353,8 @@
   "wires": [],
   "scope": "page",
   "page": "hx_page",
-  "fit": "screen"
+  "fit": "screen",
+  "background": "theme"
  },
  {
   "id": "hx_run",
@@ -167,7 +369,7 @@
   "once": true,
   "onceDelay": "1",
   "topic": "",
-  "payload": "{\"rpm\":1450,\"velocidade\":42.5,\"rpmBob\":0}",
+  "payload": "{\"rodando\": 1, \"rpm\": 1450, \"velocidade\": 42.5, \"rpmBob\": 980, \"bobinas\": 12, \"falhaM1\": 0, \"emergencia\": 0}",
   "payloadType": "json",
   "x": 150,
   "y": 100,
@@ -180,7 +382,7 @@
  {
   "id": "hx_alarm",
   "type": "inject",
-  "name": "alarme (rpm acima de 1800)",
+  "name": "falha M1 + emergência",
   "props": [
    {
     "p": "payload"
@@ -189,7 +391,7 @@
   "repeat": "",
   "once": false,
   "topic": "",
-  "payload": "{\"rpm\":1950,\"rpmBob\":900}",
+  "payload": "{\"rpm\": 1950, \"falhaM1\": 1, \"emergencia\": 1}",
   "payloadType": "json",
   "x": 150,
   "y": 180,
@@ -211,7 +413,7 @@
   "repeat": "",
   "once": false,
   "topic": "",
-  "payload": "{\"rpm\":0,\"velocidade\":0,\"rpmBob\":0}",
+  "payload": "{\"rodando\": 0, \"rpm\": 0, \"velocidade\": 0, \"rpmBob\": 0}",
   "payloadType": "json",
   "x": 150,
   "y": 140,

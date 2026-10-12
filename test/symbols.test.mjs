@@ -33,8 +33,30 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        assert.ok(renderSymbol(s, undefined).includes('hmi-unknown'))
+        if (type === 'frame') continue // static drawing, no value
+        s.key = 'k'
+        if (type === 'alarm') {
+            // hidden when not active, shown as a ghost in the editor
+            assert.ok(!renderSymbol(s, undefined).includes('hmi-alarm-banner'))
+            assert.ok(renderSymbol(s, undefined, { editor: true }).length > 0)
+            continue
+        }
+        assert.ok(renderSymbol(s, undefined).includes('hmi-unknown'), type)
     }
+})
+
+test('motor fault comes from its fault key', () => {
+    const s = createSymbol('motor', 0, 0)
+    s.key = 'run'
+    s.props.faultKey = 'trip'
+    assert.ok(!renderSymbol(s, 1, { values: { run: 1, trip: 0 } }).includes('hmi-p1'))
+    assert.ok(renderSymbol(s, 1, { values: { run: 1, trip: 1 } }).includes('hmi-p1'))
+})
+
+test('line follows its points', () => {
+    const s = createSymbol('line', 10, 10)
+    s.props.points = [[0, 0], [100, 0], [100, 50]]
+    assert.ok(renderSymbol(s, 1).includes('d="M0 0L100 0L100 50"'))
 })
 
 test('reel state classes', () => {

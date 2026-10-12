@@ -2,7 +2,7 @@
 
 Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols onto a canvas. Wire one object (for example the output of `node-red-contrib-schneider-modbus-tags`) into the canvas and every symbol shows its own key. No SVG or Vue to write.
 
-> **Status: prototype (0.0.x).** Two symbols (reel and tag) and the drag-and-drop editor. Not published to npm yet.
+> **Status: prototype (0.0.x).** Eleven symbols, lines, and the drag-and-drop editor. Not published to npm yet.
 
 [Português](#português) · [English](#english)
 
@@ -24,8 +24,26 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 
 | Símbolo | Mostra |
 |---|---|
-| Bobina | Ligada (valor ≠ 0, ou acima de um limite) ou parada. No tema Clássico ela gira. |
-| Tag | Título, valor formatado e unidade. Com escala e faixa normal, mostra uma barra; fora da faixa, entra em alarme com indicador de prioridade. |
+| Grupo | Símbolo | Mostra |
+|---|---|---|
+| Equipamentos | Bobina | Ligada (valor ≠ 0, ou acima de um limite) ou parada. No tema Clássico ela gira. |
+| | Rolo | Rolo guia, ligado ou parado, com sentido de giro. |
+| | Motor | Ligado ou parado. Com **chave de falha**, fica com borda e indicador de alarme quando a falha está ativa. |
+| | Corpo | Desenho fixo do corpo da máquina: retângulo, arredondado, chanfrado, arco ou círculo. Não usa valor. |
+| | Linha | Material, tubo, esteira ou sinal ligando equipamentos. Anima o fluxo quando ligada. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
+| Valores | Tag | Título, valor formatado e unidade. Com escala e faixa normal, mostra uma barra; fora da faixa, entra em alarme com indicador de prioridade. |
+| | KPI | Número grande com título e subtítulo, ex. bobinas prontas no turno. |
+| | Texto | Texto fixo, ou texto seguido do valor quando tem chave. |
+| Estados | LED | Ligado ou desligado, com cor (tema, alarme, atenção, informação) e opção de piscar. |
+| | Status | Etiqueta com texto diferente para ligado e desligado (ex. RODANDO / PARADA). |
+| | Alarme | Faixa de alarme com prioridade. Só aparece quando o valor está ativo. |
+
+### Editor
+
+- Arraste da barra de cima ou clique no símbolo para colocar no meio.
+- Botões **Duplicar**, **Frente**, **Trás** e **Excluir** no painel do símbolo.
+- **↶ / ↷** desfazem e refazem.
+- Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica.
 
 ### Temas
 
@@ -38,6 +56,7 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 |---|---|
 | Show in | Página inteira ou dentro de um grupo. |
 | Screen | Tamanho da tela em pixels (o sistema de coordenadas dos símbolos). |
+| Background | **Cor do tema** ou **Transparente** (aparece o fundo da página do dashboard). |
 | Fit | **Caber na tela**: a tela inteira aparece sem rolar. **Largura toda**: ocupa a largura e a altura acompanha. |
 | Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
 | Number format | Formato dos números, ex. `pt-BR` (1.450,5) ou `en-US` (1,450.5). |
@@ -55,13 +74,15 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
+Symbols: reel, roller, motor (with fault key), machine body, line (strip, pipe, conveyor, signal; editable points), tag, KPI, text, LED, status chip and alarm banner. Editor: undo/redo, copy/paste, duplicate, bring to front/send to back. **Background** can be the theme colour or transparent.
+
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 
 ## Development
 
 ```
 npm install
-npm run build   # widget (resources/ui-hmi-canvas.umd.js) and editor library (resources/hmi-symbols.js)
+npm run build   # widget (resources/ui-hmi-canvas.umd.js) and editor library (resources/hmi-editor.js)
 npm test
 ```
 

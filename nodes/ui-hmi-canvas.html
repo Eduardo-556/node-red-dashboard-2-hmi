@@ -68,6 +68,7 @@
             buttonClass: 'red-ui-button',
             getView: () => ({ w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() }),
             getTheme: () => $('#node-input-theme').val(),
+            getBackground: () => $('#node-input-background').val(),
             getLocale: () => $('#node-input-locale').val(),
             onChange: () => { editor._dirty = true },
             actions: [
@@ -75,7 +76,7 @@
                 { label: 'Editar no dashboard', title: 'Abrir a página do dashboard em outra aba, em modo de edição', onClick: () => openInDashboard(node, editor) }
             ]
         })
-        $('#node-input-theme, #node-input-viewW, #node-input-viewH, #node-input-locale').on('change input', () => editor.redraw())
+        $('#node-input-theme, #node-input-background, #node-input-viewW, #node-input-viewH, #node-input-locale').on('change input', () => editor.redraw())
         return editor
     }
 
@@ -113,6 +114,7 @@
             viewW: { value: 1280, required: true, validate: RED.validators.number() },
             viewH: { value: 720, required: true, validate: RED.validators.number() },
             theme: { value: 'isa101' },
+            background: { value: 'theme' },
             offlineAfter: { value: 10, validate: RED.validators.number(true) },
             locale: { value: 'pt-BR' },
             symbols: { value: [] }
@@ -198,6 +200,13 @@
         </select>
     </div>
     <div class="form-row">
+        <label for="node-input-background"><i class="fa fa-square-o"></i> Background</label>
+        <select id="node-input-background" style="width: 200px">
+            <option value="theme">Cor do tema</option>
+            <option value="transparent">Transparente</option>
+        </select>
+    </div>
+    <div class="form-row">
         <label for="node-input-offlineAfter"><i class="fa fa-chain-broken"></i> Offline after</label>
         <input type="number" id="node-input-offlineAfter" style="width: 90px"> s without data (0 = off)
     </div>
@@ -227,5 +236,6 @@
         <dd>With a non-object payload, the value is stored under this key.</dd>
     </dl>
     <h3>Themes</h3>
+    <p><b>Background</b>: <i>Transparente</i> removes the canvas fill so the dashboard page shows through.</p>
     <p><b>ISA-101</b>: grey, flat symbols; colour only for abnormal states and alarms. <b>Clássico</b>: dark theme with animated reels.</p>
 </script>

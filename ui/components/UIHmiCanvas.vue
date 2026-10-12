@@ -2,7 +2,7 @@
     <div class="hmi-canvas-wrapper">
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            :class="['hmi-root', 'hmi-theme-' + theme, { 'hmi-offline': offline }]"
+            :class="['hmi-root', 'hmi-theme-' + theme, { 'hmi-offline': offline, 'hmi-transparent': transparent }]"
             :style="svgStyle"
             :viewBox="'0 0 ' + viewW + ' ' + viewH"
             preserveAspectRatio="xMidYMid meet"
@@ -48,6 +48,7 @@ export default {
         viewW () { return Number(this.props.viewW) || 1280 },
         viewH () { return Number(this.props.viewH) || 720 },
         theme () { return this.props.theme === 'classic' ? 'classic' : 'isa101' },
+        transparent () { return this.props.background === 'transparent' },
         editing () { return !!this.edit },
         offline () {
             const s = Number(this.props.offlineAfter) || 0
@@ -92,7 +93,7 @@ export default {
         onInput (msg) { this.apply(msg) },
         onLoad (msg) { this.apply(msg) },
         draw (s) {
-            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale })
+            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values })
         },
         openEditor () {
             const vm = this
@@ -103,6 +104,7 @@ export default {
                 fill: true,
                 getView: () => ({ w: vm.viewW, h: vm.viewH }),
                 getTheme: () => vm.theme,
+                getBackground: () => vm.props.background,
                 getLocale: () => vm.props.locale,
                 onChange: (ed) => ed.setMessage('Alterações não salvas'),
                 actions: [

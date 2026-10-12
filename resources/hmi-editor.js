@@ -5,9 +5,47 @@ var HmiEditor = (function(exports) {
 		isa101: "ISA-101",
 		classic: "Clássico"
 	};
+	var ON_FIELDS = [{
+		key: "onWhen",
+		label: "Ligado quando",
+		type: "select",
+		options: [["nonzero", "valor ≠ 0 / true"], ["gt", "valor > limite"]]
+	}, {
+		key: "threshold",
+		label: "Limite",
+		type: "number"
+	}];
+	var COLOR_FIELD = {
+		key: "color",
+		label: "Cor quando ligado",
+		type: "select",
+		options: [
+			["auto", "Do tema"],
+			["alarm", "Alarme (vermelho)"],
+			["warn", "Atenção (amarelo)"],
+			["info", "Informação (azul)"]
+		]
+	};
+	var BLINK_FIELD = {
+		key: "blink",
+		label: "Piscar quando ligado",
+		type: "select",
+		options: [["no", "Não"], ["yes", "Sim"]]
+	};
+	var PRIORITY_FIELD = {
+		key: "priority",
+		label: "Prioridade do alarme",
+		type: "select",
+		options: [
+			["1", "1 (alta)"],
+			["2", "2 (média)"],
+			["3", "3 (baixa)"]
+		]
+	};
 	var SYMBOLS = {
 		reel: {
 			label: "Bobina",
+			group: "Equipamentos",
 			w: 160,
 			h: 160,
 			preview: 1450,
@@ -16,28 +54,147 @@ var HmiEditor = (function(exports) {
 				onWhen: "nonzero",
 				threshold: 0
 			},
+			fields: [{
+				key: "label",
+				label: "Legenda",
+				type: "text"
+			}, ...ON_FIELDS],
+			render: renderReel
+		},
+		roller: {
+			label: "Rolo",
+			group: "Equipamentos",
+			w: 24,
+			h: 24,
+			preview: 1,
+			defaults: {
+				onWhen: "nonzero",
+				threshold: 0,
+				dir: "cw"
+			},
+			fields: [...ON_FIELDS, {
+				key: "dir",
+				label: "Sentido",
+				type: "select",
+				options: [["cw", "Horário"], ["ccw", "Anti-horário"]]
+			}],
+			render: renderRoller
+		},
+		motor: {
+			label: "Motor",
+			group: "Equipamentos",
+			w: 70,
+			h: 70,
+			preview: 1,
+			defaults: {
+				label: "",
+				onWhen: "nonzero",
+				threshold: 0,
+				faultKey: "",
+				priority: "1"
+			},
 			fields: [
 				{
 					key: "label",
 					label: "Legenda",
 					type: "text"
 				},
+				...ON_FIELDS,
 				{
-					key: "onWhen",
-					label: "Ligada quando",
+					key: "faultKey",
+					label: "Chave da falha (opcional)",
+					type: "text"
+				},
+				PRIORITY_FIELD
+			],
+			render: renderMotor
+		},
+		frame: {
+			label: "Corpo",
+			group: "Equipamentos",
+			w: 240,
+			h: 300,
+			preview: void 0,
+			defaults: {
+				shape: "chamfer",
+				tone: "equip",
+				label: ""
+			},
+			fields: [
+				{
+					key: "shape",
+					label: "Forma",
 					type: "select",
-					options: [["nonzero", "valor ≠ 0"], ["gt", "valor > limite"]]
+					options: [
+						["rect", "Retângulo"],
+						["round", "Cantos redondos"],
+						["chamfer", "Chanfrado em cima"],
+						["arcLeft", "Curva à esquerda"],
+						["arcRight", "Curva à direita"],
+						["circle", "Círculo"]
+					]
 				},
 				{
-					key: "threshold",
-					label: "Limite",
-					type: "number"
+					key: "tone",
+					label: "Tom",
+					type: "select",
+					options: [
+						["equip", "Equipamento"],
+						["dark", "Escuro"],
+						["pit", "Fosso / vazio"]
+					]
+				},
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
 				}
 			],
-			render: renderReel
+			render: renderFrame
+		},
+		line: {
+			label: "Linha",
+			group: "Equipamentos",
+			w: 200,
+			h: 1,
+			preview: 1,
+			line: true,
+			defaults: {
+				style: "strip",
+				onWhen: "nonzero",
+				threshold: 0,
+				flow: "auto",
+				points: [[0, 0], [200, 0]]
+			},
+			fields: [
+				{
+					key: "style",
+					label: "Tipo",
+					type: "select",
+					options: [
+						["strip", "Chapa / material"],
+						["pipe", "Tubulação"],
+						["conveyor", "Esteira"],
+						["signal", "Sinal / ligação"]
+					]
+				},
+				...ON_FIELDS,
+				{
+					key: "flow",
+					label: "Animar fluxo",
+					type: "select",
+					options: [
+						["auto", "Só no tema Clássico"],
+						["always", "Sempre"],
+						["never", "Nunca"]
+					]
+				}
+			],
+			render: renderLine
 		},
 		tag: {
 			label: "Tag",
+			group: "Valores",
 			w: 160,
 			h: 64,
 			preview: 42.5,
@@ -87,18 +244,193 @@ var HmiEditor = (function(exports) {
 					label: "Normal até",
 					type: "number"
 				},
-				{
-					key: "priority",
-					label: "Prioridade do alarme",
-					type: "select",
-					options: [
-						["1", "1 (alta)"],
-						["2", "2 (média)"],
-						["3", "3 (baixa)"]
-					]
-				}
+				PRIORITY_FIELD
 			],
 			render: renderTag
+		},
+		kpi: {
+			label: "KPI",
+			group: "Valores",
+			w: 300,
+			h: 140,
+			preview: 7,
+			defaults: {
+				title: "BOBINAS PRONTAS",
+				unit: "",
+				decimals: 0,
+				subtitle: ""
+			},
+			fields: [
+				{
+					key: "title",
+					label: "Título",
+					type: "text"
+				},
+				{
+					key: "unit",
+					label: "Unidade",
+					type: "text"
+				},
+				{
+					key: "decimals",
+					label: "Casas decimais",
+					type: "number"
+				},
+				{
+					key: "subtitle",
+					label: "Subtítulo",
+					type: "text"
+				}
+			],
+			render: renderKpi
+		},
+		text: {
+			label: "Texto",
+			group: "Valores",
+			w: 220,
+			h: 30,
+			preview: void 0,
+			defaults: {
+				text: "Texto",
+				size: 16,
+				align: "middle",
+				bold: "no",
+				tone: "normal",
+				unit: "",
+				decimals: ""
+			},
+			fields: [
+				{
+					key: "text",
+					label: "Texto (antes do valor, se tiver chave)",
+					type: "text"
+				},
+				{
+					key: "size",
+					label: "Tamanho",
+					type: "number"
+				},
+				{
+					key: "align",
+					label: "Alinhamento",
+					type: "select",
+					options: [
+						["start", "Esquerda"],
+						["middle", "Centro"],
+						["end", "Direita"]
+					]
+				},
+				{
+					key: "bold",
+					label: "Negrito",
+					type: "select",
+					options: [["no", "Não"], ["yes", "Sim"]]
+				},
+				{
+					key: "tone",
+					label: "Cor",
+					type: "select",
+					options: [["normal", "Normal"], ["dim", "Discreta"]]
+				},
+				{
+					key: "unit",
+					label: "Unidade",
+					type: "text"
+				},
+				{
+					key: "decimals",
+					label: "Casas decimais",
+					type: "number"
+				}
+			],
+			render: renderText
+		},
+		led: {
+			label: "LED",
+			group: "Estados",
+			w: 28,
+			h: 28,
+			preview: true,
+			defaults: {
+				label: "",
+				onWhen: "nonzero",
+				threshold: 0,
+				color: "auto",
+				blink: "no"
+			},
+			fields: [
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				},
+				...ON_FIELDS,
+				COLOR_FIELD,
+				BLINK_FIELD
+			],
+			render: renderLed
+		},
+		chip: {
+			label: "Status",
+			group: "Estados",
+			w: 180,
+			h: 34,
+			preview: true,
+			defaults: {
+				textOn: "LIGADO",
+				textOff: "DESLIGADO",
+				onWhen: "nonzero",
+				threshold: 0,
+				color: "auto",
+				blink: "no"
+			},
+			fields: [
+				{
+					key: "textOn",
+					label: "Texto ligado",
+					type: "text"
+				},
+				{
+					key: "textOff",
+					label: "Texto desligado",
+					type: "text"
+				},
+				...ON_FIELDS,
+				COLOR_FIELD,
+				BLINK_FIELD
+			],
+			render: renderChip
+		},
+		alarm: {
+			label: "Alarme",
+			group: "Estados",
+			w: 600,
+			h: 96,
+			preview: true,
+			defaults: {
+				text: "EMERGÊNCIA ACIONADA",
+				sub: "",
+				onWhen: "nonzero",
+				threshold: 0,
+				priority: "1",
+				blink: "yes"
+			},
+			fields: [
+				{
+					key: "text",
+					label: "Texto",
+					type: "text"
+				},
+				{
+					key: "sub",
+					label: "Texto menor",
+					type: "text"
+				},
+				...ON_FIELDS,
+				PRIORITY_FIELD,
+				BLINK_FIELD
+			],
+			render: renderAlarm
 		}
 	};
 	var counter = 0;
@@ -115,7 +447,7 @@ var HmiEditor = (function(exports) {
 			h: def.h,
 			rot: 0,
 			key: "",
-			props: { ...def.defaults }
+			props: JSON.parse(JSON.stringify(def.defaults))
 		};
 	}
 	function valueFor(sym, values) {
@@ -180,8 +512,7 @@ var HmiEditor = (function(exports) {
 		const cx = w / 2;
 		const cy = h / 2;
 		const r = Math.max(4, Math.min(w, h) / 2 - 2);
-		const on = isOn(value, p.onWhen, p.threshold);
-		const cls = on === null ? "hmi-unknown" : on ? "hmi-on" : "hmi-off";
+		const cls = stateClass(isOn(value, p.onWhen, p.threshold));
 		const spokes = [
 			-90,
 			30,
@@ -190,8 +521,124 @@ var HmiEditor = (function(exports) {
 			const rad = a * Math.PI / 180;
 			return `<line x1="${f(cx + Math.cos(rad) * r * .32)}" y1="${f(cy + Math.sin(rad) * r * .32)}" x2="${f(cx + Math.cos(rad) * r * .9)}" y2="${f(cy + Math.sin(rad) * r * .9)}"/>`;
 		}).join("");
-		const label = p.label ? `<text class="hmi-label" x="${f(cx)}" y="${f(h + 18)}">${escapeXml(p.label)}</text>` : "";
+		const label = labelBelow(p, w, h);
 		return `<g class="hmi-reel ${cls}"><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><g class="hmi-spin"><circle class="hmi-ring" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .78)}"/><circle class="hmi-ring" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .58)}"/><g class="hmi-spokes">${spokes}</g><circle class="hmi-hub" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .3)}"/></g><circle class="hmi-axle" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .09)}"/>` + label + "</g>";
+	}
+	var stateClass = (on) => on === null ? "hmi-unknown" : on ? "hmi-on" : "hmi-off";
+	var colorClass = (p) => "hmi-c-" + ([
+		"alarm",
+		"warn",
+		"info"
+	].includes(p.color) ? p.color : "auto");
+	var blinkClass = (p, on) => on && p.blink === "yes" ? " hmi-blink" : "";
+	var labelBelow = (p, w, h) => p.label ? `<text class="hmi-label" x="${f(w / 2)}" y="${f(h + 18)}">${escapeXml(p.label)}</text>` : "";
+	function renderRoller(sym, value) {
+		const p = sym.props || {};
+		const cx = sym.w / 2;
+		const cy = sym.h / 2;
+		const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1);
+		return `<g class="hmi-roller ${stateClass(isOn(value, p.onWhen, p.threshold))} hmi-${p.dir === "ccw" ? "ccw" : "cw"}"><g class="hmi-spin"><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><line class="hmi-mark" x1="${f(cx)}" y1="${f(cy - r * .7)}" x2="${f(cx)}" y2="${f(cy + r * .7)}"/></g></g>`;
+	}
+	function renderMotor(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const r = Math.max(6, Math.min(w, h * .86) / 2 - 2);
+		const cx = w / 2;
+		const cy = r + 2;
+		const on = isOn(value, p.onWhen, p.threshold);
+		const fault = p.faultKey && opts.values ? isOn(opts.values[p.faultKey], "nonzero") === true : false;
+		let out = `<g class="hmi-motor ${stateClass(on)}${fault ? " hmi-fault" : ""}"><rect class="hmi-foot" x="${f(cx - r * .8)}" y="${f(cy + r - 2)}" width="${f(r * 1.6)}" height="${f(Math.max(4, h - cy - r + 2))}" rx="2"/><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><text class="hmi-motor-m" x="${f(cx)}" y="${f(cy)}" font-size="${f(r * .9)}">M</text>`;
+		if (fault) out += alarmIndicator(w - 4, 6, p.priority);
+		return out + labelBelow(p, w, h) + "</g>";
+	}
+	function framePath(shape, w, h) {
+		const c = Math.min(w, h) * .15;
+		const a = Math.min(w, h) * .3;
+		switch (shape) {
+			case "round": return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}" rx="${f(Math.min(w, h) * .08)}"/>`;
+			case "chamfer": return `<path class="hmi-body" d="M0 ${f(h)}V${f(c)}L${f(c)} 0H${f(w - c)}L${f(w)} ${f(c)}V${f(h)}Z"/>`;
+			case "arcLeft": return `<path class="hmi-body" d="M0 ${f(h)}V${f(a)}A${f(a)} ${f(a)} 0 0 1 ${f(a)} 0H${f(w)}V${f(h)}Z"/>`;
+			case "arcRight": return `<path class="hmi-body" d="M0 ${f(h)}V0H${f(w - a)}A${f(a)} ${f(a)} 0 0 1 ${f(w)} ${f(a)}V${f(h)}Z"/>`;
+			case "circle": return `<ellipse class="hmi-body" cx="${f(w / 2)}" cy="${f(h / 2)}" rx="${f(w / 2)}" ry="${f(h / 2)}"/>`;
+			default: return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`;
+		}
+	}
+	function renderFrame(sym) {
+		const p = sym.props || {};
+		const tone = ["dark", "pit"].includes(p.tone) ? p.tone : "equip";
+		const label = p.label ? `<text class="hmi-label" x="${f(sym.w / 2)}" y="${f(sym.h + 18)}">${escapeXml(p.label)}</text>` : "";
+		return `<g class="hmi-frame hmi-tone-${tone}">${framePath(p.shape, sym.w, sym.h)}${label}</g>`;
+	}
+	function linePoints(sym) {
+		return (sym.props && Array.isArray(sym.props.points) ? sym.props.points : []).filter((pt) => Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])).map((pt) => [Number(pt[0]), Number(pt[1])]);
+	}
+	function renderLine(sym, value, opts) {
+		const p = sym.props || {};
+		const pts = linePoints(sym);
+		if (pts.length < 2) return "";
+		const d = "M" + pts.map((pt) => f(pt[0]) + " " + f(pt[1])).join("L");
+		const on = isOn(value, p.onWhen, p.threshold);
+		const style = [
+			"pipe",
+			"conveyor",
+			"signal"
+		].includes(p.style) ? p.style : "strip";
+		const flow = ["always", "never"].includes(p.flow) ? p.flow : "auto";
+		return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}"><path class="hmi-hit" d="${d}"/><path class="hmi-path" d="${d}"/><path class="hmi-flowpath" d="${d}"/></g>`;
+	}
+	function renderKpi(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const text = formatValue(value, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
+		const big = f(Math.max(12, Math.min(h * .3, (w - 30) / Math.max(4, text.length) * 1.7)));
+		return `<g class="hmi-kpi ${value === void 0 || value === null ? "hmi-unknown" : "hmi-normal"}"><rect class="hmi-kpi-card" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="8"/><text class="hmi-kpi-title" x="${f(w * .066)}" y="${f(h * .23)}" font-size="${f(Math.max(9, h * .1))}">${escapeXml(p.title || sym.key || "")}</text><text class="hmi-kpi-value" x="${f(w * .066)}" y="${f(h * .6)}" font-size="${big}">${escapeXml(text)}</text>` + (p.subtitle ? `<text class="hmi-kpi-sub" x="${f(w * .066)}" y="${f(h * .84)}" font-size="${f(Math.max(9, h * .1))}">${escapeXml(p.subtitle)}</text>` : "") + "</g>";
+	}
+	function renderText(sym, value, opts) {
+		const p = sym.props || {};
+		const align = ["start", "end"].includes(p.align) ? p.align : "middle";
+		const x = align === "start" ? 0 : align === "end" ? sym.w : sym.w / 2;
+		let text = p.text || "";
+		if (sym.key) text = (text ? text + " " : "") + formatValue(value, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
+		const size = Math.max(6, Number(p.size) || 16);
+		const unknown = sym.key && (value === void 0 || value === null) ? " hmi-unknown" : "";
+		return `<g class="hmi-text hmi-tone-${p.tone === "dim" ? "dim" : "normal"}${unknown}"><rect class="hmi-hitbox" x="0" y="0" width="${f(sym.w)}" height="${f(sym.h)}"/><text x="${f(x)}" y="${f(sym.h / 2)}" font-size="${f(size)}" style="text-anchor:${align}" font-weight="${p.bold === "yes" ? 700 : 400}">${escapeXml(text)}</text></g>`;
+	}
+	function renderLed(sym, value) {
+		const p = sym.props || {};
+		const on = isOn(value, p.onWhen, p.threshold);
+		const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1.5);
+		return `<g class="hmi-led ${stateClass(on)} ${colorClass(p)}${blinkClass(p, on)}"><circle class="hmi-dot" cx="${f(sym.w / 2)}" cy="${f(sym.h / 2)}" r="${f(r)}"/>` + labelBelow(p, sym.w, sym.h) + "</g>";
+	}
+	function renderChip(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const on = isOn(value, p.onWhen, p.threshold);
+		let text = on ? p.textOn : p.textOff;
+		if (on === null) text = "—";
+		else if (!text) text = formatValue(value, "", opts.locale);
+		return `<g class="hmi-chip ${stateClass(on)} ${colorClass(p)}${blinkClass(p, on)}"><rect class="hmi-chip-box" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="${f(h / 2)}"/><circle class="hmi-dot" cx="${f(h / 2)}" cy="${f(h / 2)}" r="${f(h * .19)}"/><text class="hmi-chip-text" x="${f(h * .95)}" y="${f(h / 2)}" font-size="${f(Math.max(9, h * .36))}">${escapeXml(text)}</text></g>`;
+	}
+	function renderAlarm(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const on = isOn(value, p.onWhen, p.threshold);
+		if (!on && !opts.editor) return "";
+		const pr = [
+			"1",
+			"2",
+			"3"
+		].includes(String(p.priority)) ? String(p.priority) : "1";
+		const ix = Math.min(h * .45, 40);
+		const left = ix * 2;
+		const avail = Math.max(20, w - left - 12);
+		const tx = left + avail / 2;
+		const size = Math.max(9, Math.min(h * .32, avail / (Math.max(4, (p.text || "").length) * .68)));
+		const subSize = Math.max(8, Math.min(size * .5, avail / (Math.max(4, (p.sub || "").length) * .56)));
+		return `<g class="hmi-alarm-banner hmi-p${pr} ${on ? "hmi-on" : "hmi-off hmi-ghost"}${blinkClass(p, on)}"><rect class="hmi-alarm-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="10"/>` + alarmIndicator(ix, h / 2, pr) + `<text class="hmi-alarm-text" x="${f(tx)}" y="${f(p.sub ? h * .44 : h / 2)}" font-size="${f(size)}">${escapeXml(p.text || "")}</text>` + (p.sub ? `<text class="hmi-alarm-sub" x="${f(tx)}" y="${f(h * .76)}" font-size="${f(subSize)}">${escapeXml(p.sub)}</text>` : "") + "</g>";
 	}
 	function renderTag(sym, value, opts) {
 		const p = sym.props || {};
@@ -240,12 +687,14 @@ var HmiEditor = (function(exports) {
 .hmi-root.hmi-theme-isa101 {
   --hmi-bg: #d9dadb; --hmi-equip: #c9cbcd; --hmi-equip-on: #808489; --hmi-stroke: #5f6368;
   --hmi-line: #8a8e93; --hmi-text: #1f2328; --hmi-text-dim: #55595e; --hmi-tag-bg: #e6e7e8;
-  --hmi-alarm: #d71920; --hmi-warn: #f2b705; --hmi-low: #c46ad1; --hmi-ok: #808489;
+  --hmi-alarm: #d71920; --hmi-warn: #f2b705; --hmi-low: #c46ad1; --hmi-ok: #4d5156; --hmi-info: #2f6fb3;
+  --hmi-dark: #a9acaf; --hmi-pit: #b9bbbd; --hmi-material: #3d4146;
 }
 .hmi-root.hmi-theme-classic {
   --hmi-bg: #2a2f36; --hmi-equip: #59626c; --hmi-equip-on: #8794a0; --hmi-stroke: #aab6c1;
   --hmi-line: #7b8895; --hmi-text: #e8edf1; --hmi-text-dim: #9aa4ae; --hmi-tag-bg: #1c2025;
-  --hmi-alarm: #ef4444; --hmi-warn: #f59e0b; --hmi-low: #c084fc; --hmi-ok: #22c55e;
+  --hmi-alarm: #ef4444; --hmi-warn: #f59e0b; --hmi-low: #c084fc; --hmi-ok: #22c55e; --hmi-info: #38bdf8;
+  --hmi-dark: #3a4148; --hmi-pit: #1b1f23; --hmi-material: #c4d0db;
 }
 .hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
@@ -279,7 +728,65 @@ var HmiEditor = (function(exports) {
 .hmi-root.hmi-offline .hmi-offline-banner { display: inline; }
 .hmi-root .hmi-offline-banner rect { fill: var(--hmi-tag-bg); stroke: var(--hmi-alarm); stroke-width: 2; }
 .hmi-root .hmi-offline-banner text { fill: var(--hmi-text); font-size: 16px; font-weight: 700; dominant-baseline: middle; }
+.hmi-root.hmi-transparent, .hmi-root.hmi-transparent .hmi-bg { background: none; fill: none; }
+.hmi-root .hmi-blink { animation: hmi-blink 1s steps(2) infinite; }
+.hmi-root .hmi-roller .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-roller .hmi-mark { stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-roller.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-roller .hmi-spin { transform-box: fill-box; transform-origin: center; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
+.hmi-root .hmi-motor .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-motor .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-motor.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-motor.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
+.hmi-root .hmi-motor.hmi-fault .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-motor-m { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-tag-bg); }
+.hmi-root.hmi-theme-classic .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-ok); }
+.hmi-root .hmi-frame .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-frame.hmi-tone-dark .hmi-body { fill: var(--hmi-dark); }
+.hmi-root .hmi-frame.hmi-tone-pit .hmi-body { fill: var(--hmi-pit); }
+.hmi-root .hmi-line path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.hmi-root .hmi-line .hmi-hit { stroke: transparent; stroke-width: 16; }
+.hmi-root .hmi-line .hmi-path { stroke: var(--hmi-material); stroke-width: 3.5; }
+.hmi-root .hmi-line.hmi-ls-pipe .hmi-path { stroke: var(--hmi-line); stroke-width: 8; }
+.hmi-root .hmi-line.hmi-ls-conveyor .hmi-path { stroke: var(--hmi-stroke); stroke-width: 6; stroke-dasharray: 2 6; stroke-linecap: butt; }
+.hmi-root .hmi-line.hmi-ls-signal .hmi-path { stroke: var(--hmi-line); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.hmi-root .hmi-line.hmi-ls-pipe.hmi-on .hmi-path { stroke: var(--hmi-equip-on); }
+.hmi-root .hmi-line .hmi-flowpath { stroke: var(--hmi-bg); stroke-width: 1.6; stroke-dasharray: 3 21; opacity: 0; }
+.hmi-root.hmi-theme-classic .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath, .hmi-root .hmi-line.hmi-on.hmi-flow-always .hmi-flowpath { opacity: .85; animation: hmi-flow .8s linear infinite; }
+.hmi-root .hmi-kpi-card { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-kpi text { text-anchor: start; }
+.hmi-root .hmi-kpi-title { fill: var(--hmi-text-dim); font-weight: 700; letter-spacing: .5px; }
+.hmi-root .hmi-kpi-value { fill: var(--hmi-text); font-weight: 800; font-family: Consolas, "Roboto Mono", monospace; dominant-baseline: central; }
+.hmi-root .hmi-kpi-sub { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-text text { fill: var(--hmi-text); dominant-baseline: central; }
+.hmi-root .hmi-text.hmi-tone-dim text { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-hitbox { fill: transparent; }
+.hmi-root .hmi-dot { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-on.hmi-c-auto .hmi-dot { fill: var(--hmi-ok); }
+.hmi-root .hmi-on.hmi-c-alarm .hmi-dot { fill: var(--hmi-alarm); }
+.hmi-root .hmi-on.hmi-c-warn .hmi-dot { fill: var(--hmi-warn); }
+.hmi-root .hmi-on.hmi-c-info .hmi-dot { fill: var(--hmi-info); }
+.hmi-root .hmi-unknown .hmi-dot { stroke-dasharray: 3 2; }
+.hmi-root .hmi-chip-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-chip.hmi-on.hmi-c-alarm .hmi-chip-box { stroke: var(--hmi-alarm); stroke-width: 2; }
+.hmi-root .hmi-chip-text { fill: var(--hmi-text); font-weight: 700; text-anchor: start; dominant-baseline: central; }
+.hmi-root .hmi-alarm-box { stroke-width: 3; }
+.hmi-root .hmi-alarm-banner.hmi-p1 .hmi-alarm-box { fill: var(--hmi-alarm); stroke: #000; }
+.hmi-root .hmi-alarm-banner.hmi-p2 .hmi-alarm-box { fill: var(--hmi-warn); stroke: #000; }
+.hmi-root .hmi-alarm-banner.hmi-p3 .hmi-alarm-box { fill: var(--hmi-low); stroke: #000; }
+.hmi-root .hmi-alarm-banner .hmi-alarm-ind > rect, .hmi-root .hmi-alarm-banner .hmi-alarm-ind > polygon { stroke: #fff; stroke-width: 2; }
+.hmi-root .hmi-alarm-text { fill: #fff; font-weight: 800; dominant-baseline: central; }
+.hmi-root .hmi-alarm-banner.hmi-p2 .hmi-alarm-text, .hmi-root .hmi-alarm-banner.hmi-p2 .hmi-alarm-sub { fill: #000; }
+.hmi-root .hmi-alarm-sub { fill: #fff; font-weight: 600; dominant-baseline: central; }
+.hmi-root .hmi-ghost { opacity: .25; }
+.hmi-root .hmi-ghost .hmi-alarm-box { stroke-dasharray: 8 6; }
 @keyframes hmi-spin { to { transform: rotate(360deg); } }
+@keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
+@keyframes hmi-flow { to { stroke-dashoffset: -24; } }
+@keyframes hmi-blink { 50% { opacity: .35; } }
 `;
 	function injectStyles(doc) {
 		const d = doc || (typeof document !== "undefined" ? document : null);
@@ -294,6 +801,7 @@ var HmiEditor = (function(exports) {
 	var GRID = 10;
 	var CSS_ID = "hmi-editor-style";
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
+	var clipboard = null;
 	var CSS$1 = `
 .hmi-ed { --hmi-ed-border: var(--red-ui-form-input-border-color, #c8ccd0); --hmi-ed-panel: var(--red-ui-secondary-background, #f3f4f5); --hmi-ed-bg: var(--red-ui-primary-background, #ffffff); --hmi-ed-text: var(--red-ui-primary-text-color, #222);
   border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-panel); color: var(--hmi-ed-text); display: flex; flex-direction: column; font-family: "Helvetica Neue", Arial, Helvetica, sans-serif; font-size: 14px; box-sizing: border-box; }
@@ -328,6 +836,13 @@ var HmiEditor = (function(exports) {
 .hmi-ed-props h4 { margin: 4px 0 8px 0; font-size: 14px; }
 .hmi-ed-hint { font-size: 12px; opacity: .75; line-height: 1.5; }
 .hmi-ed-msg { font-size: 12px; }
+.hmi-ed-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.hmi-ed-palgroup { font-size: 11px; opacity: .65; margin: 0 2px 0 6px; text-transform: uppercase; letter-spacing: .5px; }
+.hmi-ed-palgroup:first-child { margin-left: 0; }
+.hmi-ed-btn.hmi-ed-small { padding: 2px 8px; min-height: 26px; font-size: 12px; }
+.hmi-ed-btnrow { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px 0; }
+.hmi-ed-point { fill: #fff; stroke: #1e88e5; stroke-width: 2; cursor: move; }
+.hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
 `;
 	function el(tag, attrs, text) {
 		const e = document.createElement(tag);
@@ -344,7 +859,7 @@ var HmiEditor = (function(exports) {
 		return isFinite(n) ? n : text;
 	}
 	/**
-	* opts: symbols, getView() -> {w,h}, getTheme(), getLocale(), buttonClass,
+	* opts: symbols, getView() -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
 	*       getValues() -> live values shown instead of test values,
 	*       actions: [{ label, title, primary, onClick(editor) }], title, fill, onChange()
 	*/
@@ -360,8 +875,11 @@ var HmiEditor = (function(exports) {
 		const ed = {
 			symbols: clone(o.symbols),
 			sel: null,
-			drag: null
+			drag: null,
+			history: [],
+			future: []
 		};
+		ed.history.push(clone(ed.symbols));
 		root.classList.add("hmi-ed");
 		if (o.fill) root.classList.add("hmi-ed-fill");
 		root.innerHTML = "";
@@ -388,8 +906,8 @@ var HmiEditor = (function(exports) {
 			toolbar.appendChild(b);
 			return b;
 		};
-		btn("Duplicar", "Duplicar o símbolo selecionado", () => duplicate());
-		btn("Excluir", "Excluir o símbolo selecionado (Delete)", () => remove());
+		btn("↶", "Desfazer (Ctrl+Z)", () => undo());
+		btn("↷", "Refazer (Ctrl+Y)", () => redo());
 		const api = {};
 		for (const a of o.actions || []) a.button = btn(a.label, a.title, () => a.onClick(api), a.primary);
 		const body = el("div", { class: "hmi-ed-body" });
@@ -415,8 +933,28 @@ var HmiEditor = (function(exports) {
 		const snap = (v) => gridBox.checked ? Math.round(v / GRID) * GRID : Math.round(v);
 		const selected = () => ed.symbols.find((s) => s.id === ed.sel);
 		const changed = () => {
+			ed.history.push(clone(ed.symbols));
+			if (ed.history.length > 100) ed.history.shift();
+			ed.future = [];
 			if (o.onChange) o.onChange(api);
 		};
+		function restore(list) {
+			ed.symbols = clone(list);
+			if (!selected()) ed.sel = null;
+			refresh();
+			if (o.onChange) o.onChange(api);
+		}
+		function undo() {
+			if (ed.history.length < 2) return;
+			ed.future.push(ed.history.pop());
+			restore(ed.history[ed.history.length - 1]);
+		}
+		function redo() {
+			if (!ed.future.length) return;
+			const next = ed.future.pop();
+			ed.history.push(next);
+			restore(next);
+		}
 		function toSvg(e) {
 			const pt = svg.createSVGPoint();
 			pt.x = e.clientX;
@@ -427,7 +965,7 @@ var HmiEditor = (function(exports) {
 			const v = view();
 			const theme = (o.getTheme && o.getTheme()) === "classic" ? "classic" : "isa101";
 			svg.setAttribute("viewBox", "0 0 " + v.w + " " + v.h);
-			svg.setAttribute("class", "hmi-root hmi-theme-" + theme);
+			svg.setAttribute("class", "hmi-root hmi-theme-" + theme + ((o.getBackground && o.getBackground()) === "transparent" ? " hmi-transparent" : ""));
 			let out = "<rect class=\"hmi-bg\" x=\"0\" y=\"0\" width=\"" + v.w + "\" height=\"" + v.h + "\"/>";
 			if (gridBox.checked) {
 				let g = "";
@@ -440,14 +978,30 @@ var HmiEditor = (function(exports) {
 			for (const s of ed.symbols) if (s.key && s.preview !== void 0 && !(s.key in previews)) previews[s.key] = s.preview;
 			for (const s of ed.symbols) if (s.key && SYMBOLS[s.type] && !(s.key in previews)) previews[s.key] = s.key in live ? live[s.key] : SYMBOLS[s.type].preview;
 			const locale = o.getLocale && o.getLocale();
+			const values = {
+				...live,
+				...previews
+			};
 			for (const s of ed.symbols) {
 				const def = SYMBOLS[s.type];
 				if (!def) continue;
 				const value = s.preview !== void 0 ? s.preview : s.key ? previews[s.key] : def.preview;
-				out += renderSymbol(s, value, { locale });
+				out += renderSymbol(s, value, {
+					locale,
+					values,
+					editor: true
+				});
 			}
 			const s = selected();
-			if (s) {
+			if (s && SYMBOLS[s.type] && SYMBOLS[s.type].line) {
+				const pts = linePoints(s);
+				out += "<g transform=\"translate(" + s.x + "," + s.y + ")\">";
+				for (let i = 0; i < pts.length - 1; i++) out += "<circle class=\"hmi-ed-mid\" data-mid=\"" + i + "\" cx=\"" + (pts[i][0] + pts[i + 1][0]) / 2 + "\" cy=\"" + (pts[i][1] + pts[i + 1][1]) / 2 + "\" r=\"5\"/>";
+				pts.forEach((pt, i) => {
+					out += "<circle class=\"hmi-ed-point\" data-point=\"" + i + "\" cx=\"" + pt[0] + "\" cy=\"" + pt[1] + "\" r=\"6\"/>";
+				});
+				out += "</g>";
+			} else if (s) {
 				const rot = Number(s.rot) || 0;
 				out += "<g transform=\"translate(" + s.x + "," + s.y + ")" + (rot ? " rotate(" + rot + "," + s.w / 2 + "," + s.h / 2 + ")" : "") + "\"><rect class=\"hmi-ed-sel\" x=\"-3\" y=\"-3\" width=\"" + (s.w + 6) + "\" height=\"" + (s.h + 6) + "\"/><rect class=\"hmi-ed-handle\" data-handle=\"1\" x=\"" + (s.w - 2) + "\" y=\"" + (s.h - 2) + "\" width=\"10\" height=\"10\"/></g>";
 			}
@@ -491,12 +1045,44 @@ var HmiEditor = (function(exports) {
 			const s = selected();
 			if (!s) {
 				const h = el("div", { class: "hmi-ed-hint" });
-				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10).";
+				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica.";
 				props.appendChild(h);
 				return;
 			}
 			const def = SYMBOLS[s.type];
 			props.appendChild(el("h4", {}, def.label));
+			const row = el("div", { class: "hmi-ed-btnrow" });
+			for (const [label, title, fn] of [
+				[
+					"Duplicar",
+					"Ctrl+D",
+					duplicate
+				],
+				[
+					"Frente",
+					"Trazer para a frente",
+					() => order(1)
+				],
+				[
+					"Trás",
+					"Mandar para trás",
+					() => order(-1)
+				],
+				[
+					"Excluir",
+					"Delete",
+					remove
+				]
+			]) {
+				const b = el("button", {
+					type: "button",
+					class: btnClass + " hmi-ed-small",
+					title
+				}, label);
+				b.addEventListener("click", fn);
+				row.appendChild(b);
+			}
+			props.appendChild(row);
 			props.appendChild(field("Chave do payload", s.key, "text", (v) => {
 				s.key = v.trim();
 			}));
@@ -505,19 +1091,22 @@ var HmiEditor = (function(exports) {
 			}), field("Y", s.y, "number", (v) => {
 				s.y = Number(v) || 0;
 			})));
-			props.appendChild(pair(field("Largura", s.w, "number", (v) => {
-				s.w = Math.max(10, Number(v) || 10);
-			}), field("Altura", s.h, "number", (v) => {
-				s.h = Math.max(10, Number(v) || 10);
-			})));
-			props.appendChild(field("Rotação", s.rot || 0, "select", (v) => {
-				s.rot = Number(v);
-			}, [
-				["0", "0°"],
-				["90", "90°"],
-				["180", "180°"],
-				["270", "270°"]
-			]));
+			if (def.line) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga."));
+			else {
+				props.appendChild(pair(field("Largura", s.w, "number", (v) => {
+					s.w = Math.max(10, Number(v) || 10);
+				}), field("Altura", s.h, "number", (v) => {
+					s.h = Math.max(10, Number(v) || 10);
+				})));
+				props.appendChild(field("Rotação", s.rot || 0, "select", (v) => {
+					s.rot = Number(v);
+				}, [
+					["0", "0°"],
+					["90", "90°"],
+					["180", "180°"],
+					["270", "270°"]
+				]));
+			}
 			for (const fd of def.fields) props.appendChild(field(fd.label, s.props[fd.key], fd.type, (v) => {
 				s.props[fd.key] = fd.type === "number" && v !== "" ? Number(v) : v;
 			}, fd.options));
@@ -547,21 +1136,49 @@ var HmiEditor = (function(exports) {
 			refresh();
 			changed();
 		}
-		function duplicate() {
-			const s = selected();
-			if (!s) return;
-			const c = createSymbol(s.type, s.x + 20, s.y + 20);
-			Object.assign(c, clone(s), {
+		function paste(src) {
+			if (!src || !SYMBOLS[src.type]) return;
+			const c = createSymbol(src.type, src.x + 20, src.y + 20);
+			Object.assign(c, clone(src), {
 				id: c.id,
-				x: s.x + 20,
-				y: s.y + 20
+				x: src.x + 20,
+				y: src.y + 20
 			});
 			ed.symbols.push(c);
 			ed.sel = c.id;
 			refresh();
 			changed();
+			return c;
 		}
+		function duplicate() {
+			paste(selected());
+		}
+		function order(dir) {
+			const i = ed.symbols.findIndex((s) => s.id === ed.sel);
+			if (i < 0) return;
+			const [s] = ed.symbols.splice(i, 1);
+			if (dir > 0) ed.symbols.push(s);
+			else ed.symbols.unshift(s);
+			draw();
+			changed();
+		}
+		function normalizeLine(s) {
+			const pts = linePoints(s);
+			if (!pts.length) return;
+			const minX = Math.min(...pts.map((p) => p[0]));
+			const minY = Math.min(...pts.map((p) => p[1]));
+			s.x += minX;
+			s.y += minY;
+			s.props.points = pts.map((p) => [p[0] - minX, p[1] - minY]);
+			s.w = Math.max(1, Math.max(...s.props.points.map((p) => p[0])));
+			s.h = Math.max(1, Math.max(...s.props.points.map((p) => p[1])));
+		}
+		let lastGroup = null;
 		for (const [type, def] of Object.entries(SYMBOLS)) {
+			if (def.group && def.group !== lastGroup) {
+				palette.appendChild(el("span", { class: "hmi-ed-palgroup" }, def.group));
+				lastGroup = def.group;
+			}
 			const b = el("button", {
 				type: "button",
 				class: btnClass + " hmi-ed-pal",
@@ -590,7 +1207,30 @@ var HmiEditor = (function(exports) {
 		svg.addEventListener("pointerdown", (e) => {
 			stage.focus();
 			const p = toSvg(e);
-			if (e.target.closest("[data-handle]")) {
+			const pointEl = e.target.closest("[data-point], [data-mid]");
+			if (pointEl && selected()) {
+				const s = selected();
+				let i = Number(pointEl.getAttribute("data-point"));
+				if (pointEl.hasAttribute("data-mid")) {
+					i = Number(pointEl.getAttribute("data-mid")) + 1;
+					const pts = linePoints(s);
+					pts.splice(i, 0, [p.x - s.x, p.y - s.y]);
+					s.props.points = pts;
+				}
+				if (e.detail === 2 && pointEl.hasAttribute("data-point") && linePoints(s).length > 2) {
+					s.props.points = linePoints(s).filter((pt, k) => k !== i);
+					normalizeLine(s);
+					refresh();
+					changed();
+					return;
+				}
+				ed.drag = {
+					mode: "point",
+					i,
+					start: p,
+					moved: pointEl.hasAttribute("data-mid")
+				};
+			} else if (e.target.closest("[data-handle]")) {
 				const s = selected();
 				ed.drag = {
 					mode: "size",
@@ -623,7 +1263,13 @@ var HmiEditor = (function(exports) {
 			const s = selected();
 			if (!d || !s) return;
 			const p = toSvg(e);
-			if (d.mode === "move") {
+			if (d.mode === "point") {
+				const pts = linePoints(s);
+				pts[d.i] = [snap(p.x) - s.x, snap(p.y) - s.y];
+				s.props.points = pts;
+				s.w = Math.max(1, ...pts.map((q) => q[0]));
+				s.h = Math.max(1, ...pts.map((q) => q[1]));
+			} else if (d.mode === "move") {
 				s.x = snap(d.x + p.x - d.start.x);
 				s.y = snap(d.y + p.y - d.start.y);
 			} else {
@@ -636,13 +1282,28 @@ var HmiEditor = (function(exports) {
 		const endDrag = () => {
 			if (!ed.drag) return;
 			const moved = ed.drag.moved;
+			const s = selected();
+			if (ed.drag.mode === "point" && s) normalizeLine(s);
 			ed.drag = null;
+			draw();
 			showProps();
 			if (moved) changed();
 		};
 		svg.addEventListener("pointerup", endDrag);
 		svg.addEventListener("pointercancel", endDrag);
 		stage.addEventListener("keydown", (e) => {
+			const k = e.key.toLowerCase();
+			if (e.ctrlKey || e.metaKey) {
+				if (k === "z" && !e.shiftKey) undo();
+				else if (k === "y" || k === "z" && e.shiftKey) redo();
+				else if (k === "c" && selected()) clipboard = clone(selected());
+				else if (k === "v" && clipboard) clipboard = paste(clipboard) || clipboard;
+				else if (k === "d") duplicate();
+				else return;
+				e.preventDefault();
+				e.stopPropagation();
+				return;
+			}
 			const s = selected();
 			if (!s) return;
 			const step = e.shiftKey ? 10 : 1;
@@ -692,6 +1353,7 @@ var HmiEditor = (function(exports) {
 	exports.formatValue = formatValue;
 	exports.injectStyles = injectStyles;
 	exports.isOn = isOn;
+	exports.linePoints = linePoints;
 	exports.parsePreview = parsePreview;
 	exports.rangeState = rangeState;
 	exports.renderSymbol = renderSymbol;
