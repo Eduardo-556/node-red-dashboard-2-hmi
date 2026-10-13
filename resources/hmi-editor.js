@@ -166,15 +166,65 @@ var HmiEditor = (function(exports) {
 			300,
 			80,
 			"pit"
+		],
+		[
+			"chamfer",
+			"Corpo metal (slitter)",
+			240,
+			300,
+			"metal"
+		],
+		[
+			"rect",
+			"Base aço (slitter)",
+			300,
+			60,
+			"steel"
+		],
+		[
+			"rect",
+			"Fosso fundo (slitter)",
+			170,
+			140,
+			"pitDeep"
+		],
+		[
+			"rect",
+			"Piso (slitter)",
+			600,
+			80,
+			"floor"
 		]
 	];
 	var TONES = [
-		["equip", "Equipamento"],
-		["dark", "Escuro"],
-		["pit", "Fosso / vazio"],
+		["equip", "Equipamento (tema)"],
+		["dark", "Escuro (tema)"],
+		["pit", "Fosso / vazio (tema)"],
 		["outline", "Só contorno"],
-		["guard", "Proteção (tracejado)"]
+		["guard", "Proteção (tracejado)"],
+		["metal", "Metal (slitter)"],
+		["metalLight", "Metal, borda clara (slitter)"],
+		["steel", "Aço escuro (slitter)"],
+		["graphite", "Grafite / rolo (slitter)"],
+		["pitDeep", "Fosso fundo (slitter)"],
+		["wall", "Parede (slitter)"],
+		["floor", "Piso (slitter)"],
+		["floorDark", "Piso escuro (slitter)"],
+		["sensorTone", "Sensor (slitter)"],
+		["custom", "Cor personalizada"]
 	];
+	var TONE_COLORS = {
+		metal: [["#6a737d", "#4d555e"], "#8a939d"],
+		metalLight: [["#6a737d", "#4d555e"], "#b5bfc8"],
+		steel: ["#3a4148", "#7a838c"],
+		graphite: ["#2f353b", "#a5b0ba"],
+		pitDeep: [["#1d2126", "#15181b"], "#3a4148"],
+		wall: ["#3a4148", "#5a626b"],
+		floor: ["#24282e", "none"],
+		floorDark: ["#1f2328", "none"],
+		sensorTone: ["#59616b", "#8a939d"]
+	};
+	var HEX = /^#[0-9a-fA-F]{3,8}$/;
 	var FAULT_FIELD = {
 		key: "faultKey",
 		label: "Chave da falha (opcional)",
@@ -431,7 +481,20 @@ var HmiEditor = (function(exports) {
 					key: "tone",
 					label: "Tom",
 					type: "select",
-					options: TONES
+					options: TONES,
+					refresh: true
+				},
+				{
+					key: "fill",
+					label: "Cor de preenchimento",
+					type: "color",
+					when: (p) => p.tone === "custom"
+				},
+				{
+					key: "stroke",
+					label: "Cor da borda",
+					type: "color",
+					when: (p) => p.tone === "custom"
 				},
 				{
 					key: "label",
@@ -1834,7 +1897,20 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const tone = TONES.some((t) => t[0] === p.tone) ? p.tone : "equip";
 		const label = p.label ? `<text class="hmi-label" x="${f(sym.w / 2)}" y="${f(sym.h + 18)}">${escapeXml(p.label)}</text>` : "";
-		return `<g class="hmi-frame hmi-tone-${tone}">${framePath(p.shape, sym.w, sym.h)}${label}</g>`;
+		let defs = "";
+		let style = "";
+		let fixed = TONE_COLORS[tone];
+		if (tone === "custom") fixed = [HEX.test(p.fill) ? p.fill : "#6a737d", HEX.test(p.stroke) ? p.stroke : "#8a939d"];
+		if (fixed) {
+			let fill = fixed[0];
+			if (Array.isArray(fill)) {
+				const id = "hmi-grad-" + String(sym.id).replace(/[^\w-]/g, "");
+				defs = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fill[0]}"/><stop offset="1" stop-color="${fill[1]}"/></linearGradient></defs>`;
+				fill = `url(#${id})`;
+			}
+			style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`;
+		}
+		return `<g class="hmi-frame hmi-tone-${fixed ? "fixed" : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${label}</g>`;
 	}
 	function linePoints(sym) {
 		return (sym.props && Array.isArray(sym.props.points) ? sym.props.points : []).filter((pt) => Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])).map((pt) => [Number(pt[0]), Number(pt[1])]);
@@ -2034,6 +2110,7 @@ var HmiEditor = (function(exports) {
 .hmi-root.hmi-theme-classic .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-text); }
 .hmi-root .hmi-detail { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-frame.hmi-tone-outline .hmi-body { fill: none; }
+.hmi-root .hmi-frame.hmi-tone-fixed .hmi-body { fill: var(--hmi-tone-fill); stroke: var(--hmi-tone-stroke); }
 .hmi-root .hmi-frame.hmi-tone-guard .hmi-body { fill: none; stroke-dasharray: 8 5; stroke-width: 2; }
 .hmi-root .hmi-left { text-anchor: start; }
 .hmi-root .hmi-right { text-anchor: end; }
@@ -2173,7 +2250,82 @@ var HmiEditor = (function(exports) {
 	//#endregion
 	//#region ui/editor/index.js
 	var GRID = 10;
+	var HANDLES = [
+		[
+			"nw",
+			0,
+			0
+		],
+		[
+			"n",
+			.5,
+			0
+		],
+		[
+			"ne",
+			1,
+			0
+		],
+		[
+			"e",
+			1,
+			.5
+		],
+		[
+			"se",
+			1,
+			1
+		],
+		[
+			"s",
+			.5,
+			1
+		],
+		[
+			"sw",
+			0,
+			1
+		],
+		[
+			"w",
+			0,
+			.5
+		]
+	];
+	var CURSORS = [
+		"ns-resize",
+		"nesw-resize",
+		"ew-resize",
+		"nwse-resize"
+	];
+	function handleCursor(dir, rot) {
+		return CURSORS[({
+			n: 0,
+			ne: 1,
+			e: 2,
+			se: 3,
+			s: 0,
+			sw: 1,
+			w: 2,
+			nw: 3
+		}[dir] + Math.round(((Number(rot) || 0) % 180 + 180) % 180 / 45)) % 4];
+	}
 	var CSS_ID = "hmi-editor-style";
+	var ICONS = {
+		left: "<path d=\"M2 1v14\"/><rect x=\"4\" y=\"3\" width=\"10\" height=\"3\"/><rect x=\"4\" y=\"10\" width=\"6\" height=\"3\"/>",
+		hcenter: "<path d=\"M8 1v14\"/><rect x=\"2\" y=\"3\" width=\"12\" height=\"3\"/><rect x=\"4.5\" y=\"10\" width=\"7\" height=\"3\"/>",
+		right: "<path d=\"M14 1v14\"/><rect x=\"2\" y=\"3\" width=\"10\" height=\"3\"/><rect x=\"6\" y=\"10\" width=\"6\" height=\"3\"/>",
+		top: "<path d=\"M1 2h14\"/><rect x=\"3\" y=\"4\" width=\"3\" height=\"10\"/><rect x=\"10\" y=\"4\" width=\"3\" height=\"6\"/>",
+		vcenter: "<path d=\"M1 8h14\"/><rect x=\"3\" y=\"2\" width=\"3\" height=\"12\"/><rect x=\"10\" y=\"4.5\" width=\"3\" height=\"7\"/>",
+		bottom: "<path d=\"M1 14h14\"/><rect x=\"3\" y=\"2\" width=\"3\" height=\"10\"/><rect x=\"10\" y=\"6\" width=\"3\" height=\"6\"/>",
+		hdist: "<path d=\"M1 1v14M15 1v14\"/><rect x=\"3\" y=\"4\" width=\"3\" height=\"8\"/><rect x=\"10\" y=\"4\" width=\"3\" height=\"8\"/>",
+		vdist: "<path d=\"M1 1h14M1 15h14\"/><rect x=\"4\" y=\"3\" width=\"8\" height=\"3\"/><rect x=\"4\" y=\"10\" width=\"8\" height=\"3\"/>",
+		samew: "<rect x=\"2\" y=\"2\" width=\"12\" height=\"4\"/><rect x=\"2\" y=\"10\" width=\"12\" height=\"4\"/>",
+		sameh: "<rect x=\"2\" y=\"2\" width=\"4\" height=\"12\"/><rect x=\"10\" y=\"2\" width=\"4\" height=\"12\"/>",
+		same: "<rect x=\"1.5\" y=\"4\" width=\"6\" height=\"8\"/><rect x=\"8.5\" y=\"4\" width=\"6\" height=\"8\"/>",
+		group: "<rect x=\"1\" y=\"1\" width=\"14\" height=\"14\" stroke-dasharray=\"2 2\"/><rect x=\"3.5\" y=\"3.5\" width=\"5\" height=\"5\"/><rect x=\"7.5\" y=\"7.5\" width=\"5\" height=\"5\"/>",
+		ungroup: "<rect x=\"1\" y=\"1\" width=\"6\" height=\"6\"/><rect x=\"9\" y=\"9\" width=\"6\" height=\"6\"/>"
+	};
 	var ACTIONS = [
 		["none", "Nada"],
 		["value", "Enviar um valor"],
@@ -2212,7 +2364,13 @@ var HmiEditor = (function(exports) {
 .hmi-ed-full .hmi-ed-stage svg, .hmi-ed-fill .hmi-ed-stage svg { width: 100%; height: 100%; box-shadow: none; }
 .hmi-ed-stage .hmi-symbol { cursor: move; }
 .hmi-ed-sel { fill: none; stroke: #1e88e5; stroke-width: 1.5; stroke-dasharray: 5 3; pointer-events: none; }
-.hmi-ed-handle { fill: #1e88e5; stroke: #fff; stroke-width: 1; cursor: nwse-resize; }
+.hmi-ed-handle { fill: #fff; stroke: #1e88e5; stroke-width: 1.5; }
+.hmi-ed-group { fill: none; stroke: #8e44ad; stroke-width: 1.5; stroke-dasharray: 8 3 2 3; pointer-events: none; }
+.hmi-ed-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--hmi-ed-border); }
+.hmi-ed-btn.hmi-ed-icon { padding: 3px 6px; min-height: 30px; line-height: 0; }
+.hmi-ed-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.hmi-ed-sep { width: 1px; height: 20px; background: var(--hmi-ed-border); margin: 0 4px; }
+.hmi-ed-f input[type=color] { padding: 1px 2px; height: 30px; }
 .hmi-ed-grid { stroke: rgba(0, 0, 0, .08); stroke-width: 1; pointer-events: none; }
 .hmi-theme-classic .hmi-ed-grid { stroke: rgba(255, 255, 255, .07); }
 .hmi-ed-props { width: 230px; flex: none; padding: 8px 10px; border-left: 1px solid var(--hmi-ed-border); overflow: auto; background: var(--hmi-ed-panel); }
@@ -2279,6 +2437,41 @@ var HmiEditor = (function(exports) {
 		if (o.title) toolbar.appendChild(el("span", { class: "hmi-ed-title" }, o.title));
 		const palette = el("span", { class: "hmi-ed-palette" });
 		toolbar.appendChild(palette);
+		const tools = el("span", { class: "hmi-ed-tools" });
+		const toolBtns = [];
+		const tool = (icon, title, fn, enabled) => {
+			const b = el("button", {
+				type: "button",
+				class: btnClass + " hmi-ed-icon",
+				title
+			});
+			b.innerHTML = "<svg viewBox=\"0 0 16 16\">" + ICONS[icon] + "</svg>";
+			b.addEventListener("click", () => {
+				fn();
+				stage.focus();
+			});
+			tools.appendChild(b);
+			toolBtns.push([b, enabled]);
+		};
+		const sep = () => tools.appendChild(el("span", { class: "hmi-ed-sep" }));
+		const anySel = () => ed.multi.length > 0;
+		tool("left", "Alinhar à esquerda (um só: na tela)", () => align("left"), anySel);
+		tool("hcenter", "Centralizar na horizontal (um só: na tela)", () => align("hcenter"), anySel);
+		tool("right", "Alinhar à direita (um só: na tela)", () => align("right"), anySel);
+		tool("top", "Alinhar no topo (um só: na tela)", () => align("top"), anySel);
+		tool("vcenter", "Centralizar na vertical (um só: na tela)", () => align("vcenter"), anySel);
+		tool("bottom", "Alinhar na base (um só: na tela)", () => align("bottom"), anySel);
+		sep();
+		tool("hdist", "Distribuir na horizontal (3 ou mais)", () => align("hdist"), () => units(selection()).length >= 3);
+		tool("vdist", "Distribuir na vertical (3 ou mais)", () => align("vdist"), () => units(selection()).length >= 3);
+		sep();
+		tool("samew", "Mesma largura do último clicado", () => sameSize(true, false), () => sizable().length >= 2);
+		tool("sameh", "Mesma altura do último clicado", () => sameSize(false, true), () => sizable().length >= 2);
+		tool("same", "Mesmo tamanho do último clicado", () => sameSize(true, true), () => sizable().length >= 2);
+		sep();
+		tool("group", "Agrupar (Ctrl+G)", () => group(), () => units(selection()).length >= 2);
+		tool("ungroup", "Desagrupar (Ctrl+Shift+G)", () => ungroup(), () => selection().some((m) => m.group));
+		toolbar.appendChild(tools);
 		toolbar.appendChild(el("span", { class: "hmi-ed-spacer" }));
 		const msg = el("span", { class: "hmi-ed-msg" });
 		toolbar.appendChild(msg);
@@ -2329,6 +2522,35 @@ var HmiEditor = (function(exports) {
 			ed.multi = ids.filter((id, i) => ids.indexOf(id) === i);
 			ed.sel = primary !== void 0 && ed.multi.includes(primary) ? primary : ed.multi[ed.multi.length - 1] || null;
 		}
+		const groupOf = (id) => {
+			const s = ed.symbols.find((m) => m.id === id);
+			return s && s.group ? ed.symbols.filter((m) => m.group === s.group).map((m) => m.id) : [id];
+		};
+		function units(list) {
+			const out = [];
+			const seen = {};
+			for (const m of list) if (m.group) {
+				if (seen[m.group]) {
+					seen[m.group].members.push(m);
+					continue;
+				}
+				seen[m.group] = { members: [m] };
+				out.push(seen[m.group]);
+			} else out.push({ members: [m] });
+			for (const u of out) {
+				const bs = u.members.map(box);
+				const x = Math.min(...bs.map((b) => b.x));
+				const y = Math.min(...bs.map((b) => b.y));
+				u.box = {
+					x,
+					y,
+					w: Math.max(...bs.map((b) => b.x + b.w)) - x,
+					h: Math.max(...bs.map((b) => b.y + b.h)) - y
+				};
+			}
+			return out;
+		}
+		const sizable = () => selection().filter((m) => !(SYMBOLS[m.type] && SYMBOLS[m.type].line));
 		function box(s) {
 			if (((Number(s.rot) || 0) % 180 + 180) % 180 === 90) return {
 				x: s.x + s.w / 2 - s.h / 2,
@@ -2344,7 +2566,12 @@ var HmiEditor = (function(exports) {
 			};
 		}
 		const changed = () => {
-			ed.history.push(clone(ed.symbols));
+			const cur = JSON.stringify(ed.symbols);
+			if (cur === JSON.stringify(ed.history[ed.history.length - 1])) {
+				if (o.onChange) o.onChange(api);
+				return;
+			}
+			ed.history.push(JSON.parse(cur));
 			if (ed.history.length > 100) ed.history.shift();
 			ed.future = [];
 			if (o.onChange) o.onChange(api);
@@ -2416,11 +2643,20 @@ var HmiEditor = (function(exports) {
 				out += "</g>";
 			} else if (s) {
 				const rot = Number(s.rot) || 0;
-				out += "<g transform=\"translate(" + s.x + "," + s.y + ")" + (rot ? " rotate(" + rot + "," + s.w / 2 + "," + s.h / 2 + ")" : "") + "\"><rect class=\"hmi-ed-sel\" x=\"-3\" y=\"-3\" width=\"" + (s.w + 6) + "\" height=\"" + (s.h + 6) + "\"/><rect class=\"hmi-ed-handle\" data-handle=\"1\" x=\"" + (s.w - 2) + "\" y=\"" + (s.h - 2) + "\" width=\"10\" height=\"10\"/></g>";
-			} else for (const m of selection()) {
-				const b = box(m);
-				out += "<rect class=\"hmi-ed-sel\" x=\"" + (b.x - 3) + "\" y=\"" + (b.y - 3) + "\" width=\"" + (b.w + 6) + "\" height=\"" + (b.h + 6) + "\"/>";
+				const hs = Math.max(8, Math.min(12, view().w / 120));
+				out += "<g transform=\"translate(" + s.x + "," + s.y + ")" + (rot ? " rotate(" + rot + "," + s.w / 2 + "," + s.h / 2 + ")" : "") + "\"><rect class=\"hmi-ed-sel\" x=\"-3\" y=\"-3\" width=\"" + (s.w + 6) + "\" height=\"" + (s.h + 6) + "\"/>";
+				for (const [dir, hx, hy] of HANDLES) out += "<rect class=\"hmi-ed-handle\" data-handle=\"" + dir + "\" style=\"cursor:" + handleCursor(dir, rot) + "\" x=\"" + (hx * s.w - hs / 2) + "\" y=\"" + (hy * s.h - hs / 2) + "\" width=\"" + hs + "\" height=\"" + hs + "\"/>";
+				out += "</g>";
+				if (s.group) {
+					const u = units(ed.symbols.filter((m) => m.group === s.group))[0];
+					out += "<rect class=\"hmi-ed-group\" x=\"" + (u.box.x - 6) + "\" y=\"" + (u.box.y - 6) + "\" width=\"" + (u.box.w + 12) + "\" height=\"" + (u.box.h + 12) + "\"/>";
+				}
+			} else for (const u of units(selection())) {
+				const b = u.box;
+				const g = u.members.length > 1 || u.members[0].group;
+				out += "<rect class=\"" + (g ? "hmi-ed-group" : "hmi-ed-sel") + "\" x=\"" + (b.x - 3) + "\" y=\"" + (b.y - 3) + "\" width=\"" + (b.w + 6) + "\" height=\"" + (b.h + 6) + "\"/>";
 			}
+			for (const [b, enabled] of toolBtns) b.disabled = !enabled();
 			if (ed.drag && ed.drag.mode === "box") {
 				const r = marquee(ed.drag);
 				out += "<rect class=\"hmi-ed-marquee\" x=\"" + r.x + "\" y=\"" + r.y + "\" width=\"" + r.w + "\" height=\"" + r.h + "\"/>";
@@ -2436,8 +2672,8 @@ var HmiEditor = (function(exports) {
 				for (const [val, text] of options) input.appendChild(el("option", { value: val }, text));
 				input.value = String(value === void 0 ? "" : value);
 			} else {
-				input = el("input", { type: type === "number" ? "number" : "text" });
-				input.value = value === void 0 || value === null ? "" : value;
+				input = el("input", { type: ["number", "color"].includes(type) ? type : "text" });
+				input.value = value === void 0 || value === null ? type === "color" ? "#000000" : "" : value;
 			}
 			const handler = () => {
 				onChange(input.value);
@@ -2499,8 +2735,22 @@ var HmiEditor = (function(exports) {
 				props.appendChild(row);
 			};
 			if (ed.multi.length > 1) {
-				props.appendChild(el("h4", {}, ed.multi.length + " símbolos"));
+				const us = units(selection());
+				props.appendChild(el("h4", {}, us.length === 1 ? "Grupo (" + ed.multi.length + " símbolos)" : ed.multi.length + " símbolos"));
 				editRow();
+				const grow = el("div", { class: "hmi-ed-btnrow" });
+				if (us.length > 1) smallBtn(grow, "Agrupar", "Ctrl+G", group);
+				if (selection().some((m) => m.group)) smallBtn(grow, "Desagrupar", "Ctrl+Shift+G", ungroup);
+				props.appendChild(grow);
+				if (us.length === 1) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Clique move o grupo inteiro. Duplo clique num símbolo edita só ele."));
+				const ss = el("div", { class: "hmi-ed-btnrow" });
+				if (sizable().length >= 2) {
+					props.appendChild(el("h5", {}, "Tamanho (igual ao último clicado)"));
+					smallBtn(ss, "Largura", "Mesma largura", () => sameSize(true, false));
+					smallBtn(ss, "Altura", "Mesma altura", () => sameSize(false, true));
+					smallBtn(ss, "Os dois", "Mesmo tamanho", () => sameSize(true, true));
+					props.appendChild(ss);
+				}
 				props.appendChild(el("h5", {}, "Alinhar"));
 				const grid = el("div", { class: "hmi-ed-align" });
 				for (const [label, title, kind] of [
@@ -2546,7 +2796,7 @@ var HmiEditor = (function(exports) {
 			}
 			if (!s) {
 				const h = el("div", { class: "hmi-ed-hint" });
-				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Vários símbolos: Shift+clique, ou arraste numa área vazia para fazer um retângulo de seleção.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica, Ctrl+A seleciona tudo.";
+				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Vários símbolos: Shift+clique, ou arraste numa área vazia para fazer um retângulo de seleção.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica, Ctrl+A seleciona tudo, Ctrl+G agrupa.<br><br>Os quadrados brancos em volta do símbolo mudam o tamanho por qualquer lado (Shift nos cantos mantém a proporção).";
 				props.appendChild(h);
 				return;
 			}
@@ -2577,9 +2827,13 @@ var HmiEditor = (function(exports) {
 					["270", "270°"]
 				]));
 			}
-			for (const fd of def.fields) props.appendChild(field(fd.label, s.props[fd.key], fd.type, (v) => {
-				s.props[fd.key] = fd.type === "number" && v !== "" ? Number(v) : v;
-			}, fd.options));
+			for (const fd of def.fields) {
+				if (fd.when && !fd.when(s.props)) continue;
+				props.appendChild(field(fd.label, s.props[fd.key], fd.type, (v) => {
+					s.props[fd.key] = fd.type === "number" && v !== "" ? Number(v) : v;
+					if (fd.refresh) setTimeout(showProps);
+				}, fd.options));
+			}
 			props.appendChild(field("Valor de teste (só no editor)", s.preview === void 0 ? "" : String(s.preview), "text", (v) => {
 				const p = parsePreview(v);
 				if (p === void 0) delete s.preview;
@@ -2756,13 +3010,16 @@ var HmiEditor = (function(exports) {
 		function paste(src) {
 			const list = (Array.isArray(src) ? src : [src]).filter((x) => x && SYMBOLS[x.type]);
 			if (!list.length) return;
+			const groups = {};
 			const out = list.map((x) => {
 				const c = createSymbol(x.type, x.x + 20, x.y + 20);
-				return Object.assign(c, clone(x), {
+				Object.assign(c, clone(x), {
 					id: c.id,
 					x: x.x + 20,
 					y: x.y + 20
 				});
+				if (x.group) c.group = groups[x.group] || (groups[x.group] = newGroupId());
+				return c;
 			});
 			ed.symbols.push(...out);
 			select(out.map((c) => c.id));
@@ -2782,26 +3039,39 @@ var HmiEditor = (function(exports) {
 			changed();
 		}
 		function align(kind) {
-			const list = selection();
-			if (list.length < 2) return;
-			const bs = list.map(box);
-			const L = Math.min(...bs.map((b) => b.x));
-			const R = Math.max(...bs.map((b) => b.x + b.w));
-			const T = Math.min(...bs.map((b) => b.y));
-			const B = Math.max(...bs.map((b) => b.y + b.h));
+			const us = units(selection());
+			if (!us.length) return;
+			const shift = (u, dx, dy) => {
+				for (const m of u.members) {
+					m.x = Math.round(m.x + dx);
+					m.y = Math.round(m.y + dy);
+				}
+			};
+			const bs = us.map((u) => u.box);
+			let L = Math.min(...bs.map((b) => b.x));
+			let R = Math.max(...bs.map((b) => b.x + b.w));
+			let T = Math.min(...bs.map((b) => b.y));
+			let B = Math.max(...bs.map((b) => b.y + b.h));
+			if (us.length === 1) {
+				const v = view();
+				L = 0;
+				T = 0;
+				R = v.w;
+				B = v.h;
+			}
 			if (kind === "hdist" || kind === "vdist") {
-				if (list.length < 3) return api.setMessage("Selecione 3 ou mais para distribuir");
+				if (us.length < 3) return api.setMessage("Selecione 3 ou mais para distribuir");
 				const hz = kind === "hdist";
-				const idx = list.map((s, i) => i).sort((a, b) => hz ? bs[a].x - bs[b].x : bs[a].y - bs[b].y);
+				const idx = us.map((u, i) => i).sort((a, b) => hz ? bs[a].x - bs[b].x : bs[a].y - bs[b].y);
 				const total = idx.reduce((t, i) => t + (hz ? bs[i].w : bs[i].h), 0);
-				const gap = ((hz ? R - L : B - T) - total) / (list.length - 1);
+				const gap = ((hz ? R - L : B - T) - total) / (us.length - 1);
 				let pos = hz ? L : T;
 				for (const i of idx) {
-					if (hz) list[i].x = Math.round(list[i].x + pos - bs[i].x);
-					else list[i].y = Math.round(list[i].y + pos - bs[i].y);
+					if (hz) shift(us[i], pos - bs[i].x, 0);
+					else shift(us[i], 0, pos - bs[i].y);
 					pos += (hz ? bs[i].w : bs[i].h) + gap;
 				}
-			} else list.forEach((s, i) => {
+			} else us.forEach((u, i) => {
 				const b = bs[i];
 				const dx = {
 					left: L - b.x,
@@ -2813,10 +3083,36 @@ var HmiEditor = (function(exports) {
 					vcenter: (T + B) / 2 - (b.y + b.h / 2),
 					bottom: B - (b.y + b.h)
 				}[kind] || 0;
-				s.x = Math.round(s.x + dx);
-				s.y = Math.round(s.y + dy);
+				shift(u, dx, dy);
 			});
-			draw();
+			refresh();
+			changed();
+		}
+		function sameSize(w, h) {
+			const list = sizable();
+			const ref = list.find((m) => m.id === ed.sel) || list[list.length - 1];
+			if (!ref || list.length < 2) return api.setMessage("Selecione 2 ou mais");
+			for (const m of list) {
+				if (w) m.w = ref.w;
+				if (h) m.h = ref.h;
+			}
+			refresh();
+			changed();
+		}
+		const newGroupId = () => "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+		function group() {
+			const list = selection();
+			if (units(list).length < 2) return;
+			const id = newGroupId();
+			for (const m of list) m.group = id;
+			refresh();
+			changed();
+		}
+		function ungroup() {
+			const list = selection();
+			if (!list.some((m) => m.group)) return;
+			for (const m of list) delete m.group;
+			refresh();
 			changed();
 		}
 		function marquee(d) {
@@ -2923,10 +3219,35 @@ var HmiEditor = (function(exports) {
 			const [, type, variant] = data.split(":");
 			add(type, p.x, p.y, Number(variant));
 		});
+		let lastDown = {
+			what: null,
+			t: 0
+		};
+		const isDouble = (what) => {
+			const now = Date.now();
+			const dbl = lastDown.what === what && now - lastDown.t < 450;
+			lastDown = {
+				what: dbl ? null : what,
+				t: now
+			};
+			return dbl;
+		};
 		svg.addEventListener("pointerdown", (e) => {
 			stage.focus();
 			const p = toSvg(e);
 			const pointEl = e.target.closest("[data-point], [data-mid]");
+			if (pointEl && pointEl.hasAttribute("data-point") && isDouble("pt" + pointEl.getAttribute("data-point"))) {
+				const s = selected();
+				const i = Number(pointEl.getAttribute("data-point"));
+				if (s && linePoints(s).length > 2) {
+					s.props.points = linePoints(s).filter((pt, k) => k !== i);
+					normalizeLine(s);
+					refresh();
+					changed();
+				}
+				e.preventDefault();
+				return;
+			}
 			if (pointEl && selected()) {
 				const s = selected();
 				let i = Number(pointEl.getAttribute("data-point"));
@@ -2935,13 +3256,6 @@ var HmiEditor = (function(exports) {
 					const pts = linePoints(s);
 					pts.splice(i, 0, [p.x - s.x, p.y - s.y]);
 					s.props.points = pts;
-				}
-				if (e.detail === 2 && pointEl.hasAttribute("data-point") && linePoints(s).length > 2) {
-					s.props.points = linePoints(s).filter((pt, k) => k !== i);
-					normalizeLine(s);
-					refresh();
-					changed();
-					return;
 				}
 				ed.drag = {
 					mode: "point",
@@ -2953,7 +3267,10 @@ var HmiEditor = (function(exports) {
 				const s = selected();
 				ed.drag = {
 					mode: "size",
+					dir: e.target.closest("[data-handle]").getAttribute("data-handle"),
 					start: p,
+					x: s.x,
+					y: s.y,
 					w: s.w,
 					h: s.h
 				};
@@ -2971,18 +3288,25 @@ var HmiEditor = (function(exports) {
 					refresh();
 				} else {
 					const id = g.getAttribute("data-id");
+					const mates = isDouble(id) && !adding ? [id] : groupOf(id);
+					if (mates.length === 1 && ed.multi.length > 1 && groupOf(id).length > 1) select([id]);
 					if (adding) {
-						if (ed.multi.includes(id)) select(ed.multi.filter((x) => x !== id));
-						else select([...ed.multi, id], id);
+						if (ed.multi.includes(id)) select(ed.multi.filter((x) => !mates.includes(x)));
+						else select([...ed.multi, ...mates], id);
 						refresh();
 						e.preventDefault();
 						return;
 					}
-					if (ed.multi.includes(id)) ed.sel = id;
-					else select([id]);
+					let narrow = null;
+					if (ed.multi.includes(id)) {
+						ed.sel = id;
+						if (ed.multi.length > mates.length) narrow = mates;
+					} else select(mates, id);
 					ed.drag = {
 						mode: "move",
 						start: p,
+						narrow,
+						id,
 						orig: selection().map((m) => ({
 							m,
 							x: m.x,
@@ -3005,7 +3329,7 @@ var HmiEditor = (function(exports) {
 				const hits = ed.symbols.filter((m) => {
 					const b = box(m);
 					return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y;
-				}).map((m) => m.id);
+				}).flatMap((m) => groupOf(m.id));
 				select([...d.base, ...hits]);
 				draw();
 				return;
@@ -3031,16 +3355,66 @@ var HmiEditor = (function(exports) {
 				s.props.points = pts;
 				s.w = Math.max(1, ...pts.map((q) => q[0]));
 				s.h = Math.max(1, ...pts.map((q) => q[1]));
-			} else {
-				s.w = Math.max(20, snap(d.w + p.x - d.start.x));
-				s.h = Math.max(20, snap(d.h + p.y - d.start.y));
-			}
+			} else resize(s, d, p, e.shiftKey);
 			d.moved = true;
 			draw();
 		});
+		function resize(s, d, p, keepRatio) {
+			const rot = (Number(d.rot !== void 0 ? d.rot : s.rot) || 0) * Math.PI / 180;
+			const cos = Math.cos(rot);
+			const sin = Math.sin(rot);
+			const wx = p.x - d.start.x;
+			const wy = p.y - d.start.y;
+			const lx = wx * cos + wy * sin;
+			const ly = -wx * sin + wy * cos;
+			let l = 0;
+			let t = 0;
+			let r = d.w;
+			let b = d.h;
+			const has = (c) => d.dir.includes(c);
+			if (has("e")) r += lx;
+			if (has("w")) l += lx;
+			if (has("s")) b += ly;
+			if (has("n")) t += ly;
+			if (!rot) {
+				if (has("e")) r = snap(d.x + r) - d.x;
+				if (has("w")) l = snap(d.x + l) - d.x;
+				if (has("s")) b = snap(d.y + b) - d.y;
+				if (has("n")) t = snap(d.y + t) - d.y;
+			}
+			if (keepRatio && d.dir.length === 2 && d.w > 0 && d.h > 0) {
+				const k = Math.max((r - l) / d.w, (b - t) / d.h);
+				const nw = d.w * k;
+				const nh = d.h * k;
+				if (has("e")) r = l + nw;
+				else l = r - nw;
+				if (has("s")) b = t + nh;
+				else t = b - nh;
+			}
+			const MIN = 10;
+			if (r - l < MIN) {
+				if (has("w")) l = r - MIN;
+				else r = l + MIN;
+			}
+			if (b - t < MIN) {
+				if (has("n")) t = b - MIN;
+				else b = t + MIN;
+			}
+			const nw = r - l;
+			const nh = b - t;
+			const dcx = (l + r) / 2 - d.w / 2;
+			const dcy = (t + b) / 2 - d.h / 2;
+			const cx = d.x + d.w / 2 + dcx * cos - dcy * sin;
+			const cy = d.y + d.h / 2 + dcx * sin + dcy * cos;
+			s.w = Math.round(nw);
+			s.h = Math.round(nh);
+			s.x = Math.round(cx - nw / 2);
+			s.y = Math.round(cy - nh / 2);
+		}
 		const endDrag = () => {
 			if (!ed.drag) return;
 			const moved = ed.drag.moved;
+			if (ed.drag.mode === "move" && !moved && ed.drag.narrow) select(ed.drag.narrow, ed.drag.id);
 			const s = selected();
 			if (ed.drag.mode === "point" && s) normalizeLine(s);
 			ed.drag = null;
@@ -3061,7 +3435,9 @@ var HmiEditor = (function(exports) {
 				else if (k === "a") {
 					select(ed.symbols.map((m) => m.id));
 					refresh();
-				} else return;
+				} else if (k === "g" && e.shiftKey) ungroup();
+				else if (k === "g") group();
+				else return;
 				e.preventDefault();
 				e.stopPropagation();
 				return;

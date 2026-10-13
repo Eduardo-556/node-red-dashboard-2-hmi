@@ -29,6 +29,7 @@ function cleanSymbols (list) {
         }
         if (s.preview !== undefined && ['number', 'string', 'boolean'].includes(typeof s.preview)) clean.preview = s.preview
         const a = s.action
+        if (typeof s.group === 'string' && s.group) clean.group = s.group.slice(0, 64)
         const sc = s.scale
         if (sc && typeof sc === 'object') clean.scale = { factor: String(sc.factor ?? ''), offset: String(sc.offset ?? '') }
         if (Array.isArray(s.rules)) {

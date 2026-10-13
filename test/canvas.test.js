@@ -90,3 +90,10 @@ test('rules, scale and page actions survive saving from the dashboard', () => {
     assert.strictEqual(s.action.mode, 'page')
     assert.strictEqual(s.action.value, '/linha2')
 })
+
+test('groups survive saving from the dashboard', () => {
+    const { cleanSymbols } = require('../nodes/admin')
+    const [a, b] = cleanSymbols([{ id: 'a', type: 'reel', group: 'g1' }, { id: 'b', type: 'reel', group: 5 }])
+    assert.strictEqual(a.group, 'g1')
+    assert.strictEqual(b.group, undefined)
+})

@@ -26,7 +26,7 @@ Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item p
 
 | Categoria | Itens |
 |---|---|
-| Formas | Imagem própria (SVG, PNG, JPG até 400 KB, ou um endereço), com uma segunda imagem opcional para quando a chave ligar. Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: equipamento, escuro, fosso, só contorno, tracejado. |
+| Formas | Imagem própria (SVG, PNG, JPG até 400 KB, ou um endereço), com uma segunda imagem opcional para quando a chave ligar. Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: os do tema (equipamento, escuro, fosso), só contorno, tracejado, os da tela da slitter (metal, metal com borda clara, aço escuro, grafite, fosso fundo, parede, piso, piso escuro, sensor) e cor personalizada. |
 | Equipamentos | Bobina, rolo, motor, válvula, bomba, tanque (nível), esteira, cilindro (avançado/recuado), ventilador, faca circular, resistência e sensor (fotoelétrico, indutivo, fim de curso). Motor, válvula, bomba, esteira, ventilador e resistência aceitam uma **chave de falha**. |
 | Linhas | Material/chapa, tubulação, esteira e sinal. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
 | Valores | Tag, KPI, texto, medidor (ponteiro), barra vertical e tendência (gráfico dos últimos segundos). Tag, medidor e barra têm escala e alarme abaixo/acima de um limite. |
@@ -59,7 +59,10 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 
 - Arraste da barra de cima ou clique no símbolo para colocar no meio.
 - Botões **Duplicar**, **Frente**, **Trás** e **Excluir** no painel do símbolo.
-- Vários símbolos: `Shift`+clique, ou arraste numa área vazia para fazer um retângulo de seleção. Arrastar um move todos, e o painel mostra **Alinhar** (esquerda, centro, direita, topo, meio, base) e **Distribuir**.
+- Vários símbolos: `Shift`+clique, ou arraste numa área vazia para fazer um retângulo de seleção. Arrastar um move todos.
+- Barra de organizar (ícones ao lado dos menus): alinhar à esquerda, centro, direita, topo, meio e base (com um símbolo só, alinha na tela), distribuir na horizontal/vertical, mesma largura, mesma altura e mesmo tamanho do último clicado, agrupar e desagrupar.
+- Tamanho: 8 alças em volta do símbolo (cantos e lados). `Shift` num canto mantém a proporção. Funciona também com o símbolo girado.
+- Grupos: `Ctrl+G` agrupa, `Ctrl+Shift+G` desagrupa. Clique seleciona e move o grupo inteiro; duplo clique num símbolo do grupo edita só ele. Alinhar e distribuir tratam cada grupo como uma peça.
 - **↶ / ↷** desfazem e refazem.
 - Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica, `Ctrl+A` seleciona tudo, `Esc` limpa a seleção.
 
@@ -92,7 +95,7 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
-Palette (dropdown per category): 22 shapes; reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), align and distribute, undo/redo, copy/paste, duplicate, bring to front/send to back.
+Palette (dropdown per category): 22 shapes; reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), shape tones from the slitter screen plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
 
 Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, or navigation to another dashboard page, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 

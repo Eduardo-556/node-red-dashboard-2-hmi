@@ -143,3 +143,17 @@ test('images only accept image data or plain addresses', () => {
     s.props.src = 'https://example.com/a.png'
     assert.ok(renderSymbol(s, undefined).includes('<image href="https://example.com/a.png"'))
 })
+
+test('slitter tones and custom colours on shapes', () => {
+    const s = createSymbol('frame', 0, 0)
+    s.props.tone = 'metal'
+    const out = renderSymbol(s)
+    assert.ok(out.includes('<linearGradient id="hmi-grad-' + s.id + '"'))
+    assert.ok(out.includes('--hmi-tone-stroke:#8a939d'))
+    s.props.tone = 'custom'
+    s.props.fill = '#ff0000'
+    s.props.stroke = 'red;}<script>'
+    const c = renderSymbol(s)
+    assert.ok(c.includes('--hmi-tone-fill:#ff0000;--hmi-tone-stroke:#8a939d'))
+    assert.ok(!c.includes('<script>'))
+})

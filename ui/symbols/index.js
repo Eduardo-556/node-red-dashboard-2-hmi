@@ -36,9 +36,31 @@ const SHAPES = [
     ['uShape', 'Em U', 240, 160],
     ['cabinet', 'Painel elétrico', 140, 220],
     ['rect', 'Proteção (tracejado)', 300, 200, 'guard'],
-    ['rect', 'Fosso', 300, 80, 'pit']
+    ['rect', 'Fosso', 300, 80, 'pit'],
+    ['chamfer', 'Corpo metal (slitter)', 240, 300, 'metal'],
+    ['rect', 'Base aço (slitter)', 300, 60, 'steel'],
+    ['rect', 'Fosso fundo (slitter)', 170, 140, 'pitDeep'],
+    ['rect', 'Piso (slitter)', 600, 80, 'floor']
 ]
-const TONES = [['equip', 'Equipamento'], ['dark', 'Escuro'], ['pit', 'Fosso / vazio'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)']]
+const TONES = [
+    ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
+    ['metal', 'Metal (slitter)'], ['metalLight', 'Metal, borda clara (slitter)'], ['steel', 'Aço escuro (slitter)'], ['graphite', 'Grafite / rolo (slitter)'],
+    ['pitDeep', 'Fosso fundo (slitter)'], ['wall', 'Parede (slitter)'], ['floor', 'Piso (slitter)'], ['floorDark', 'Piso escuro (slitter)'], ['sensorTone', 'Sensor (slitter)'],
+    ['custom', 'Cor personalizada']
+]
+// fixed colours taken from the OP1475 slitter screen; [fill or gradient top..bottom, stroke]
+const TONE_COLORS = {
+    metal: [['#6a737d', '#4d555e'], '#8a939d'],
+    metalLight: [['#6a737d', '#4d555e'], '#b5bfc8'],
+    steel: ['#3a4148', '#7a838c'],
+    graphite: ['#2f353b', '#a5b0ba'],
+    pitDeep: [['#1d2126', '#15181b'], '#3a4148'],
+    wall: ['#3a4148', '#5a626b'],
+    floor: ['#24282e', 'none'],
+    floorDark: ['#1f2328', 'none'],
+    sensorTone: ['#59616b', '#8a939d']
+}
+const HEX = /^#[0-9a-fA-F]{3,8}$/
 const FAULT_FIELD = { key: 'faultKey', label: 'Chave da falha (opcional)', type: 'text' }
 const PRIORITY_FIELD = { key: 'priority', label: 'Prioridade do alarme', type: 'select', options: [['1', '1 (alta)'], ['2', '2 (média)'], ['3', '3 (baixa)']] }
 
@@ -132,7 +154,9 @@ export const SYMBOLS = {
         defaults: { shape: 'chamfer', tone: 'equip', label: '' },
         fields: [
             { key: 'shape', label: 'Forma', type: 'select', options: SHAPES.map(([k, l]) => [k, l]) },
-            { key: 'tone', label: 'Tom', type: 'select', options: TONES },
+            { key: 'tone', label: 'Tom', type: 'select', options: TONES, refresh: true },
+            { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
+            { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
             { key: 'label', label: 'Legenda', type: 'text' }
         ],
         variants: SHAPES.map(([shape, label, w, h, tone]) => ({ label, w, h, props: { shape, tone: tone || 'equip' } })),
@@ -1049,7 +1073,21 @@ function renderFrame (sym) {
     const p = sym.props || {}
     const tone = TONES.some(t => t[0] === p.tone) ? p.tone : 'equip'
     const label = p.label ? `<text class="hmi-label" x="${f(sym.w / 2)}" y="${f(sym.h + 18)}">${escapeXml(p.label)}</text>` : ''
-    return `<g class="hmi-frame hmi-tone-${tone}">${framePath(p.shape, sym.w, sym.h)}${label}</g>`
+    let defs = ''
+    let style = ''
+    let fixed = TONE_COLORS[tone]
+    if (tone === 'custom') fixed = [HEX.test(p.fill) ? p.fill : '#6a737d', HEX.test(p.stroke) ? p.stroke : '#8a939d']
+    if (fixed) {
+        let fill = fixed[0]
+        if (Array.isArray(fill)) {
+            // gradient per symbol, so the drawing needs nothing outside itself
+            const id = 'hmi-grad-' + String(sym.id).replace(/[^\w-]/g, '')
+            defs = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fill[0]}"/><stop offset="1" stop-color="${fill[1]}"/></linearGradient></defs>`
+            fill = `url(#${id})`
+        }
+        style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`
+    }
+    return `<g class="hmi-frame hmi-tone-${fixed ? 'fixed' : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${label}</g>`
 }
 
 export function linePoints (sym) {
@@ -1273,6 +1311,7 @@ export const CSS = `
 .hmi-root.hmi-theme-classic .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-text); }
 .hmi-root .hmi-detail { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-frame.hmi-tone-outline .hmi-body { fill: none; }
+.hmi-root .hmi-frame.hmi-tone-fixed .hmi-body { fill: var(--hmi-tone-fill); stroke: var(--hmi-tone-stroke); }
 .hmi-root .hmi-frame.hmi-tone-guard .hmi-body { fill: none; stroke-dasharray: 8 5; stroke-width: 2; }
 .hmi-root .hmi-left { text-anchor: start; }
 .hmi-root .hmi-right { text-anchor: end; }
