@@ -49,6 +49,12 @@ function actionMessage (symbols, values, msg) {
     } else if (act.mode === 'pulse' && (a.phase === 'down' || a.phase === 'up')) {
         const down = a.phase === 'down'
         payload = asBool ? down : (down ? 1 : 0)
+    } else if (act.mode === 'input' && a.phase === 'input') {
+        payload = Number(String(a.value).replace(',', '.'))
+        const min = act.min === '' || act.min === undefined ? null : Number(act.min)
+        const max = act.max === '' || act.max === undefined ? null : Number(act.max)
+        if (String(a.value).trim() === '' || !isFinite(payload)) return null
+        if ((min !== null && isFinite(min) && payload < min) || (max !== null && isFinite(max) && payload > max)) return null
     } else {
         return null
     }

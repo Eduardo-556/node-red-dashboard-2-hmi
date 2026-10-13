@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml } from '../ui/symbols/index.js'
+import { CATEGORIES, paletteItems, SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml } from '../ui/symbols/index.js'
 
 test('on/off rules', () => {
     assert.strictEqual(isOn(1450, 'nonzero'), true)
@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (type === 'frame') continue // static drawing, no value
+        if (type === 'frame' || type === 'stack') continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor
@@ -85,4 +85,24 @@ test('rotation turns around the symbol centre', () => {
     const s = createSymbol('tag', 100, 50)
     s.rot = 90
     assert.ok(renderSymbol(s, 1).includes('transform="translate(100,50) rotate(90,80,32)"'))
+})
+
+test('palette lists every symbol and every shape', () => {
+    const items = CATEGORIES.flatMap(c => paletteItems(c))
+    for (const type of Object.keys(SYMBOLS)) assert.ok(items.some(i => i.type === type), type)
+    for (const c of CATEGORIES) assert.ok(paletteItems(c).length > 0, c)
+    for (const it of items) {
+        const s = createSymbol(it.type, 0, 0, it.variant)
+        assert.ok(renderSymbol(s, SYMBOLS[it.type].preview, { editor: true }).length > 40, it.label)
+    }
+    const silo = createSymbol('frame', 0, 0, paletteItems('Formas').find(i => i.label === 'Silo').variant)
+    assert.strictEqual(silo.props.shape, 'silo')
+    assert.strictEqual(silo.h, 260)
+})
+
+test('stack light reads its own keys', () => {
+    const s = createSymbol('stack', 0, 0)
+    s.props.keyRed = 'falha'
+    assert.ok(renderSymbol(s, undefined, { values: { falha: 1 } }).includes('hmi-lamp-alarm hmi-on'))
+    assert.ok(!renderSymbol(s, undefined, { values: { falha: 0 } }).includes('hmi-lamp-alarm hmi-on'))
 })

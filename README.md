@@ -2,7 +2,7 @@
 
 Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols onto a canvas. Wire one object (for example the output of `node-red-contrib-schneider-modbus-tags`) into the canvas and every symbol shows its own key. No SVG or Vue to write.
 
-> **Status: prototype (0.0.x).** Fifteen symbols, lines, click commands and the drag-and-drop editor. Not published to npm yet.
+> **Status: prototype (0.0.x).** 50+ palette items (shapes, equipment, lines, values, states, commands), click commands and the drag-and-drop editor. Not published to npm yet.
 
 [Português](#português) · [English](#english)
 
@@ -22,25 +22,16 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 
 ### Símbolos
 
-| Símbolo | Mostra |
+Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item para a tela ou clique para colocar no meio.
+
+| Categoria | Itens |
 |---|---|
-| Grupo | Símbolo | Mostra |
-|---|---|---|
-| Equipamentos | Bobina | Ligada (valor ≠ 0, ou acima de um limite) ou parada. No tema Clássico ela gira. |
-| | Rolo | Rolo guia, ligado ou parado, com sentido de giro. |
-| | Motor | Ligado ou parado. Com **chave de falha**, fica com borda e indicador de alarme quando a falha está ativa. |
-| | Válvula | Aberta (cheia) ou fechada, com chave de falha opcional. |
-| | Bomba | Ligada ou parada, com chave de falha opcional. |
-| | Tanque | Nível entre vazio e cheio, com valor e alarme abaixo/acima de um limite. |
-| | Corpo | Desenho fixo do corpo da máquina: retângulo, arredondado, chanfrado, arco ou círculo. Não usa valor. |
-| | Linha | Material, tubo, esteira ou sinal ligando equipamentos. Anima o fluxo quando ligada. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
-| Valores | Tag | Título, valor formatado e unidade. Com escala e faixa normal, mostra uma barra; fora da faixa, entra em alarme com indicador de prioridade. |
-| | KPI | Número grande com título e subtítulo, ex. bobinas prontas no turno. |
-| | Texto | Texto fixo, ou texto seguido do valor quando tem chave. |
-| Estados | LED | Ligado ou desligado, com cor (tema, alarme, atenção, informação) e opção de piscar. |
-| | Status | Etiqueta com texto diferente para ligado e desligado (ex. RODANDO / PARADA). |
-| | Alarme | Faixa de alarme com prioridade. Só aparece quando o valor está ativo. |
-| Comandos | Botão | Botão com texto; muda de cor quando a chave dele está ligada (retorno do CLP). Vem com ação de pulso. |
+| Formas | Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: equipamento, escuro, fosso, só contorno, tracejado. |
+| Equipamentos | Bobina, rolo, motor, válvula, bomba, tanque (nível), esteira, cilindro (avançado/recuado), ventilador, faca circular, resistência e sensor (fotoelétrico, indutivo, fim de curso). Motor, válvula, bomba, esteira, ventilador e resistência aceitam uma **chave de falha**. |
+| Linhas | Material/chapa, tubulação, esteira e sinal. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
+| Valores | Tag, KPI, texto, medidor (ponteiro), barra vertical e tendência (gráfico dos últimos segundos). Tag, medidor e barra têm escala e alarme abaixo/acima de um limite. |
+| Estados | LED, status (texto ligado/desligado), alarme (só aparece quando ativo) e torre de sinalização (uma chave para cada cor). |
+| Comandos | Botão (pulso), chave seletora (inverte) e ajuste/setpoint (abre um campo para digitar o valor, com mínimo e máximo). |
 
 ### Comandos (clique no dashboard)
 
@@ -51,6 +42,7 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 | Enviar um valor | O valor configurado (número, `true`/`false` ou texto). |
 | Inverter | O contrário do valor atual da chave: 1/0, ou `true`/`false` se a chave for booleana. |
 | Pulso | 1 ao apertar e 0 ao soltar (ou `true`/`false`). Bom para botões de partida do CLP. |
+| Digitar um valor | Abre um campo para digitar um número; fora do mínimo/máximo configurado não é enviado. |
 
 **Pedir confirmação** abre um "Confirmar?" antes de enviar. O valor enviado é sempre o que está configurado no nó; o navegador só avisa qual símbolo foi clicado.
 
@@ -91,9 +83,9 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
-Symbols: reel, roller, motor, valve, pump (with fault key), tank (level), machine body, line (strip, pipe, conveyor, signal; editable points), tag, KPI, text, LED, status chip, alarm banner and button. Editor: multi-select (Shift+click or rubber band), align and distribute, undo/redo, copy/paste, duplicate, bring to front/send to back.
+Palette (dropdown per category): 22 shapes; reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), align and distribute, undo/redo, copy/paste, duplicate, bring to front/send to back.
 
-Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, or a pulse (1 on press, 0 on release), with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
+Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) or a typed number checked against a min/max, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

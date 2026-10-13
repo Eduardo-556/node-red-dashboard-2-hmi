@@ -61,3 +61,15 @@ test('click actions survive saving from the dashboard', () => {
     const [n] = cleanSymbols([{ id: 'b', type: 'button', action: { mode: 'rm -rf' } }])
     assert.strictEqual(n.action, undefined)
 })
+
+test('typed setpoints are checked against the configured range', () => {
+    const { actionMessage } = require('../nodes/values')
+    const syms = [{ id: 's', type: 'setpoint', key: 'vel', action: { mode: 'input', topic: 'velAlvo', min: '0', max: '200' } }]
+    const act = value => actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'input', value } })
+    assert.deepStrictEqual(act('150,5'), { topic: 'velAlvo', payload: 150.5, symbol: { id: 's', type: 'setpoint', key: 'vel' } })
+    assert.strictEqual(act('250'), null)
+    assert.strictEqual(act('-1'), null)
+    assert.strictEqual(act('abc'), null)
+    assert.strictEqual(act(''), null)
+    assert.strictEqual(actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'click' } }), null)
+})

@@ -1,10 +1,10 @@
 // Drag-and-drop screen editor. Plain DOM, no framework, so the same editor
 // runs inside the Node-RED edit dialog and inside the dashboard page.
-import { SYMBOLS, createSymbol, renderSymbol, injectStyles, linePoints } from '../symbols/index.js'
+import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints } from '../symbols/index.js'
 
 const GRID = 10
 const CSS_ID = 'hmi-editor-style'
-const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)']]
+const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
 
@@ -22,7 +22,12 @@ const CSS = `
 .hmi-ed-btn:hover { filter: brightness(.96); }
 .hmi-ed-btn:disabled { opacity: .5; cursor: default; }
 .hmi-ed-btn.hmi-ed-primary { background: #ad1625; border-color: #ad1625; color: #fff; }
-.hmi-ed-pal { cursor: grab; }
+.hmi-ed { position: relative; }
+.hmi-ed-btn.hmi-ed-cat.hmi-ed-open { box-shadow: inset 0 -2px 0 #1e88e5; }
+.hmi-ed-menu { position: absolute; z-index: 30; display: grid; grid-template-columns: repeat(auto-fill, 100px); gap: 4px; width: min(560px, calc(100% - 8px)); max-height: 60vh; overflow: auto; padding: 6px; background: var(--hmi-ed-bg); border: 1px solid var(--hmi-ed-border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
+.hmi-ed-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 4px; cursor: grab; font-size: 11px; line-height: 1.2; text-align: center; user-select: none; }
+.hmi-ed-item:hover { background: var(--hmi-ed-panel); }
+.hmi-ed-item svg { width: 72px; height: 44px; display: block; }
 .hmi-ed-body { display: flex; min-height: 260px; flex: 1; overflow: hidden; }
 .hmi-ed-stage { flex: 1; min-width: 0; padding: 8px; overflow: auto; outline: none; display: flex; align-items: flex-start; justify-content: center; }
 .hmi-ed-stage svg { display: block; width: 100%; height: auto; box-shadow: 0 0 0 1px var(--hmi-ed-border); user-select: none; touch-action: none; }
@@ -314,26 +319,28 @@ export function createEditor (root, opts) {
         props.appendChild(el('h5', {}, 'Ao clicar no dashboard'))
         const act = s.action || { mode: 'none' }
         const setAct = (k, v) => {
-            s.action = { mode: 'none', value: '', topic: '', confirm: 'no', ...s.action, [k]: v }
+            s.action = { mode: 'none', value: '', topic: '', confirm: 'no', min: '', max: '', ...s.action, [k]: v }
             if (s.action.mode === 'none') delete s.action
         }
         props.appendChild(field('Ação', act.mode || 'none', 'select', v => { setAct('mode', v); setTimeout(showProps) }, ACTIONS))
         if (act.mode && act.mode !== 'none') {
             if (act.mode === 'value') props.appendChild(field('Valor enviado', act.value, 'text', v => setAct('value', v)))
+            if (act.mode === 'input') props.appendChild(pair(field('Mínimo', act.min, 'number', v => setAct('min', v)), field('Máximo', act.max, 'number', v => setAct('max', v))))
             const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
             t.querySelector('input').placeholder = s.key || ''
             props.appendChild(t)
-            if (act.mode !== 'pulse') props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            if (act.mode === 'value' || act.mode === 'toggle') props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
             props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
         }
     }
 
     function refresh () { draw(); showProps() }
 
-    function add (type, cx, cy) {
-        const def = SYMBOLS[type]
-        if (!def) return
-        const s = createSymbol(type, snap(cx - def.w / 2), snap(cy - def.h / 2))
+    function add (type, cx, cy, variant) {
+        if (!SYMBOLS[type]) return
+        const s = createSymbol(type, 0, 0, isFinite(variant) ? variant : -1)
+        s.x = snap(cx - s.w / 2)
+        s.y = snap(cy - s.h / 2)
         ed.symbols.push(s)
         select([s.id])
         refresh()
@@ -418,24 +425,64 @@ export function createEditor (root, opts) {
         s.h = Math.max(1, Math.max(...s.props.points.map(p => p[1])))
     }
 
-    let lastGroup = null
-    for (const [type, def] of Object.entries(SYMBOLS)) {
-        if (def.group && def.group !== lastGroup) {
-            palette.appendChild(el('span', { class: 'hmi-ed-palgroup' }, def.group))
-            lastGroup = def.group
+    // palette: one dropdown per category, each item with a small drawing of the symbol
+    let menu = null
+    const closeMenu = () => {
+        if (!menu) return
+        menu.remove()
+        menu = null
+        palette.querySelectorAll('.hmi-ed-open').forEach(b => b.classList.remove('hmi-ed-open'))
+    }
+    const icon = it => {
+        const sym = createSymbol(it.type, 0, 0, it.variant)
+        const def = SYMBOLS[it.type]
+        const theme = (o.getTheme && o.getTheme()) === 'classic' ? 'classic' : 'isa101'
+        const vb = def.line ? [-4, -20, sym.w + 8, 40] : [-4, -4, sym.w + 8, sym.h + 8]
+        return '<svg xmlns="http://www.w3.org/2000/svg" class="hmi-root hmi-theme-' + theme + ' hmi-transparent" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet">' +
+            renderSymbol(sym, def.preview, { editor: true, values: {} }) + '</svg>'
+    }
+    function openMenu (cat, btn) {
+        menu = el('div', { class: 'hmi-ed-menu' })
+        btn.classList.add('hmi-ed-open')
+        for (const it of paletteItems(cat)) {
+            const item = el('div', { class: 'hmi-ed-item', draggable: 'true', title: 'Arraste para a tela ou clique' })
+            item.innerHTML = icon(it)
+            item.appendChild(el('span', {}, it.label))
+            item.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', 'hmi:' + it.type + ':' + it.variant)
+                menu.style.opacity = '0'
+            })
+            item.addEventListener('dragend', closeMenu)
+            item.addEventListener('click', () => { const v = view(); add(it.type, v.w / 2, v.h / 2, it.variant); closeMenu() })
+            menu.appendChild(item)
         }
-        const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-pal', draggable: 'true', title: 'Arraste para a tela ou clique' }, '+ ' + def.label)
-        b.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', 'hmi:' + type) })
-        b.addEventListener('click', () => { const v = view(); add(type, v.w / 2, v.h / 2) })
+        root.appendChild(menu)
+        const rb = root.getBoundingClientRect()
+        const bb = btn.getBoundingClientRect()
+        menu.style.left = Math.max(4, Math.min(bb.left - rb.left, rb.width - menu.offsetWidth - 4)) + 'px'
+        menu.style.top = (bb.bottom - rb.top + 4) + 'px'
+    }
+    for (const cat of CATEGORIES) {
+        if (!paletteItems(cat).length) continue
+        const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-cat' }, cat + ' ▾')
+        b.addEventListener('click', e => {
+            e.stopPropagation()
+            const same = b.classList.contains('hmi-ed-open')
+            closeMenu()
+            if (!same) openMenu(cat, b)
+        })
         palette.appendChild(b)
     }
+    const outside = e => { if (menu && !menu.contains(e.target) && !e.target.closest('.hmi-ed-cat')) closeMenu() }
+    document.addEventListener('pointerdown', outside, true)
     stage.addEventListener('dragover', e => { e.preventDefault() })
     stage.addEventListener('drop', e => {
         const data = e.dataTransfer.getData('text/plain') || ''
         if (!data.startsWith('hmi:')) return
         e.preventDefault()
         const p = toSvg(e)
-        add(data.slice(4), p.x, p.y)
+        const [, type, variant] = data.split(':')
+        add(type, p.x, p.y, Number(variant))
     })
 
     svg.addEventListener('pointerdown', e => {
@@ -574,7 +621,7 @@ export function createEditor (root, opts) {
         redraw: draw,
         setMessage: (text) => { msg.textContent = text || '' },
         toggleFull: () => { root.classList.toggle('hmi-ed-full'); draw() },
-        destroy: () => { root.innerHTML = '' }
+        destroy: () => { document.removeEventListener('pointerdown', outside, true); root.innerHTML = '' }
     })
     refresh()
     return api

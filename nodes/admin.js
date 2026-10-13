@@ -26,8 +26,9 @@ function cleanSymbols (list) {
         }
         if (s.preview !== undefined && ['number', 'string', 'boolean'].includes(typeof s.preview)) clean.preview = s.preview
         const a = s.action
-        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse'].includes(a.mode)) {
+        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse', 'input'].includes(a.mode)) {
             clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no' }
+            if (a.mode === 'input') Object.assign(clean.action, { min: String(a.min ?? ''), max: String(a.max ?? '') })
         }
         out.push(clean)
     }

@@ -51,7 +51,7 @@ export default {
         state: { type: Object, default: () => ({ enabled: false, visible: false }) }
     },
     data () {
-        return { values: {}, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null }
+        return { values: {}, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null, history: {} }
     },
     computed: {
         symbols () { return Array.isArray(this.props.symbols) ? this.props.symbols : [] },
@@ -60,6 +60,14 @@ export default {
         theme () { return this.props.theme === 'classic' ? 'classic' : 'isa101' },
         transparent () { return this.props.background === 'transparent' },
         editing () { return !!this.edit },
+        // keys drawn by trend symbols and the longest window they need, in ms
+        trendKeys () {
+            const out = {}
+            for (const s of this.symbols) {
+                if (s.type === 'trend' && s.key) out[s.key] = Math.max(out[s.key] || 0, Math.min(3600, Number(s.props && s.props.window) || 60) * 1000)
+            }
+            return out
+        },
         offline () {
             const s = Number(this.props.offlineAfter) || 0
             return s > 0 && this.lastUpdate > 0 && (this.now - this.lastUpdate) > s * 1000
@@ -97,27 +105,51 @@ export default {
             if (msg && msg.payload && typeof msg.payload === 'object') {
                 this.values = { ...msg.payload }
                 this.lastUpdate = Date.now()
+                this.record(this.lastUpdate)
                 if (this.editor) this.editor.redraw()
             }
+        },
+        record (t) {
+            const keys = this.trendKeys
+            const next = {}
+            for (const k of Object.keys(keys)) {
+                const list = (this.history[k] || []).filter(q => q[0] >= t - keys[k])
+                const v = Number(this.values[k])
+                if (this.values[k] !== undefined && this.values[k] !== null && isFinite(v)) list.push([t, v])
+                next[k] = list.slice(-2000)
+            }
+            this.history = next
         },
         onInput (msg) { this.apply(msg) },
         onLoad (msg) { this.apply(msg) },
         draw (s) {
-            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values })
+            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0 })
         },
         clickable (s) {
-            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse'].includes(s.action.mode))
+            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse', 'input'].includes(s.action.mode))
         },
-        sendAction (s, phase) {
-            this.$socket.emit('widget-action', this.id, { _hmiAction: { id: s.id, phase } })
+        sendAction (s, phase, value) {
+            const a = { id: s.id, phase }
+            if (value !== undefined) a.value = value
+            this.$socket.emit('widget-action', this.id, { _hmiAction: a })
         },
         click (s) {
             if (!this.clickable(s) || s.action.mode === 'pulse') return
-            if (s.action.confirm === 'yes') {
-                const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
-                if (!window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
-            }
+            const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
+            if (s.action.mode === 'input') return this.askValue(s, name)
+            if (s.action.confirm === 'yes' && !window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
             this.sendAction(s, 'click')
+        },
+        askValue (s, name) {
+            const { min, max } = s.action
+            const range = min !== '' && max !== '' && min !== undefined && max !== undefined ? ' (' + min + ' a ' + max + ')' : ''
+            const cur = s.key && this.values[s.key] !== undefined ? String(this.values[s.key]) : ''
+            const raw = window.prompt((name ? name + '\n' : '') + 'Novo valor' + range + ':', cur)
+            if (raw === null || raw.trim() === '') return
+            const n = Number(raw.replace(',', '.'))
+            const bad = !isFinite(n) || (min !== '' && min !== undefined && n < Number(min)) || (max !== '' && max !== undefined && n > Number(max))
+            if (bad) return window.alert('Valor inválido' + range)
+            this.sendAction(s, 'input', String(n))
         },
         // pulse: 1 while pressed, 0 on release (also when the pointer leaves)
         press (s, e) {
