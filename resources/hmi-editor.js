@@ -519,10 +519,10 @@ var HmiEditor = (function(exports) {
 			150
 		].map((a) => {
 			const rad = a * Math.PI / 180;
-			return `<line x1="${f(cx + Math.cos(rad) * r * .32)}" y1="${f(cy + Math.sin(rad) * r * .32)}" x2="${f(cx + Math.cos(rad) * r * .9)}" y2="${f(cy + Math.sin(rad) * r * .9)}"/>`;
+			return `<line x1="${f(Math.cos(rad) * r * .32)}" y1="${f(Math.sin(rad) * r * .32)}" x2="${f(Math.cos(rad) * r * .9)}" y2="${f(Math.sin(rad) * r * .9)}"/>`;
 		}).join("");
 		const label = labelBelow(p, w, h);
-		return `<g class="hmi-reel ${cls}"><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><g class="hmi-spin"><circle class="hmi-ring" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .78)}"/><circle class="hmi-ring" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .58)}"/><g class="hmi-spokes">${spokes}</g><circle class="hmi-hub" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .3)}"/></g><circle class="hmi-axle" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .09)}"/>` + label + "</g>";
+		return `<g class="hmi-reel ${cls}"><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin"><circle class="hmi-ring" r="${f(r * .78)}"/><circle class="hmi-ring" r="${f(r * .58)}"/><g class="hmi-spokes">${spokes}</g><circle class="hmi-hub" r="${f(r * .3)}"/></g></g><circle class="hmi-axle" cx="${f(cx)}" cy="${f(cy)}" r="${f(r * .09)}"/>` + label + "</g>";
 	}
 	var stateClass = (on) => on === null ? "hmi-unknown" : on ? "hmi-on" : "hmi-off";
 	var colorClass = (p) => "hmi-c-" + ([
@@ -537,7 +537,7 @@ var HmiEditor = (function(exports) {
 		const cx = sym.w / 2;
 		const cy = sym.h / 2;
 		const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1);
-		return `<g class="hmi-roller ${stateClass(isOn(value, p.onWhen, p.threshold))} hmi-${p.dir === "ccw" ? "ccw" : "cw"}"><g class="hmi-spin"><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><line class="hmi-mark" x1="${f(cx)}" y1="${f(cy - r * .7)}" x2="${f(cx)}" y2="${f(cy + r * .7)}"/></g></g>`;
+		return `<g class="hmi-roller ${stateClass(isOn(value, p.onWhen, p.threshold))} hmi-${p.dir === "ccw" ? "ccw" : "cw"}"><g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin"><circle class="hmi-body" r="${f(r)}"/><line class="hmi-mark" x1="0" y1="${f(-r * .7)}" x2="0" y2="${f(r * .7)}"/></g></g></g>`;
 	}
 	function renderMotor(sym, value, opts) {
 		const p = sym.props || {};
@@ -707,7 +707,7 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-reel .hmi-spokes line { stroke: var(--hmi-line); stroke-width: 1.5; }
 .hmi-root .hmi-reel .hmi-hub { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-reel .hmi-axle { fill: var(--hmi-stroke); }
-.hmi-root .hmi-reel .hmi-spin { transform-box: fill-box; transform-origin: center; }
+.hmi-root .hmi-reel .hmi-spin, .hmi-root .hmi-roller .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
 .hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-spin { animation: hmi-spin 2.4s linear infinite; }
 .hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-axle { fill: var(--hmi-ok); }
 .hmi-root .hmi-tag-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
@@ -733,7 +733,6 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-roller .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller .hmi-mark { stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
-.hmi-root .hmi-roller .hmi-spin { transform-box: fill-box; transform-origin: center; }
 .hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
 .hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
 .hmi-root .hmi-motor .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
