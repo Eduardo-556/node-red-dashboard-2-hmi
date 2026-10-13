@@ -160,7 +160,15 @@
      ],
      "onWhen": "nonzero",
      "threshold": 0
-    }
+    },
+    "rules": [
+     {
+      "key": "emergencia",
+      "op": "on",
+      "value": "",
+      "effect": "alarm"
+     }
+    ]
    },
    {
     "id": "u",

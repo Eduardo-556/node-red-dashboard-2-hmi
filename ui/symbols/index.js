@@ -256,6 +256,21 @@ export const SYMBOLS = {
         ],
         render: renderButton
     },
+    image: {
+        label: 'Imagem (SVG / PNG)',
+        group: 'Formas',
+        w: 160,
+        h: 120,
+        preview: undefined,
+        image: true,
+        defaults: { src: '', srcOn: '', fit: 'meet', onWhen: 'nonzero', threshold: 0, label: '' },
+        fields: [
+            { key: 'fit', label: 'Ajuste', type: 'select', options: [['meet', 'Caber inteira'], ['slice', 'Preencher (corta)'], ['stretch', 'Esticar']] },
+            { key: 'label', label: 'Legenda', type: 'text' },
+            ...ON_FIELDS
+        ],
+        render: renderImage
+    },
     conveyor: {
         label: 'Esteira',
         group: 'Equipamentos',
@@ -430,7 +445,61 @@ export function createSymbol (type, x, y, variant) {
 // Value the symbol shows: from the values object by key, or the editor preview.
 export function valueFor (sym, values) {
     if (!values || !sym.key) return undefined
-    return values[sym.key]
+    return scaleValue(sym, values[sym.key])
+}
+
+// Optional per-symbol scaling of numeric values: shown = raw * factor + offset
+function scaleOf2 (sym) {
+    const sc = sym && sym.scale
+    if (!sc) return null
+    const k = num(sc.factor)
+    const o = num(sc.offset)
+    const factor = k === null ? 1 : k
+    const offset = o === null ? 0 : o
+    return factor === 1 && offset === 0 ? null : { factor, offset }
+}
+const tidy = n => Math.round(n * 1e9) / 1e9
+export function scaleValue (sym, raw) {
+    const sc = scaleOf2(sym)
+    if (!sc || typeof raw === 'boolean') return raw
+    const n = num(raw)
+    return n === null ? raw : tidy(n * sc.factor + sc.offset)
+}
+export function unscaleValue (sym, shown) {
+    const sc = scaleOf2(sym)
+    if (!sc || sc.factor === 0) return shown
+    return tidy((shown - sc.offset) / sc.factor)
+}
+
+// Rules: change how any symbol looks from a value, e.g. hide it or paint it red.
+export const RULE_OPS = [['on', 'ligado (≠ 0 / true)'], ['off', 'desligado (0 / false)'], ['eq', 'igual a'], ['ne', 'diferente de'], ['gt', 'maior que'], ['lt', 'menor que']]
+export const RULE_EFFECTS = [['alarm', 'Vermelho (alarme)'], ['warn', 'Amarelo (atenção)'], ['info', 'Azul'], ['ok', 'Verde'], ['dim', 'Apagado'], ['blink', 'Piscar'], ['hide', 'Esconder']]
+export function ruleMatch (rule, values, sym) {
+    const key = rule.key || sym.key
+    const v = key && values ? values[key] : undefined
+    if (v === undefined || v === null) return false
+    const a = num(v)
+    const b = num(rule.value)
+    switch (rule.op) {
+    case 'off': return isOn(v, 'nonzero') === false
+    case 'eq':
+    case 'ne': {
+        const eq = a !== null && b !== null ? a === b : String(v) === String(rule.value === undefined ? '' : rule.value)
+        return rule.op === 'eq' ? eq : !eq
+    }
+    case 'gt': return a !== null && b !== null && a > b
+    case 'lt': return a !== null && b !== null && a < b
+    default: return isOn(v, 'nonzero') === true
+    }
+}
+export function ruleEffects (sym, values) {
+    const out = { hide: false, classes: [] }
+    for (const r of Array.isArray(sym.rules) ? sym.rules : []) {
+        if (!r || !ruleMatch(r, values, sym)) continue
+        if (r.effect === 'hide') out.hide = true
+        else if (RULE_EFFECTS.some(e => e[0] === r.effect) && !out.classes.includes('hmi-rule-' + r.effect)) out.classes.push('hmi-rule-' + r.effect)
+    }
+    return out
 }
 
 export function isOn (value, rule, threshold) {
@@ -621,6 +690,32 @@ function renderButton (sym, value, opts) {
 
 function poly (pts) {
     return `<polygon class="hmi-body" points="${pts.map(p => f(p[0]) + ',' + f(p[1])).join(' ')}"/>`
+}
+
+// only images (data URLs or http/relative addresses); never javascript: or markup
+export function safeImageSrc (src) {
+    const s = String(src || '').trim()
+    if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(s)) return s
+    if (/^(https?:\/\/|\/)[^\s"'<>`]*$/.test(s)) return s
+    return ''
+}
+
+function renderImage (sym, value) {
+    const p = sym.props || {}
+    const w = sym.w
+    const h = sym.h
+    const on = isOn(value, p.onWhen, p.threshold)
+    const src = safeImageSrc(on === true && p.srcOn ? p.srcOn : p.src)
+    const label = labelBelow(p, w, h)
+    if (!src) {
+        const m = Math.min(w, h)
+        return `<g class="hmi-image hmi-img-empty"><rect class="hmi-img-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="4"/>` +
+            `<path class="hmi-img-icon" d="M${f(w / 2 - m * 0.25)} ${f(h / 2 + m * 0.18)}l${f(m * 0.17)} ${f(-m * 0.24)} ${f(m * 0.1)} ${f(m * 0.12)} ${f(m * 0.08)} ${f(-m * 0.07)} ${f(m * 0.15)} ${f(m * 0.19)}z"/>` +
+            `<circle class="hmi-img-icon" cx="${f(w / 2 + m * 0.12)}" cy="${f(h / 2 - m * 0.14)}" r="${f(m * 0.05)}"/>${label}</g>`
+    }
+    const par = p.fit === 'stretch' ? 'none' : (p.fit === 'slice' ? 'xMidYMid slice' : 'xMidYMid meet')
+    return `<g class="hmi-image"><rect class="hmi-hitbox" x="0" y="0" width="${f(w)}" height="${f(h)}"/>` +
+        `<image href="${escapeXml(src)}" x="0" y="0" width="${f(w)}" height="${f(h)}" preserveAspectRatio="${par}"/>${label}</g>`
 }
 
 function faultMark (p, opts, w) {
@@ -1083,9 +1178,13 @@ function renderTag (sym, value, opts) {
 export function renderSymbol (sym, value, opts) {
     const def = SYMBOLS[sym.type]
     if (!def) return ''
+    const o = opts || {}
+    const fx = ruleEffects(sym, o.values || {})
+    if (fx.hide && !o.editor) return ''
+    const cls = 'hmi-symbol' + fx.classes.map(c => ' ' + c).join('') + (fx.hide ? ' hmi-rule-hidden' : '')
     const rot = Number(sym.rot) || 0
     const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : '')
-    return `<g class="hmi-symbol" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, opts || {})}</g>`
+    return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, o)}</g>`
 }
 
 export const STYLE_ID = 'hmi-symbols-style'
@@ -1234,6 +1333,23 @@ export const CSS = `
 .hmi-root.hmi-theme-classic .hmi-switch.hmi-on .hmi-switch-text { fill: var(--hmi-text); }
 .hmi-root .hmi-setpoint-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-info); stroke-width: 1.5; }
 .hmi-root .hmi-pencil { fill: var(--hmi-info); }
+.hmi-root .hmi-img-box { fill: none; stroke: var(--hmi-line); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.hmi-root .hmi-img-icon { fill: var(--hmi-line); }
+.hmi-root .hmi-rule-hidden { opacity: .25; }
+.hmi-root .hmi-rule-blink { animation: hmi-blink 1s steps(2) infinite; }
+.hmi-root .hmi-rule-dim { opacity: .35; }
+.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm .hmi-path { stroke: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn .hmi-path { stroke: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info .hmi-path { stroke: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok .hmi-path { stroke: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm .hmi-text text { fill: var(--hmi-alarm); }
+.hmi-root .hmi-rule-warn .hmi-text text { fill: var(--hmi-warn); }
+.hmi-root .hmi-rule-info .hmi-text text { fill: var(--hmi-info); }
+.hmi-root .hmi-rule-ok .hmi-text text { fill: #2e9d4f; }
 .hmi-root .hmi-clickable { cursor: pointer; touch-action: none; }
 .hmi-root .hmi-clickable:active .hmi-button-box { filter: brightness(.85); }
 .hmi-root .hmi-pressed .hmi-button-box { filter: brightness(.8); }

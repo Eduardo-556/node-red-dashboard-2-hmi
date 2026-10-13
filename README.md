@@ -26,12 +26,20 @@ Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item p
 
 | Categoria | Itens |
 |---|---|
-| Formas | Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: equipamento, escuro, fosso, só contorno, tracejado. |
+| Formas | Imagem própria (SVG, PNG, JPG até 400 KB, ou um endereço), com uma segunda imagem opcional para quando a chave ligar. Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: equipamento, escuro, fosso, só contorno, tracejado. |
 | Equipamentos | Bobina, rolo, motor, válvula, bomba, tanque (nível), esteira, cilindro (avançado/recuado), ventilador, faca circular, resistência e sensor (fotoelétrico, indutivo, fim de curso). Motor, válvula, bomba, esteira, ventilador e resistência aceitam uma **chave de falha**. |
 | Linhas | Material/chapa, tubulação, esteira e sinal. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
 | Valores | Tag, KPI, texto, medidor (ponteiro), barra vertical e tendência (gráfico dos últimos segundos). Tag, medidor e barra têm escala e alarme abaixo/acima de um limite. |
 | Estados | LED, status (texto ligado/desligado), alarme (só aparece quando ativo) e torre de sinalização (uma chave para cada cor). |
 | Comandos | Botão (pulso), chave seletora (inverte) e ajuste/setpoint (abre um campo para digitar o valor, com mínimo e máximo). |
+
+### Escala
+
+Em **Escala do valor**, o símbolo mostra `valor × multiplicar + somar`. Ex.: o CLP manda `1450` e com multiplicar `0,1` a tela mostra `145,0`. Num setpoint com escala, o valor digitado volta para o CLP já convertido.
+
+### Regras
+
+Qualquer símbolo pode ter **regras**: quando uma chave (ou a do próprio símbolo) estiver ligada, desligada, igual, diferente, maior ou menor que um valor, o símbolo fica vermelho, amarelo, azul, verde, apagado, pisca ou some. Ex.: esconder a bobina quando `temBobina` = 0. As regras usam o valor do CLP, sem escala. No editor, símbolos escondidos aparecem transparentes.
 
 ### Comandos (clique no dashboard)
 
@@ -43,6 +51,7 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 | Inverter | O contrário do valor atual da chave: 1/0, ou `true`/`false` se a chave for booleana. |
 | Pulso | 1 ao apertar e 0 ao soltar (ou `true`/`false`). Bom para botões de partida do CLP. |
 | Digitar um valor | Abre um campo para digitar um número; fora do mínimo/máximo configurado não é enviado. |
+| Ir para outra página | Abre outra página do dashboard (escolhida na lista) ou um endereço. Não sai mensagem pelo nó. |
 
 **Pedir confirmação** abre um "Confirmar?" antes de enviar. O valor enviado é sempre o que está configurado no nó; o navegador só avisa qual símbolo foi clicado.
 
@@ -85,7 +94,9 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 
 Palette (dropdown per category): 22 shapes; reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), align and distribute, undo/redo, copy/paste, duplicate, bring to front/send to back.
 
-Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) or a typed number checked against a min/max, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
+Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, or navigation to another dashboard page, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
+
+Per symbol: **scale** (`raw × factor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

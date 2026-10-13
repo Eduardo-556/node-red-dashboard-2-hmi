@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { CATEGORIES, paletteItems, SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml } from '../ui/symbols/index.js'
+import { CATEGORIES, paletteItems, SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml, valueFor, scaleValue, unscaleValue, ruleEffects, safeImageSrc } from '../ui/symbols/index.js'
 
 test('on/off rules', () => {
     assert.strictEqual(isOn(1450, 'nonzero'), true)
@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (type === 'frame' || type === 'stack') continue // static drawing, or several keys of its own
+        if (type === 'frame' || type === 'stack' || type === 'image') continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor
@@ -105,4 +105,41 @@ test('stack light reads its own keys', () => {
     s.props.keyRed = 'falha'
     assert.ok(renderSymbol(s, undefined, { values: { falha: 1 } }).includes('hmi-lamp-alarm hmi-on'))
     assert.ok(!renderSymbol(s, undefined, { values: { falha: 0 } }).includes('hmi-lamp-alarm hmi-on'))
+})
+
+test('scale turns raw PLC values into screen units', () => {
+    const s = createSymbol('tag', 0, 0)
+    s.key = 'rpm'
+    s.scale = { factor: '0.1', offset: '' }
+    assert.strictEqual(valueFor(s, { rpm: 1450 }), 145)
+    assert.strictEqual(scaleValue(s, true), true)
+    assert.strictEqual(unscaleValue(s, 145), 1450)
+    s.scale = { factor: '', offset: '' }
+    assert.strictEqual(valueFor(s, { rpm: 1450 }), 1450)
+})
+
+test('rules hide or colour a symbol from a value', () => {
+    const s = createSymbol('reel', 0, 0)
+    s.key = 'rpm'
+    s.rules = [{ key: 'temBobina', op: 'off', value: '', effect: 'hide' }, { key: '', op: 'gt', value: '1800', effect: 'alarm' }]
+    assert.deepStrictEqual(ruleEffects(s, { temBobina: 1, rpm: 100 }), { hide: false, classes: [] })
+    assert.deepStrictEqual(ruleEffects(s, { temBobina: 0, rpm: 1900 }), { hide: true, classes: ['hmi-rule-alarm'] })
+    assert.strictEqual(renderSymbol(s, 1, { values: { temBobina: 0 } }), '')
+    assert.ok(renderSymbol(s, 1, { values: { temBobina: 0 }, editor: true }).includes('hmi-rule-hidden'))
+    assert.ok(renderSymbol(s, 1900, { values: { temBobina: 1, rpm: 1900 } }).startsWith('<g class="hmi-symbol hmi-rule-alarm"'))
+    s.rules = [{ key: 'modo', op: 'eq', value: 'AUTO', effect: 'blink' }]
+    assert.deepStrictEqual(ruleEffects(s, { modo: 'AUTO' }).classes, ['hmi-rule-blink'])
+})
+
+test('images only accept image data or plain addresses', () => {
+    assert.ok(safeImageSrc('data:image/png;base64,iVBORw0KGgo='))
+    assert.ok(safeImageSrc('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='))
+    assert.ok(safeImageSrc('https://example.com/a.png'))
+    assert.ok(safeImageSrc('/img/maquina.png'))
+    assert.strictEqual(safeImageSrc('javascript:alert(1)'), '')
+    assert.strictEqual(safeImageSrc('data:text/html;base64,PGI+'), '')
+    assert.strictEqual(safeImageSrc('https://x.com/a.png" onload="x'), '')
+    const s = createSymbol('image', 0, 0)
+    s.props.src = 'https://example.com/a.png'
+    assert.ok(renderSymbol(s, undefined).includes('<image href="https://example.com/a.png"'))
 })

@@ -781,6 +781,41 @@ var HmiEditor = (function(exports) {
 			],
 			render: renderButton
 		},
+		image: {
+			label: "Imagem (SVG / PNG)",
+			group: "Formas",
+			w: 160,
+			h: 120,
+			preview: void 0,
+			image: true,
+			defaults: {
+				src: "",
+				srcOn: "",
+				fit: "meet",
+				onWhen: "nonzero",
+				threshold: 0,
+				label: ""
+			},
+			fields: [
+				{
+					key: "fit",
+					label: "Ajuste",
+					type: "select",
+					options: [
+						["meet", "Caber inteira"],
+						["slice", "Preencher (corta)"],
+						["stretch", "Esticar"]
+					]
+				},
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				},
+				...ON_FIELDS
+			],
+			render: renderImage
+		},
 		conveyor: {
 			label: "Esteira",
 			group: "Equipamentos",
@@ -1197,7 +1232,78 @@ var HmiEditor = (function(exports) {
 	}
 	function valueFor(sym, values) {
 		if (!values || !sym.key) return void 0;
-		return values[sym.key];
+		return scaleValue(sym, values[sym.key]);
+	}
+	function scaleOf2(sym) {
+		const sc = sym && sym.scale;
+		if (!sc) return null;
+		const k = num(sc.factor);
+		const o = num(sc.offset);
+		const factor = k === null ? 1 : k;
+		const offset = o === null ? 0 : o;
+		return factor === 1 && offset === 0 ? null : {
+			factor,
+			offset
+		};
+	}
+	var tidy = (n) => Math.round(n * 1e9) / 1e9;
+	function scaleValue(sym, raw) {
+		const sc = scaleOf2(sym);
+		if (!sc || typeof raw === "boolean") return raw;
+		const n = num(raw);
+		return n === null ? raw : tidy(n * sc.factor + sc.offset);
+	}
+	function unscaleValue(sym, shown) {
+		const sc = scaleOf2(sym);
+		if (!sc || sc.factor === 0) return shown;
+		return tidy((shown - sc.offset) / sc.factor);
+	}
+	var RULE_OPS = [
+		["on", "ligado (≠ 0 / true)"],
+		["off", "desligado (0 / false)"],
+		["eq", "igual a"],
+		["ne", "diferente de"],
+		["gt", "maior que"],
+		["lt", "menor que"]
+	];
+	var RULE_EFFECTS = [
+		["alarm", "Vermelho (alarme)"],
+		["warn", "Amarelo (atenção)"],
+		["info", "Azul"],
+		["ok", "Verde"],
+		["dim", "Apagado"],
+		["blink", "Piscar"],
+		["hide", "Esconder"]
+	];
+	function ruleMatch(rule, values, sym) {
+		const key = rule.key || sym.key;
+		const v = key && values ? values[key] : void 0;
+		if (v === void 0 || v === null) return false;
+		const a = num(v);
+		const b = num(rule.value);
+		switch (rule.op) {
+			case "off": return isOn(v, "nonzero") === false;
+			case "eq":
+			case "ne": {
+				const eq = a !== null && b !== null ? a === b : String(v) === String(rule.value === void 0 ? "" : rule.value);
+				return rule.op === "eq" ? eq : !eq;
+			}
+			case "gt": return a !== null && b !== null && a > b;
+			case "lt": return a !== null && b !== null && a < b;
+			default: return isOn(v, "nonzero") === true;
+		}
+	}
+	function ruleEffects(sym, values) {
+		const out = {
+			hide: false,
+			classes: []
+		};
+		for (const r of Array.isArray(sym.rules) ? sym.rules : []) {
+			if (!r || !ruleMatch(r, values, sym)) continue;
+			if (r.effect === "hide") out.hide = true;
+			else if (RULE_EFFECTS.some((e) => e[0] === r.effect) && !out.classes.includes("hmi-rule-" + r.effect)) out.classes.push("hmi-rule-" + r.effect);
+		}
+		return out;
 	}
 	function isOn(value, rule, threshold) {
 		if (value === void 0 || value === null || value === "") return null;
@@ -1358,6 +1464,25 @@ var HmiEditor = (function(exports) {
 	}
 	function poly(pts) {
 		return `<polygon class="hmi-body" points="${pts.map((p) => f(p[0]) + "," + f(p[1])).join(" ")}"/>`;
+	}
+	function safeImageSrc(src) {
+		const s = String(src || "").trim();
+		if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(s)) return s;
+		if (/^(https?:\/\/|\/)[^\s"'<>`]*$/.test(s)) return s;
+		return "";
+	}
+	function renderImage(sym, value) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const src = safeImageSrc(isOn(value, p.onWhen, p.threshold) === true && p.srcOn ? p.srcOn : p.src);
+		const label = labelBelow(p, w, h);
+		if (!src) {
+			const m = Math.min(w, h);
+			return `<g class="hmi-image hmi-img-empty"><rect class="hmi-img-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="4"/><path class="hmi-img-icon" d="M${f(w / 2 - m * .25)} ${f(h / 2 + m * .18)}l${f(m * .17)} ${f(-m * .24)} ${f(m * .1)} ${f(m * .12)} ${f(m * .08)} ${f(-m * .07)} ${f(m * .15)} ${f(m * .19)}z"/><circle class="hmi-img-icon" cx="${f(w / 2 + m * .12)}" cy="${f(h / 2 - m * .14)}" r="${f(m * .05)}"/>${label}</g>`;
+		}
+		const par = p.fit === "stretch" ? "none" : p.fit === "slice" ? "xMidYMid slice" : "xMidYMid meet";
+		return `<g class="hmi-image"><rect class="hmi-hitbox" x="0" y="0" width="${f(w)}" height="${f(h)}"/><image href="${escapeXml(src)}" x="0" y="0" width="${f(w)}" height="${f(h)}" preserveAspectRatio="${par}"/>${label}</g>`;
 	}
 	function faultMark(p, opts, w) {
 		return faultOf(p, opts) ? alarmIndicator(w - 4, 6, p.priority) : "";
@@ -1816,9 +1941,13 @@ var HmiEditor = (function(exports) {
 	function renderSymbol(sym, value, opts) {
 		const def = SYMBOLS[sym.type];
 		if (!def) return "";
+		const o = opts || {};
+		const fx = ruleEffects(sym, o.values || {});
+		if (fx.hide && !o.editor) return "";
+		const cls = "hmi-symbol" + fx.classes.map((c) => " " + c).join("") + (fx.hide ? " hmi-rule-hidden" : "");
 		const rot = Number(sym.rot) || 0;
 		const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : "");
-		return `<g class="hmi-symbol" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, opts || {})}</g>`;
+		return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, o)}</g>`;
 	}
 	var STYLE_ID = "hmi-symbols-style";
 	var CSS = `
@@ -1965,6 +2094,23 @@ var HmiEditor = (function(exports) {
 .hmi-root.hmi-theme-classic .hmi-switch.hmi-on .hmi-switch-text { fill: var(--hmi-text); }
 .hmi-root .hmi-setpoint-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-info); stroke-width: 1.5; }
 .hmi-root .hmi-pencil { fill: var(--hmi-info); }
+.hmi-root .hmi-img-box { fill: none; stroke: var(--hmi-line); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.hmi-root .hmi-img-icon { fill: var(--hmi-line); }
+.hmi-root .hmi-rule-hidden { opacity: .25; }
+.hmi-root .hmi-rule-blink { animation: hmi-blink 1s steps(2) infinite; }
+.hmi-root .hmi-rule-dim { opacity: .35; }
+.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm .hmi-path { stroke: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn .hmi-path { stroke: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info .hmi-path { stroke: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok .hmi-path { stroke: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm .hmi-text text { fill: var(--hmi-alarm); }
+.hmi-root .hmi-rule-warn .hmi-text text { fill: var(--hmi-warn); }
+.hmi-root .hmi-rule-info .hmi-text text { fill: var(--hmi-info); }
+.hmi-root .hmi-rule-ok .hmi-text text { fill: #2e9d4f; }
 .hmi-root .hmi-clickable { cursor: pointer; touch-action: none; }
 .hmi-root .hmi-clickable:active .hmi-button-box { filter: brightness(.85); }
 .hmi-root .hmi-pressed .hmi-button-box { filter: brightness(.8); }
@@ -2033,7 +2179,8 @@ var HmiEditor = (function(exports) {
 		["value", "Enviar um valor"],
 		["toggle", "Inverter (liga / desliga)"],
 		["pulse", "Pulso (1 ao apertar, 0 ao soltar)"],
-		["input", "Digitar um valor (ajuste)"]
+		["input", "Digitar um valor (ajuste)"],
+		["page", "Ir para outra página"]
 	];
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
 	var clipboard = null;
@@ -2055,6 +2202,7 @@ var HmiEditor = (function(exports) {
 .hmi-ed-btn.hmi-ed-cat.hmi-ed-open { box-shadow: inset 0 -2px 0 #1e88e5; }
 .hmi-ed-menu { position: absolute; z-index: 30; display: grid; grid-template-columns: repeat(auto-fill, 100px); gap: 4px; width: min(560px, calc(100% - 8px)); max-height: 60vh; overflow: auto; padding: 6px; background: var(--hmi-ed-bg); border: 1px solid var(--hmi-ed-border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
 .hmi-ed-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 4px; cursor: grab; font-size: 11px; line-height: 1.2; text-align: center; user-select: none; }
+.hmi-ed-rule { border: 1px solid var(--hmi-ed-border); border-radius: 4px; padding: 6px 6px 0 6px; margin-bottom: 6px; background: var(--hmi-ed-bg); }
 .hmi-ed-item:hover { background: var(--hmi-ed-panel); }
 .hmi-ed-item svg { width: 72px; height: 44px; display: block; }
 .hmi-ed-body { display: flex; min-height: 260px; flex: 1; overflow: hidden; }
@@ -2239,6 +2387,7 @@ var HmiEditor = (function(exports) {
 			const live = o.getValues && o.getValues() || {};
 			const previews = {};
 			for (const s of ed.symbols) if (s.key && s.preview !== void 0 && !(s.key in previews)) previews[s.key] = s.preview;
+			const typed = new Set(Object.keys(previews));
 			for (const s of ed.symbols) if (s.key && SYMBOLS[s.type] && !(s.key in previews)) previews[s.key] = s.key in live ? live[s.key] : SYMBOLS[s.type].preview;
 			const locale = o.getLocale && o.getLocale();
 			const values = {
@@ -2248,7 +2397,8 @@ var HmiEditor = (function(exports) {
 			for (const s of ed.symbols) {
 				const def = SYMBOLS[s.type];
 				if (!def) continue;
-				const value = s.preview !== void 0 ? s.preview : s.key ? previews[s.key] : def.preview;
+				let value = s.preview !== void 0 ? s.preview : s.key ? previews[s.key] : def.preview;
+				if (s.preview === void 0 && s.key && !typed.has(s.key) && s.key in live) value = scaleValue(s, value);
 				out += renderSymbol(s, value, {
 					locale,
 					values,
@@ -2435,6 +2585,23 @@ var HmiEditor = (function(exports) {
 				if (p === void 0) delete s.preview;
 				else s.preview = p;
 			}));
+			if (def.image) imageFields(s, smallBtn);
+			if (!def.line && !def.image && !["frame", "stack"].includes(s.type)) {
+				props.appendChild(el("h5", {}, "Escala do valor"));
+				const sc = s.scale || {};
+				const setSc = (k, v) => {
+					s.scale = {
+						factor: "",
+						offset: "",
+						...s.scale,
+						[k]: v
+					};
+					if (s.scale.factor === "" && s.scale.offset === "") delete s.scale;
+				};
+				props.appendChild(pair(field("Multiplicar por", sc.factor ?? "", "text", (v) => setSc("factor", v.replace(",", ".").trim())), field("Somar", sc.offset ?? "", "text", (v) => setSc("offset", v.replace(",", ".").trim()))));
+				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Mostra valor × multiplicar + somar. Ex.: 0,1 para um CLP que manda 1450 e a tela mostra 145,0."));
+			}
+			ruleFields(s, smallBtn);
 			if (def.line || s.type === "frame") return;
 			props.appendChild(el("h5", {}, "Ao clicar no dashboard"));
 			const act = s.action || { mode: "none" };
@@ -2458,12 +2625,112 @@ var HmiEditor = (function(exports) {
 			if (act.mode && act.mode !== "none") {
 				if (act.mode === "value") props.appendChild(field("Valor enviado", act.value, "text", (v) => setAct("value", v)));
 				if (act.mode === "input") props.appendChild(pair(field("Mínimo", act.min, "number", (v) => setAct("min", v)), field("Máximo", act.max, "number", (v) => setAct("max", v))));
-				const t = field("Tópico (vazio = chave do payload)", act.topic, "text", (v) => setAct("topic", v));
-				t.querySelector("input").placeholder = s.key || "";
-				props.appendChild(t);
-				if (act.mode === "value" || act.mode === "toggle") props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
-				props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
+				if (act.mode === "page") {
+					const pages = o.getPages && o.getPages() || [];
+					const pf = pages.length ? field("Página", act.value, "select", (v) => setAct("value", v), [["", "(escolha)"], ...pages]) : field("Página (caminho, ex. /linha2)", act.value, "text", (v) => setAct("value", v.trim()));
+					props.appendChild(pf);
+				} else {
+					const t = field("Tópico (vazio = chave do payload)", act.topic, "text", (v) => setAct("topic", v));
+					t.querySelector("input").placeholder = s.key || "";
+					props.appendChild(t);
+				}
+				if ([
+					"value",
+					"toggle",
+					"page"
+				].includes(act.mode)) props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
+				if (act.mode !== "page") props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
 			}
+		}
+		function ruleFields(s, smallBtn) {
+			props.appendChild(el("h5", {}, "Regras"));
+			const rules = Array.isArray(s.rules) ? s.rules : [];
+			rules.forEach((r, i) => {
+				const card = el("div", { class: "hmi-ed-rule" });
+				const kf = field("Chave (vazio = a do símbolo)", r.key, "text", (v) => {
+					r.key = v.trim();
+				});
+				kf.querySelector("input").placeholder = s.key || "";
+				card.appendChild(kf);
+				card.appendChild(pair(field("Quando", r.op || "on", "select", (v) => {
+					r.op = v;
+				}, RULE_OPS), field("Valor", r.value ?? "", "text", (v) => {
+					r.value = v;
+				})));
+				const del = el("div", { class: "hmi-ed-f" });
+				del.appendChild(el("label", {}, "\xA0"));
+				smallBtn(del, "Remover", "Apagar esta regra", () => {
+					s.rules = rules.filter((x, k) => k !== i);
+					if (!s.rules.length) delete s.rules;
+					refresh();
+					changed();
+				});
+				card.appendChild(pair(field("Efeito", r.effect || "alarm", "select", (v) => {
+					r.effect = v;
+				}, RULE_EFFECTS), del));
+				props.appendChild(card);
+			});
+			const row = el("div", { class: "hmi-ed-btnrow" });
+			smallBtn(row, "+ Regra", "Mudar cor, piscar ou esconder conforme um valor", () => {
+				s.rules = [...rules, {
+					key: "",
+					op: "on",
+					value: "",
+					effect: "alarm"
+				}];
+				refresh();
+				changed();
+			});
+			props.appendChild(row);
+			if (!rules.length) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Ex.: esconder a bobina quando \"temBobina\" estiver desligado, ou deixar o corpo vermelho quando \"falha\" ligar. Usa o valor do CLP, sem escala."));
+		}
+		function imageFields(s, smallBtn) {
+			props.appendChild(el("h5", {}, "Arquivo"));
+			for (const [k, label] of [["src", "Imagem"], ["srcOn", "Imagem quando ligado (opcional)"]]) {
+				const row = el("div", { class: "hmi-ed-f" });
+				row.appendChild(el("label", {}, label));
+				const input = el("input", {
+					type: "file",
+					accept: "image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+				});
+				input.style.display = "none";
+				const btns = el("div", { class: "hmi-ed-btnrow" });
+				smallBtn(btns, s.props[k] ? "Trocar" : "Escolher arquivo", "SVG, PNG, JPG, GIF ou WEBP até 400 KB", () => input.click());
+				if (s.props[k]) smallBtn(btns, "Remover", "", () => {
+					s.props[k] = "";
+					refresh();
+					changed();
+				});
+				input.addEventListener("change", () => {
+					const file = input.files && input.files[0];
+					if (!file) return;
+					if (file.size > 409600) return api.setMessage("Imagem grande demais (máx. 400 KB)");
+					const reader = new FileReader();
+					reader.onload = () => {
+						s.props[k] = String(reader.result);
+						const img = new Image();
+						img.onload = () => {
+							if (k === "src" && img.naturalWidth > 0 && img.naturalHeight > 0) s.h = Math.max(10, Math.round(s.w * img.naturalHeight / img.naturalWidth));
+							refresh();
+							changed();
+						};
+						img.onerror = () => {
+							refresh();
+							changed();
+						};
+						img.src = s.props[k];
+					};
+					reader.readAsDataURL(file);
+				});
+				row.appendChild(btns);
+				row.appendChild(input);
+				props.appendChild(row);
+			}
+			const url = field("ou endereço da imagem (URL)", String(s.props.src || "").startsWith("data:") ? "" : s.props.src, "text", (v) => {
+				s.props.src = v.trim();
+			});
+			url.querySelector("input").placeholder = "https://... ou /imagens/maquina.png";
+			props.appendChild(url);
 		}
 		function refresh() {
 			draw();
@@ -2845,6 +3112,8 @@ var HmiEditor = (function(exports) {
 	//#endregion
 	exports.CATEGORIES = CATEGORIES;
 	exports.CSS = CSS;
+	exports.RULE_EFFECTS = RULE_EFFECTS;
+	exports.RULE_OPS = RULE_OPS;
 	exports.STYLE_ID = STYLE_ID;
 	exports.SYMBOLS = SYMBOLS;
 	exports.THEMES = THEMES;
@@ -2860,6 +3129,11 @@ var HmiEditor = (function(exports) {
 	exports.parsePreview = parsePreview;
 	exports.rangeState = rangeState;
 	exports.renderSymbol = renderSymbol;
+	exports.ruleEffects = ruleEffects;
+	exports.ruleMatch = ruleMatch;
+	exports.safeImageSrc = safeImageSrc;
+	exports.scaleValue = scaleValue;
+	exports.unscaleValue = unscaleValue;
 	exports.valueFor = valueFor;
 	return exports;
 })({});

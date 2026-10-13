@@ -73,3 +73,20 @@ test('typed setpoints are checked against the configured range', () => {
     assert.strictEqual(act(''), null)
     assert.strictEqual(actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'click' } }), null)
 })
+
+test('typed setpoints go out in PLC units when the symbol is scaled', () => {
+    const { actionMessage } = require('../nodes/values')
+    const syms = [{ id: 's', type: 'setpoint', key: 'vel', scale: { factor: '0.1', offset: '' }, action: { mode: 'input', min: '0', max: '200' } }]
+    assert.strictEqual(actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'input', value: '150' } }).payload, 1500)
+    const page = [{ id: 'p', type: 'button', action: { mode: 'page', value: '/linha2' } }]
+    assert.strictEqual(actionMessage(page, {}, { _hmiAction: { id: 'p', phase: 'click' } }), null)
+})
+
+test('rules, scale and page actions survive saving from the dashboard', () => {
+    const { cleanSymbols } = require('../nodes/admin')
+    const [s] = cleanSymbols([{ id: 'a', type: 'reel', scale: { factor: 0.1 }, rules: [{ key: 'k', op: 'gt', value: 5, effect: 'hide' }, { op: 'bad', effect: 'bad' }], action: { mode: 'page', value: '/linha2' } }])
+    assert.deepStrictEqual(s.scale, { factor: '0.1', offset: '' })
+    assert.deepStrictEqual(s.rules, [{ key: 'k', op: 'gt', value: '5', effect: 'hide' }, { key: '', op: 'on', value: '', effect: 'alarm' }])
+    assert.strictEqual(s.action.mode, 'page')
+    assert.strictEqual(s.action.value, '/linha2')
+})

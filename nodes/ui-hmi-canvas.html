@@ -69,6 +69,11 @@
             getView: () => ({ w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() }),
             getTheme: () => $('#node-input-theme').val(),
             getBackground: () => $('#node-input-background').val(),
+            getPages: () => {
+                const list = []
+                RED.nodes.eachConfig(n => { if (n.type === 'ui-page' && n.path) list.push([n.path, (n.name || n.path) + ' (' + n.path + ')']) })
+                return list
+            },
             getLocale: () => $('#node-input-locale').val(),
             onChange: () => { editor._dirty = true },
             actions: [

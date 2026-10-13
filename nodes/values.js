@@ -55,6 +55,10 @@ function actionMessage (symbols, values, msg) {
         const max = act.max === '' || act.max === undefined ? null : Number(act.max)
         if (String(a.value).trim() === '' || !isFinite(payload)) return null
         if ((min !== null && isFinite(min) && payload < min) || (max !== null && isFinite(max) && payload > max)) return null
+        // limits are in the units shown on screen; the PLC gets the raw value
+        const k = sym.scale && sym.scale.factor !== '' && isFinite(Number(sym.scale.factor)) ? Number(sym.scale.factor) : 1
+        const o = sym.scale && sym.scale.offset !== '' && isFinite(Number(sym.scale.offset)) ? Number(sym.scale.offset) : 0
+        if (k !== 0 && (k !== 1 || o !== 0)) payload = Math.round(((payload - o) / k) * 1e9) / 1e9
     } else {
         return null
     }

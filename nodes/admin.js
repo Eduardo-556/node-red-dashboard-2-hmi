@@ -7,6 +7,9 @@ const https = require('https')
 // Edit sessions opened from the Node-RED editor: canvas id -> key
 const editKeys = new Map()
 
+const RULE_OPS = ['on', 'off', 'eq', 'ne', 'gt', 'lt']
+const RULE_EFFECTS = ['alarm', 'warn', 'info', 'ok', 'dim', 'blink', 'hide']
+
 function cleanSymbols (list) {
     if (!Array.isArray(list)) return null
     const out = []
@@ -26,7 +29,17 @@ function cleanSymbols (list) {
         }
         if (s.preview !== undefined && ['number', 'string', 'boolean'].includes(typeof s.preview)) clean.preview = s.preview
         const a = s.action
-        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse', 'input'].includes(a.mode)) {
+        const sc = s.scale
+        if (sc && typeof sc === 'object') clean.scale = { factor: String(sc.factor ?? ''), offset: String(sc.offset ?? '') }
+        if (Array.isArray(s.rules)) {
+            clean.rules = s.rules.slice(0, 20).filter(r => r && typeof r === 'object').map(r => ({
+                key: String(r.key ?? '').slice(0, 200),
+                op: RULE_OPS.includes(r.op) ? r.op : 'on',
+                value: String(r.value ?? '').slice(0, 200),
+                effect: RULE_EFFECTS.includes(r.effect) ? r.effect : 'alarm'
+            }))
+        }
+        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse', 'input', 'page'].includes(a.mode)) {
             clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no' }
             if (a.mode === 'input') Object.assign(clean.action, { min: String(a.min ?? ''), max: String(a.max ?? '') })
         }

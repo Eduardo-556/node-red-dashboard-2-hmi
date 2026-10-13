@@ -1,10 +1,10 @@
 // Drag-and-drop screen editor. Plain DOM, no framework, so the same editor
 // runs inside the Node-RED edit dialog and inside the dashboard page.
-import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints } from '../symbols/index.js'
+import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints, scaleValue, RULE_OPS, RULE_EFFECTS } from '../symbols/index.js'
 
 const GRID = 10
 const CSS_ID = 'hmi-editor-style'
-const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)']]
+const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
 
@@ -26,6 +26,7 @@ const CSS = `
 .hmi-ed-btn.hmi-ed-cat.hmi-ed-open { box-shadow: inset 0 -2px 0 #1e88e5; }
 .hmi-ed-menu { position: absolute; z-index: 30; display: grid; grid-template-columns: repeat(auto-fill, 100px); gap: 4px; width: min(560px, calc(100% - 8px)); max-height: 60vh; overflow: auto; padding: 6px; background: var(--hmi-ed-bg); border: 1px solid var(--hmi-ed-border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .2); }
 .hmi-ed-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 4px; cursor: grab; font-size: 11px; line-height: 1.2; text-align: center; user-select: none; }
+.hmi-ed-rule { border: 1px solid var(--hmi-ed-border); border-radius: 4px; padding: 6px 6px 0 6px; margin-bottom: 6px; background: var(--hmi-ed-bg); }
 .hmi-ed-item:hover { background: var(--hmi-ed-panel); }
 .hmi-ed-item svg { width: 72px; height: 44px; display: block; }
 .hmi-ed-body { display: flex; min-height: 260px; flex: 1; overflow: hidden; }
@@ -196,13 +197,16 @@ export function createEditor (root, opts) {
         const live = (o.getValues && o.getValues()) || {}
         const previews = {}
         for (const s of ed.symbols) if (s.key && s.preview !== undefined && !(s.key in previews)) previews[s.key] = s.preview
+        const typed = new Set(Object.keys(previews))
         for (const s of ed.symbols) if (s.key && SYMBOLS[s.type] && !(s.key in previews)) previews[s.key] = s.key in live ? live[s.key] : SYMBOLS[s.type].preview
         const locale = o.getLocale && o.getLocale()
         const values = { ...live, ...previews }
         for (const s of ed.symbols) {
             const def = SYMBOLS[s.type]
             if (!def) continue
-            const value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
+            // live values go through the symbol's scale; typed test values are already in screen units
+            let value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
+            if (s.preview === undefined && s.key && !typed.has(s.key) && s.key in live) value = scaleValue(s, value)
             out += renderSymbol(s, value, { locale, values, editor: true })
         }
         const s = selected()
@@ -315,6 +319,18 @@ export function createEditor (root, opts) {
             if (p === undefined) delete s.preview
             else s.preview = p
         }))
+        if (def.image) imageFields(s, smallBtn)
+        if (!def.line && !def.image && !['frame', 'stack'].includes(s.type)) {
+            props.appendChild(el('h5', {}, 'Escala do valor'))
+            const sc = s.scale || {}
+            const setSc = (k, v) => {
+                s.scale = { factor: '', offset: '', ...s.scale, [k]: v }
+                if (s.scale.factor === '' && s.scale.offset === '') delete s.scale
+            }
+            props.appendChild(pair(field('Multiplicar por', sc.factor ?? '', 'text', v => setSc('factor', v.replace(',', '.').trim())), field('Somar', sc.offset ?? '', 'text', v => setSc('offset', v.replace(',', '.').trim()))))
+            props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Mostra valor × multiplicar + somar. Ex.: 0,1 para um CLP que manda 1450 e a tela mostra 145,0.'))
+        }
+        ruleFields(s, smallBtn)
         if (def.line || s.type === 'frame') return
         props.appendChild(el('h5', {}, 'Ao clicar no dashboard'))
         const act = s.action || { mode: 'none' }
@@ -326,12 +342,83 @@ export function createEditor (root, opts) {
         if (act.mode && act.mode !== 'none') {
             if (act.mode === 'value') props.appendChild(field('Valor enviado', act.value, 'text', v => setAct('value', v)))
             if (act.mode === 'input') props.appendChild(pair(field('Mínimo', act.min, 'number', v => setAct('min', v)), field('Máximo', act.max, 'number', v => setAct('max', v))))
-            const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
-            t.querySelector('input').placeholder = s.key || ''
-            props.appendChild(t)
-            if (act.mode === 'value' || act.mode === 'toggle') props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
-            props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
+            if (act.mode === 'page') {
+                const pages = (o.getPages && o.getPages()) || []
+                const pf = pages.length
+                    ? field('Página', act.value, 'select', v => setAct('value', v), [['', '(escolha)'], ...pages])
+                    : field('Página (caminho, ex. /linha2)', act.value, 'text', v => setAct('value', v.trim()))
+                props.appendChild(pf)
+            } else {
+                const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
+                t.querySelector('input').placeholder = s.key || ''
+                props.appendChild(t)
+            }
+            if (['value', 'toggle', 'page'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            if (act.mode !== 'page') props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
         }
+    }
+
+    function ruleFields (s, smallBtn) {
+        props.appendChild(el('h5', {}, 'Regras'))
+        const rules = Array.isArray(s.rules) ? s.rules : []
+        rules.forEach((r, i) => {
+            const card = el('div', { class: 'hmi-ed-rule' })
+            const kf = field('Chave (vazio = a do símbolo)', r.key, 'text', v => { r.key = v.trim() })
+            kf.querySelector('input').placeholder = s.key || ''
+            card.appendChild(kf)
+            card.appendChild(pair(field('Quando', r.op || 'on', 'select', v => { r.op = v }, RULE_OPS), field('Valor', r.value ?? '', 'text', v => { r.value = v })))
+            const del = el('div', { class: 'hmi-ed-f' })
+            del.appendChild(el('label', {}, '\u00a0'))
+            smallBtn(del, 'Remover', 'Apagar esta regra', () => { s.rules = rules.filter((x, k) => k !== i); if (!s.rules.length) delete s.rules; refresh(); changed() })
+            card.appendChild(pair(field('Efeito', r.effect || 'alarm', 'select', v => { r.effect = v }, RULE_EFFECTS), del))
+            props.appendChild(card)
+        })
+        const row = el('div', { class: 'hmi-ed-btnrow' })
+        smallBtn(row, '+ Regra', 'Mudar cor, piscar ou esconder conforme um valor', () => {
+            s.rules = [...rules, { key: '', op: 'on', value: '', effect: 'alarm' }]
+            refresh()
+            changed()
+        })
+        props.appendChild(row)
+        if (!rules.length) props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Ex.: esconder a bobina quando "temBobina" estiver desligado, ou deixar o corpo vermelho quando "falha" ligar. Usa o valor do CLP, sem escala.'))
+    }
+
+    function imageFields (s, smallBtn) {
+        props.appendChild(el('h5', {}, 'Arquivo'))
+        for (const [k, label] of [['src', 'Imagem'], ['srcOn', 'Imagem quando ligado (opcional)']]) {
+            const row = el('div', { class: 'hmi-ed-f' })
+            row.appendChild(el('label', {}, label))
+            const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml' })
+            input.style.display = 'none'
+            const btns = el('div', { class: 'hmi-ed-btnrow' })
+            smallBtn(btns, s.props[k] ? 'Trocar' : 'Escolher arquivo', 'SVG, PNG, JPG, GIF ou WEBP até 400 KB', () => input.click())
+            if (s.props[k]) smallBtn(btns, 'Remover', '', () => { s.props[k] = ''; refresh(); changed() })
+            input.addEventListener('change', () => {
+                const file = input.files && input.files[0]
+                if (!file) return
+                if (file.size > 400 * 1024) return api.setMessage('Imagem grande demais (máx. 400 KB)')
+                const reader = new FileReader()
+                reader.onload = () => {
+                    s.props[k] = String(reader.result)
+                    // keep the picture's proportions on the first upload
+                    const img = new Image()
+                    img.onload = () => {
+                        if (k === 'src' && img.naturalWidth > 0 && img.naturalHeight > 0) s.h = Math.max(10, Math.round(s.w * img.naturalHeight / img.naturalWidth))
+                        refresh()
+                        changed()
+                    }
+                    img.onerror = () => { refresh(); changed() }
+                    img.src = s.props[k]
+                }
+                reader.readAsDataURL(file)
+            })
+            row.appendChild(btns)
+            row.appendChild(input)
+            props.appendChild(row)
+        }
+        const url = field('ou endereço da imagem (URL)', String(s.props.src || '').startsWith('data:') ? '' : s.props.src, 'text', v => { s.props.src = v.trim() })
+        url.querySelector('input').placeholder = 'https://... ou /imagens/maquina.png'
+        props.appendChild(url)
     }
 
     function refresh () { draw(); showProps() }

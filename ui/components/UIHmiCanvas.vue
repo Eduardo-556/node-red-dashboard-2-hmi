@@ -126,7 +126,7 @@ export default {
             return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0 })
         },
         clickable (s) {
-            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse', 'input'].includes(s.action.mode))
+            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse', 'input', 'page'].includes(s.action.mode))
         },
         sendAction (s, phase, value) {
             const a = { id: s.id, phase }
@@ -138,12 +138,25 @@ export default {
             const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
             if (s.action.mode === 'input') return this.askValue(s, name)
             if (s.action.confirm === 'yes' && !window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
+            if (s.action.mode === 'page') return this.goTo(s.action.value)
             this.sendAction(s, 'click')
+        },
+        // another dashboard page (its path, e.g. /linha2) or a full address
+        goTo (target) {
+            const t = String(target || '').trim()
+            if (!t) return
+            if (/^https?:\/\//.test(t)) { window.location.href = t; return }
+            const path = t.startsWith('/') ? t : '/' + t
+            // dashboard routes carry the base path (/dashboard/linha2), the page config only its own (/linha2)
+            const routes = this.$router ? this.$router.getRoutes().map(r => r.path).filter(r => r && !r.includes(':')) : []
+            const route = routes.find(r => r === path) || routes.find(r => r.endsWith(path))
+            if (route) this.$router.push(route).catch(() => {})
+            else window.location.href = path
         },
         askValue (s, name) {
             const { min, max } = s.action
             const range = min !== '' && max !== '' && min !== undefined && max !== undefined ? ' (' + min + ' a ' + max + ')' : ''
-            const cur = s.key && this.values[s.key] !== undefined ? String(this.values[s.key]) : ''
+            const cur = s.key && this.values[s.key] !== undefined ? String(valueFor(s, this.values)) : ''
             const raw = window.prompt((name ? name + '\n' : '') + 'Novo valor' + range + ':', cur)
             if (raw === null || raw.trim() === '') return
             const n = Number(raw.replace(',', '.'))
