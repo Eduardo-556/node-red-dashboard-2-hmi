@@ -8,7 +8,17 @@
             preserveAspectRatio="xMidYMid meet"
         >
             <rect class="hmi-bg" x="0" y="0" :width="viewW" :height="viewH" />
-            <g v-for="s in symbols" :key="s.id" v-html="draw(s)" />
+            <g
+                v-for="s in symbols"
+                :key="s.id"
+                :class="{ 'hmi-clickable': clickable(s), 'hmi-pressed': pressed === s.id }"
+                @click="click(s)"
+                @pointerdown="press(s, $event)"
+                @pointerup="release(s)"
+                @pointerleave="release(s)"
+                @pointercancel="release(s)"
+                v-html="draw(s)"
+            />
             <g class="hmi-offline-banner">
                 <rect :x="viewW / 2 - 170" y="16" width="340" height="40" rx="6" />
                 <text :x="viewW / 2" y="37">SEM COMUNICAÇÃO</text>
@@ -41,7 +51,7 @@ export default {
         state: { type: Object, default: () => ({ enabled: false, visible: false }) }
     },
     data () {
-        return { values: {}, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null }
+        return { values: {}, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null }
     },
     computed: {
         symbols () { return Array.isArray(this.props.symbols) ? this.props.symbols : [] },
@@ -94,6 +104,32 @@ export default {
         onLoad (msg) { this.apply(msg) },
         draw (s) {
             return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values })
+        },
+        clickable (s) {
+            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse'].includes(s.action.mode))
+        },
+        sendAction (s, phase) {
+            this.$socket.emit('widget-action', this.id, { _hmiAction: { id: s.id, phase } })
+        },
+        click (s) {
+            if (!this.clickable(s) || s.action.mode === 'pulse') return
+            if (s.action.confirm === 'yes') {
+                const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
+                if (!window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
+            }
+            this.sendAction(s, 'click')
+        },
+        // pulse: 1 while pressed, 0 on release (also when the pointer leaves)
+        press (s, e) {
+            if (!this.clickable(s) || s.action.mode !== 'pulse') return
+            e.preventDefault()
+            this.pressed = s.id
+            this.sendAction(s, 'down')
+        },
+        release (s) {
+            if (this.pressed !== s.id) return
+            this.pressed = null
+            this.sendAction(s, 'up')
         },
         openEditor () {
             const vm = this

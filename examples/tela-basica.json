@@ -2,7 +2,7 @@
  {
   "id": "hx_cmt",
   "type": "comment",
-  "name": "Abra o hmi canvas para ver o editor de arrastar. Dashboard em /dashboard/hmi",
+  "name": "Abra o hmi canvas para ver o editor. Dashboard em /dashboard/hmi. Os botões da tela saem no debug.",
   "info": "",
   "x": 300,
   "y": 40,
@@ -70,8 +70,8 @@
   "type": "ui-hmi-canvas",
   "name": "Slitter",
   "order": 1,
-  "viewW": 1000,
-  "viewH": 520,
+  "viewW": 1200,
+  "viewH": 600,
   "theme": "isa101",
   "offlineAfter": 10,
   "locale": "pt-BR",
@@ -98,7 +98,7 @@
    {
     "id": "ch",
     "type": "chip",
-    "x": 800,
+    "x": 1000,
     "y": 12,
     "w": 180,
     "h": 34,
@@ -346,15 +346,124 @@
      "onWhen": "nonzero",
      "threshold": 0
     }
+   },
+   {
+    "id": "tk",
+    "type": "tank",
+    "x": 1040,
+    "y": 130,
+    "w": 110,
+    "h": 170,
+    "rot": 0,
+    "key": "nivel",
+    "props": {
+     "label": "Tanque de cola",
+     "unit": "%",
+     "decimals": 0,
+     "min": 0,
+     "max": 100,
+     "lo": 15,
+     "hi": "",
+     "priority": "2"
+    }
+   },
+   {
+    "id": "pb",
+    "type": "pump",
+    "x": 1000,
+    "y": 350,
+    "w": 60,
+    "h": 60,
+    "rot": 0,
+    "key": "bomba",
+    "props": {
+     "label": "Bomba",
+     "faultKey": "",
+     "priority": "1",
+     "onWhen": "nonzero",
+     "threshold": 0
+    }
+   },
+   {
+    "id": "vv",
+    "type": "valve",
+    "x": 1110,
+    "y": 358,
+    "w": 60,
+    "h": 50,
+    "rot": 0,
+    "key": "valvula",
+    "props": {
+     "label": "V1",
+     "faultKey": "",
+     "priority": "1",
+     "onWhen": "nonzero",
+     "threshold": 0
+    },
+    "action": {
+     "mode": "toggle",
+     "value": "",
+     "topic": "cmdValvula",
+     "confirm": "yes"
+    }
+   },
+   {
+    "id": "bl",
+    "type": "button",
+    "x": 40,
+    "y": 530,
+    "w": 150,
+    "h": 48,
+    "rot": 0,
+    "key": "rodando",
+    "props": {
+     "text": "LIGAR",
+     "textOn": "LIGADA",
+     "onWhen": "nonzero",
+     "threshold": 0
+    },
+    "action": {
+     "mode": "pulse",
+     "value": "",
+     "topic": "cmdLigar",
+     "confirm": "no"
+    }
+   },
+   {
+    "id": "bp",
+    "type": "button",
+    "x": 210,
+    "y": 530,
+    "w": 150,
+    "h": 48,
+    "rot": 0,
+    "key": "",
+    "props": {
+     "text": "PARAR",
+     "textOn": "",
+     "onWhen": "nonzero",
+     "threshold": 0
+    },
+    "action": {
+     "mode": "pulse",
+     "value": "",
+     "topic": "cmdParar",
+     "confirm": "no"
+    }
    }
   ],
   "x": 420,
   "y": 100,
-  "wires": [],
+  "wires": [
+   [
+    "hx_debug"
+   ]
+  ],
   "scope": "page",
   "page": "hx_page",
   "fit": "screen",
-  "background": "theme"
+  "background": "theme",
+  "outputs": 1
  },
  {
   "id": "hx_run",
@@ -369,7 +478,7 @@
   "once": true,
   "onceDelay": "1",
   "topic": "",
-  "payload": "{\"rodando\": 1, \"rpm\": 1450, \"velocidade\": 42.5, \"rpmBob\": 980, \"bobinas\": 12, \"falhaM1\": 0, \"emergencia\": 0}",
+  "payload": "{\"rodando\": 1, \"rpm\": 1450, \"velocidade\": 42.5, \"rpmBob\": 980, \"bobinas\": 12, \"falhaM1\": 0, \"emergencia\": 0, \"nivel\": 64, \"bomba\": 1, \"valvula\": 1}",
   "payloadType": "json",
   "x": 150,
   "y": 100,
@@ -391,7 +500,7 @@
   "repeat": "",
   "once": false,
   "topic": "",
-  "payload": "{\"rpm\": 1950, \"falhaM1\": 1, \"emergencia\": 1}",
+  "payload": "{\"rpm\": 1950, \"falhaM1\": 1, \"emergencia\": 1, \"nivel\": 9}",
   "payloadType": "json",
   "x": 150,
   "y": 180,
@@ -413,7 +522,7 @@
   "repeat": "",
   "once": false,
   "topic": "",
-  "payload": "{\"rodando\": 0, \"rpm\": 0, \"velocidade\": 0, \"rpmBob\": 0}",
+  "payload": "{\"rodando\": 0, \"rpm\": 0, \"velocidade\": 0, \"rpmBob\": 0, \"bomba\": 0}",
   "payloadType": "json",
   "x": 150,
   "y": 140,
@@ -422,5 +531,21 @@
     "hx_canvas"
    ]
   ]
+ },
+ {
+  "id": "hx_debug",
+  "type": "debug",
+  "name": "comandos da tela",
+  "active": true,
+  "tosidebar": true,
+  "console": false,
+  "tostatus": true,
+  "complete": "true",
+  "targetType": "full",
+  "statusVal": "payload",
+  "statusType": "auto",
+  "x": 640,
+  "y": 100,
+  "wires": []
  }
 ]

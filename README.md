@@ -2,7 +2,7 @@
 
 Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols onto a canvas. Wire one object (for example the output of `node-red-contrib-schneider-modbus-tags`) into the canvas and every symbol shows its own key. No SVG or Vue to write.
 
-> **Status: prototype (0.0.x).** Eleven symbols, lines, and the drag-and-drop editor. Not published to npm yet.
+> **Status: prototype (0.0.x).** Fifteen symbols, lines, click commands and the drag-and-drop editor. Not published to npm yet.
 
 [Português](#português) · [English](#english)
 
@@ -29,6 +29,9 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 | Equipamentos | Bobina | Ligada (valor ≠ 0, ou acima de um limite) ou parada. No tema Clássico ela gira. |
 | | Rolo | Rolo guia, ligado ou parado, com sentido de giro. |
 | | Motor | Ligado ou parado. Com **chave de falha**, fica com borda e indicador de alarme quando a falha está ativa. |
+| | Válvula | Aberta (cheia) ou fechada, com chave de falha opcional. |
+| | Bomba | Ligada ou parada, com chave de falha opcional. |
+| | Tanque | Nível entre vazio e cheio, com valor e alarme abaixo/acima de um limite. |
 | | Corpo | Desenho fixo do corpo da máquina: retângulo, arredondado, chanfrado, arco ou círculo. Não usa valor. |
 | | Linha | Material, tubo, esteira ou sinal ligando equipamentos. Anima o fluxo quando ligada. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
 | Valores | Tag | Título, valor formatado e unidade. Com escala e faixa normal, mostra uma barra; fora da faixa, entra em alarme com indicador de prioridade. |
@@ -37,13 +40,27 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 | Estados | LED | Ligado ou desligado, com cor (tema, alarme, atenção, informação) e opção de piscar. |
 | | Status | Etiqueta com texto diferente para ligado e desligado (ex. RODANDO / PARADA). |
 | | Alarme | Faixa de alarme com prioridade. Só aparece quando o valor está ativo. |
+| Comandos | Botão | Botão com texto; muda de cor quando a chave dele está ligada (retorno do CLP). Vem com ação de pulso. |
+
+### Comandos (clique no dashboard)
+
+Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem sai pela saída do nó com `msg.topic` (o tópico da ação, ou a chave do payload) e `msg.payload`:
+
+| Ação | Envia |
+|---|---|
+| Enviar um valor | O valor configurado (número, `true`/`false` ou texto). |
+| Inverter | O contrário do valor atual da chave: 1/0, ou `true`/`false` se a chave for booleana. |
+| Pulso | 1 ao apertar e 0 ao soltar (ou `true`/`false`). Bom para botões de partida do CLP. |
+
+**Pedir confirmação** abre um "Confirmar?" antes de enviar. O valor enviado é sempre o que está configurado no nó; o navegador só avisa qual símbolo foi clicado.
 
 ### Editor
 
 - Arraste da barra de cima ou clique no símbolo para colocar no meio.
 - Botões **Duplicar**, **Frente**, **Trás** e **Excluir** no painel do símbolo.
+- Vários símbolos: `Shift`+clique, ou arraste numa área vazia para fazer um retângulo de seleção. Arrastar um move todos, e o painel mostra **Alinhar** (esquerda, centro, direita, topo, meio, base) e **Distribuir**.
 - **↶ / ↷** desfazem e refazem.
-- Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica.
+- Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica, `Ctrl+A` seleciona tudo, `Esc` limpa a seleção.
 
 ### Temas
 
@@ -74,7 +91,9 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
-Symbols: reel, roller, motor (with fault key), machine body, line (strip, pipe, conveyor, signal; editable points), tag, KPI, text, LED, status chip and alarm banner. Editor: undo/redo, copy/paste, duplicate, bring to front/send to back. **Background** can be the theme colour or transparent.
+Symbols: reel, roller, motor, valve, pump (with fault key), tank (level), machine body, line (strip, pipe, conveyor, signal; editable points), tag, KPI, text, LED, status chip, alarm banner and button. Editor: multi-select (Shift+click or rubber band), align and distribute, undo/redo, copy/paste, duplicate, bring to front/send to back.
+
+Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, or a pulse (1 on press, 0 on release), with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

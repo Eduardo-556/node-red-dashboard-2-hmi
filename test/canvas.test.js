@@ -31,3 +31,33 @@ test('symbols saved from the dashboard are cleaned', () => {
     const [s] = cleanSymbols([{ id: 'a', type: 'tag', x: '10', y: 'oops', w: 1, h: 64, key: 'rpm', props: { title: 'RPM' }, preview: { bad: 1 }, extra: 1 }])
     assert.deepStrictEqual(s, { id: 'a', type: 'tag', x: 10, y: 0, w: 10, h: 64, rot: 0, key: 'rpm', props: { title: 'RPM' } })
 })
+
+test('click actions build the output from the node config', () => {
+    const { actionMessage } = require('../nodes/values')
+    const syms = [
+        { id: 'b', type: 'button', key: 'start', action: { mode: 'pulse', topic: '' } },
+        { id: 't', type: 'motor', key: 'run', action: { mode: 'toggle', topic: 'cmdRun' } },
+        { id: 'v', type: 'text', key: 'sp', action: { mode: 'value', value: '42,5', confirm: 'yes' } },
+        { id: 'n', type: 'led', key: 'x' }
+    ]
+    const act = (id, phase, values = {}) => actionMessage(syms, values, { _hmiAction: { id, phase }, _client: { socketId: 'a' } })
+    assert.deepStrictEqual(act('b', 'down'), { topic: 'start', payload: 1, symbol: { id: 'b', type: 'button', key: 'start' }, _client: { socketId: 'a' } })
+    assert.strictEqual(act('b', 'up').payload, 0)
+    assert.strictEqual(act('b', 'up', { start: true }).payload, false)
+    assert.strictEqual(act('b', 'click'), null)
+    assert.strictEqual(act('t', 'click', { run: 1 }).payload, 0)
+    assert.strictEqual(act('t', 'click', { run: 0 }).payload, 1)
+    assert.strictEqual(act('t', 'click', { run: false }).payload, true)
+    assert.strictEqual(act('t', 'click').topic, 'cmdRun')
+    assert.strictEqual(act('v', 'click').payload, 42.5)
+    assert.strictEqual(act('n', 'click'), null)
+    assert.strictEqual(act('zzz', 'click'), null)
+})
+
+test('click actions survive saving from the dashboard', () => {
+    const { cleanSymbols } = require('../nodes/admin')
+    const [s] = cleanSymbols([{ id: 'b', type: 'button', action: { mode: 'pulse', value: 3, topic: 't', confirm: 'yes', extra: 1 } }])
+    assert.deepStrictEqual(s.action, { mode: 'pulse', value: '3', topic: 't', confirm: 'yes' })
+    const [n] = cleanSymbols([{ id: 'b', type: 'button', action: { mode: 'rm -rf' } }])
+    assert.strictEqual(n.action, undefined)
+})

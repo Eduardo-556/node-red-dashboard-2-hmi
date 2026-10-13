@@ -1,6 +1,6 @@
 'use strict'
 
-const { mergeValues } = require('./values')
+const { mergeValues, actionMessage } = require('./values')
 const setupAdmin = require('./admin')
 
 module.exports = function (RED) {
@@ -24,7 +24,10 @@ module.exports = function (RED) {
         if (last && last.payload && typeof last.payload === 'object') Object.assign(values, last.payload)
 
         const evts = {
+            onAction: true,
             beforeSend: function (msg) {
+                // a click on the dashboard: goes out of the node, not into the screen
+                if (msg && msg._hmiAction) return actionMessage(config.symbols, values, msg)
                 if (!mergeValues(values, msg)) {
                     node.warn('Nothing to show: send an object in msg.payload, or msg.topic with a value')
                 }

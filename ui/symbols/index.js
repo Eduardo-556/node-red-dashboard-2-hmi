@@ -46,6 +46,45 @@ export const SYMBOLS = {
         fields: [{ key: 'label', label: 'Legenda', type: 'text' }, ...ON_FIELDS, { key: 'faultKey', label: 'Chave da falha (opcional)', type: 'text' }, PRIORITY_FIELD],
         render: renderMotor
     },
+    valve: {
+        label: 'Válvula',
+        group: 'Equipamentos',
+        w: 60,
+        h: 50,
+        preview: 1,
+        defaults: { label: '', onWhen: 'nonzero', threshold: 0, faultKey: '', priority: '1' },
+        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, ...ON_FIELDS, { key: 'faultKey', label: 'Chave da falha (opcional)', type: 'text' }, PRIORITY_FIELD],
+        render: renderValve
+    },
+    pump: {
+        label: 'Bomba',
+        group: 'Equipamentos',
+        w: 60,
+        h: 60,
+        preview: 1,
+        defaults: { label: '', onWhen: 'nonzero', threshold: 0, faultKey: '', priority: '1' },
+        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, ...ON_FIELDS, { key: 'faultKey', label: 'Chave da falha (opcional)', type: 'text' }, PRIORITY_FIELD],
+        render: renderPump
+    },
+    tank: {
+        label: 'Tanque',
+        group: 'Equipamentos',
+        w: 100,
+        h: 160,
+        preview: 65,
+        defaults: { label: '', unit: '%', decimals: 0, min: 0, max: 100, lo: '', hi: '', priority: '2' },
+        fields: [
+            { key: 'label', label: 'Legenda', type: 'text' },
+            { key: 'unit', label: 'Unidade', type: 'text' },
+            { key: 'decimals', label: 'Casas decimais', type: 'number' },
+            { key: 'min', label: 'Vazio (mín.)', type: 'number' },
+            { key: 'max', label: 'Cheio (máx.)', type: 'number' },
+            { key: 'lo', label: 'Alarme abaixo de', type: 'number' },
+            { key: 'hi', label: 'Alarme acima de', type: 'number' },
+            PRIORITY_FIELD
+        ],
+        render: renderTank
+    },
     frame: {
         label: 'Corpo',
         group: 'Equipamentos',
@@ -156,6 +195,21 @@ export const SYMBOLS = {
         defaults: { text: 'EMERGÊNCIA ACIONADA', sub: '', onWhen: 'nonzero', threshold: 0, priority: '1', blink: 'yes' },
         fields: [{ key: 'text', label: 'Texto', type: 'text' }, { key: 'sub', label: 'Texto menor', type: 'text' }, ...ON_FIELDS, PRIORITY_FIELD, BLINK_FIELD],
         render: renderAlarm
+    },
+    button: {
+        label: 'Botão',
+        group: 'Comandos',
+        w: 140,
+        h: 44,
+        preview: 0,
+        defaults: { text: 'LIGAR', textOn: '', onWhen: 'nonzero', threshold: 0 },
+        action: { mode: 'pulse', value: '', topic: '', confirm: 'no' },
+        fields: [
+            { key: 'text', label: 'Texto', type: 'text' },
+            { key: 'textOn', label: 'Texto quando ligado (opcional)', type: 'text' },
+            ...ON_FIELDS
+        ],
+        render: renderButton
     }
 }
 
@@ -173,7 +227,8 @@ export function createSymbol (type, x, y) {
         h: def.h,
         rot: 0,
         key: '',
-        props: JSON.parse(JSON.stringify(def.defaults))
+        props: JSON.parse(JSON.stringify(def.defaults)),
+        ...(def.action ? { action: { ...def.action } } : {})
     }
 }
 
@@ -282,13 +337,91 @@ function renderMotor (sym, value, opts) {
     const cx = w / 2
     const cy = r + 2
     const on = isOn(value, p.onWhen, p.threshold)
-    const fault = p.faultKey && opts.values ? isOn(opts.values[p.faultKey], 'nonzero') === true : false
+    const fault = faultOf(p, opts)
     let out = `<g class="hmi-motor ${stateClass(on)}${fault ? ' hmi-fault' : ''}">` +
         `<rect class="hmi-foot" x="${f(cx - r * 0.8)}" y="${f(cy + r - 2)}" width="${f(r * 1.6)}" height="${f(Math.max(4, h - cy - r + 2))}" rx="2"/>` +
         `<circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/>` +
         `<text class="hmi-motor-m" x="${f(cx)}" y="${f(cy)}" font-size="${f(r * 0.9)}">M</text>`
     if (fault) out += alarmIndicator(w - 4, 6, p.priority)
     return out + labelBelow(p, w, h) + '</g>'
+}
+
+// fault from a second key, shared by motor, valve and pump
+function faultOf (p, opts) {
+    return p.faultKey && opts.values ? isOn(opts.values[p.faultKey], 'nonzero') === true : false
+}
+
+function renderValve (sym, value, opts) {
+    const p = sym.props || {}
+    const w = sym.w
+    const h = sym.h
+    const on = isOn(value, p.onWhen, p.threshold)
+    const fault = faultOf(p, opts)
+    const top = h * 0.36
+    const cy = (top + h - 1) / 2
+    const cx = w / 2
+    const a = Math.min(w * 0.22, top * 0.9)
+    let out = `<g class="hmi-valve ${stateClass(on)}${fault ? ' hmi-fault' : ''}">` +
+        `<line class="hmi-stem" x1="${f(cx)}" y1="${f(cy)}" x2="${f(cx)}" y2="${f(top * 0.55)}"/>` +
+        `<path class="hmi-actuator" d="M${f(cx - a)} ${f(top * 0.55)}A${f(a)} ${f(a)} 0 0 1 ${f(cx + a)} ${f(top * 0.55)}Z"/>` +
+        `<path class="hmi-body" d="M1.5 ${f(top)}L${f(cx)} ${f(cy)}L1.5 ${f(h - 1)}ZM${f(w - 1.5)} ${f(top)}L${f(cx)} ${f(cy)}L${f(w - 1.5)} ${f(h - 1)}Z"/>`
+    if (fault) out += alarmIndicator(w - 4, 6, p.priority)
+    return out + labelBelow(p, w, h) + '</g>'
+}
+
+function renderPump (sym, value, opts) {
+    const p = sym.props || {}
+    const w = sym.w
+    const h = sym.h
+    const on = isOn(value, p.onWhen, p.threshold)
+    const fault = faultOf(p, opts)
+    const r = Math.max(6, Math.min(w, h * 0.9) / 2 - 2)
+    const cx = w / 2
+    const cy = r + 2
+    const t = r * 0.55
+    let out = `<g class="hmi-pump ${stateClass(on)}${fault ? ' hmi-fault' : ''}">` +
+        `<path class="hmi-foot" d="M${f(cx - r * 0.75)} ${f(h - 1)}L${f(cx - r * 0.45)} ${f(cy + r * 0.7)}H${f(cx + r * 0.45)}L${f(cx + r * 0.75)} ${f(h - 1)}Z"/>` +
+        `<circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/>` +
+        `<path class="hmi-pump-arrow" d="M${f(cx - t * 0.6)} ${f(cy - t)}L${f(cx + t)} ${f(cy)}L${f(cx - t * 0.6)} ${f(cy + t)}Z"/>`
+    if (fault) out += alarmIndicator(w - 4, 6, p.priority)
+    return out + labelBelow(p, w, h) + '</g>'
+}
+
+function renderTank (sym, value, opts) {
+    const p = sym.props || {}
+    const w = sym.w
+    const h = sym.h
+    const v = num(value)
+    let min = num(p.min)
+    let max = num(p.max)
+    if (min === null) min = 0
+    if (max === null || max <= min) max = min + 100
+    const state = rangeState(value, p.lo, p.hi)
+    const cls = state === null ? 'hmi-unknown' : (state === 'alarm' ? 'hmi-alarm' : 'hmi-normal')
+    const rx = Math.min(w * 0.18, 20)
+    const pad = 5
+    const inner = h - pad * 2
+    const level = v === null ? 0 : Math.max(0, Math.min(1, (v - min) / (max - min)))
+    const lh = inner * level
+    const text = v === null ? '—' : formatValue(v, p.decimals, opts.locale) + (p.unit ? ' ' + p.unit : '')
+    let out = `<g class="hmi-tank ${cls}">` +
+        `<rect class="hmi-body" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="${f(rx)}"/>` +
+        (lh > 0 ? `<rect class="hmi-level" x="${pad}" y="${f(pad + inner - lh)}" width="${f(w - pad * 2)}" height="${f(lh)}" rx="${f(Math.max(0, Math.min(rx - pad, lh / 2)))}"/>` : '') +
+        `<rect class="hmi-tank-tag" x="${f(w * 0.12)}" y="${f(h / 2 - 13)}" width="${f(w * 0.76)}" height="26" rx="3"/>` +
+        `<text class="hmi-tank-value" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(16, w * 0.15)))}">${escapeXml(text)}</text>`
+    if (state === 'alarm') out += alarmIndicator(w - 6, 8, p.priority)
+    return out + labelBelow(p, w, h) + '</g>'
+}
+
+function renderButton (sym, value, opts) {
+    const p = sym.props || {}
+    const w = sym.w
+    const h = sym.h
+    const on = isOn(value, p.onWhen, p.threshold)
+    const text = on && p.textOn ? p.textOn : (p.text || '')
+    return `<g class="hmi-button ${stateClass(on)}">` +
+        `<rect class="hmi-button-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="6"/>` +
+        `<text class="hmi-button-text" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(h * 0.38, w / Math.max(4, text.length) * 1.5)))}">${escapeXml(text)}</text></g>`
 }
 
 function framePath (shape, w, h) {
@@ -452,13 +585,13 @@ export const CSS = `
   --hmi-bg: #d9dadb; --hmi-equip: #c9cbcd; --hmi-equip-on: #808489; --hmi-stroke: #5f6368;
   --hmi-line: #8a8e93; --hmi-text: #1f2328; --hmi-text-dim: #55595e; --hmi-tag-bg: #e6e7e8;
   --hmi-alarm: #d71920; --hmi-warn: #f2b705; --hmi-low: #c46ad1; --hmi-ok: #4d5156; --hmi-info: #2f6fb3;
-  --hmi-dark: #a9acaf; --hmi-pit: #b9bbbd; --hmi-material: #3d4146;
+  --hmi-dark: #a9acaf; --hmi-pit: #b9bbbd; --hmi-material: #3d4146; --hmi-level: #8ea2b7;
 }
 .hmi-root.hmi-theme-classic {
   --hmi-bg: #2a2f36; --hmi-equip: #59626c; --hmi-equip-on: #8794a0; --hmi-stroke: #aab6c1;
   --hmi-line: #7b8895; --hmi-text: #e8edf1; --hmi-text-dim: #9aa4ae; --hmi-tag-bg: #1c2025;
   --hmi-alarm: #ef4444; --hmi-warn: #f59e0b; --hmi-low: #c084fc; --hmi-ok: #22c55e; --hmi-info: #38bdf8;
-  --hmi-dark: #3a4148; --hmi-pit: #1b1f23; --hmi-material: #c4d0db;
+  --hmi-dark: #3a4148; --hmi-pit: #1b1f23; --hmi-material: #c4d0db; --hmi-level: #2f80c8;
 }
 .hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
@@ -504,6 +637,31 @@ export const CSS = `
 .hmi-root .hmi-motor.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-motor.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
 .hmi-root .hmi-motor.hmi-fault .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-valve .hmi-body, .hmi-root .hmi-pump .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; stroke-linejoin: round; }
+.hmi-root .hmi-valve.hmi-on .hmi-body, .hmi-root .hmi-pump.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-valve.hmi-unknown .hmi-body, .hmi-root .hmi-pump.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
+.hmi-root .hmi-valve.hmi-fault .hmi-body, .hmi-root .hmi-pump.hmi-fault .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-valve .hmi-stem { stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-valve .hmi-actuator { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-pump .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-pump-arrow { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root.hmi-theme-classic .hmi-pump.hmi-on .hmi-pump-arrow { fill: var(--hmi-ok); }
+.hmi-root.hmi-theme-classic .hmi-valve.hmi-on .hmi-body { fill: var(--hmi-ok); }
+.hmi-root .hmi-tank .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-tank.hmi-alarm .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-tank.hmi-unknown .hmi-body { stroke-dasharray: 6 4; }
+.hmi-root .hmi-level { fill: var(--hmi-level); }
+.hmi-root .hmi-tank-tag { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; opacity: .92; }
+.hmi-root .hmi-tank-value { fill: var(--hmi-text); font-family: Consolas, "Roboto Mono", monospace; font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-tank.hmi-alarm .hmi-tank-value { fill: var(--hmi-alarm); }
+.hmi-root .hmi-button-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-button.hmi-on .hmi-button-box { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-button-text { fill: var(--hmi-text); font-weight: 700; letter-spacing: .5px; dominant-baseline: central; }
+.hmi-root .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-tag-bg); }
+.hmi-root.hmi-theme-classic .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-text); }
+.hmi-root .hmi-clickable { cursor: pointer; touch-action: none; }
+.hmi-root .hmi-clickable:active .hmi-button-box { filter: brightness(.85); }
+.hmi-root .hmi-pressed .hmi-button-box { filter: brightness(.8); }
 .hmi-root .hmi-motor-m { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-ok); }

@@ -4,6 +4,7 @@ import { SYMBOLS, createSymbol, renderSymbol, injectStyles, linePoints } from '.
 
 const GRID = 10
 const CSS_ID = 'hmi-editor-style'
+const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
 
@@ -35,7 +36,7 @@ const CSS = `
 .hmi-ed-props { width: 230px; flex: none; padding: 8px 10px; border-left: 1px solid var(--hmi-ed-border); overflow: auto; background: var(--hmi-ed-panel); }
 .hmi-ed-f { margin-bottom: 6px; }
 .hmi-ed-f label { display: block; width: auto; margin: 0 0 2px 0; font-size: 12px; }
-.hmi-ed-f input, .hmi-ed-f select { width: 100%; height: 30px; padding: 2px 6px; font: inherit; border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-bg); color: var(--hmi-ed-text); margin: 0; }
+.hmi-ed .hmi-ed-f input, .hmi-ed .hmi-ed-f select { width: 100% !important; max-width: none; height: 30px; padding: 2px 6px; font: inherit; border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-bg); color: var(--hmi-ed-text); margin: 0; }
 .hmi-ed-pair { display: flex; gap: 6px; }
 .hmi-ed-pair > div { flex: 1; min-width: 0; }
 .hmi-ed-props h4 { margin: 4px 0 8px 0; font-size: 14px; }
@@ -47,6 +48,9 @@ const CSS = `
 .hmi-ed-btn.hmi-ed-small { padding: 2px 8px; min-height: 26px; font-size: 12px; }
 .hmi-ed-btnrow { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px 0; }
 .hmi-ed-point { fill: #fff; stroke: #1e88e5; stroke-width: 2; cursor: move; }
+.hmi-ed-marquee { fill: rgba(30, 136, 229, .08); stroke: #1e88e5; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.hmi-ed-props h5 { margin: 14px 0 6px 0; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+.hmi-ed-align { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 10px; }
 .hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
 `
 
@@ -82,7 +86,7 @@ export function createEditor (root, opts) {
     }
     const o = opts || {}
     const btnClass = 'hmi-ed-btn ' + (o.buttonClass || '')
-    const ed = { symbols: clone(o.symbols), sel: null, drag: null, history: [], future: [] }
+    const ed = { symbols: clone(o.symbols), sel: null, multi: [], drag: null, history: [], future: [] }
     ed.history.push(clone(ed.symbols))
 
     root.classList.add('hmi-ed')
@@ -128,7 +132,18 @@ export function createEditor (root, opts) {
         return { w: Math.max(100, Number(v.w) || 1280), h: Math.max(100, Number(v.h) || 720) }
     }
     const snap = v => gridBox.checked ? Math.round(v / GRID) * GRID : Math.round(v)
-    const selected = () => ed.symbols.find(s => s.id === ed.sel)
+    const selected = () => ed.multi.length === 1 ? ed.symbols.find(s => s.id === ed.sel) : undefined
+    const selection = () => ed.symbols.filter(s => ed.multi.includes(s.id))
+    function select (ids, primary) {
+        ed.multi = ids.filter((id, i) => ids.indexOf(id) === i)
+        ed.sel = primary !== undefined && ed.multi.includes(primary) ? primary : (ed.multi[ed.multi.length - 1] || null)
+    }
+    // box as drawn, so a symbol turned 90° aligns by what you see
+    function box (s) {
+        const r = (((Number(s.rot) || 0) % 180) + 180) % 180
+        if (r === 90) return { x: s.x + s.w / 2 - s.h / 2, y: s.y + s.h / 2 - s.w / 2, w: s.h, h: s.w }
+        return { x: s.x, y: s.y, w: s.w, h: s.h }
+    }
     const changed = () => {
         ed.history.push(clone(ed.symbols))
         if (ed.history.length > 100) ed.history.shift()
@@ -137,7 +152,7 @@ export function createEditor (root, opts) {
     }
     function restore (list) {
         ed.symbols = clone(list)
-        if (!selected()) ed.sel = null
+        select(ed.multi.filter(id => ed.symbols.some(s => s.id === id)), ed.sel)
         refresh()
         if (o.onChange) o.onChange(api)
     }
@@ -199,6 +214,15 @@ export function createEditor (root, opts) {
             out += '<g transform="translate(' + s.x + ',' + s.y + ')' + (rot ? ' rotate(' + rot + ',' + s.w / 2 + ',' + s.h / 2 + ')' : '') + '">' +
                 '<rect class="hmi-ed-sel" x="-3" y="-3" width="' + (s.w + 6) + '" height="' + (s.h + 6) + '"/>' +
                 '<rect class="hmi-ed-handle" data-handle="1" x="' + (s.w - 2) + '" y="' + (s.h - 2) + '" width="10" height="10"/></g>'
+        } else {
+            for (const m of selection()) {
+                const b = box(m)
+                out += '<rect class="hmi-ed-sel" x="' + (b.x - 3) + '" y="' + (b.y - 3) + '" width="' + (b.w + 6) + '" height="' + (b.h + 6) + '"/>'
+            }
+        }
+        if (ed.drag && ed.drag.mode === 'box') {
+            const r = marquee(ed.drag)
+            out += '<rect class="hmi-ed-marquee" x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '"/>'
         }
         svg.innerHTML = out
     }
@@ -236,21 +260,40 @@ export function createEditor (root, opts) {
     function showProps () {
         props.innerHTML = ''
         const s = selected()
+        const smallBtn = (parent, label, title, fn) => {
+            const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
+            b.addEventListener('click', fn)
+            parent.appendChild(b)
+        }
+        const editRow = () => {
+            const row = el('div', { class: 'hmi-ed-btnrow' })
+            for (const [label, title, fn] of [['Duplicar', 'Ctrl+D', duplicate], ['Frente', 'Trazer para a frente', () => order(1)], ['Trás', 'Mandar para trás', () => order(-1)], ['Excluir', 'Delete', remove]]) smallBtn(row, label, title, fn)
+            props.appendChild(row)
+        }
+        if (ed.multi.length > 1) {
+            props.appendChild(el('h4', {}, ed.multi.length + ' símbolos'))
+            editRow()
+            props.appendChild(el('h5', {}, 'Alinhar'))
+            const grid = el('div', { class: 'hmi-ed-align' })
+            for (const [label, title, kind] of [['Esquerda', 'Alinhar à esquerda', 'left'], ['Centro', 'Centralizar na horizontal', 'hcenter'], ['Direita', 'Alinhar à direita', 'right'], ['Topo', 'Alinhar no topo', 'top'], ['Meio', 'Centralizar na vertical', 'vcenter'], ['Base', 'Alinhar na base', 'bottom']]) smallBtn(grid, label, title, () => align(kind))
+            props.appendChild(grid)
+            props.appendChild(el('h5', {}, 'Distribuir (3 ou mais)'))
+            const dist = el('div', { class: 'hmi-ed-btnrow' })
+            smallBtn(dist, 'Na horizontal', 'Mesmo espaço entre os símbolos, da esquerda para a direita', () => align('hdist'))
+            smallBtn(dist, 'Na vertical', 'Mesmo espaço entre os símbolos, de cima para baixo', () => align('vdist'))
+            props.appendChild(dist)
+            props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Arraste qualquer um para mover todos. Shift+clique adiciona ou tira da seleção.'))
+            return
+        }
         if (!s) {
             const h = el('div', { class: 'hmi-ed-hint' })
-            h.innerHTML = 'Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica.'
+            h.innerHTML = 'Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Vários símbolos: Shift+clique, ou arraste numa área vazia para fazer um retângulo de seleção.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica, Ctrl+A seleciona tudo.'
             props.appendChild(h)
             return
         }
         const def = SYMBOLS[s.type]
         props.appendChild(el('h4', {}, def.label))
-        const row = el('div', { class: 'hmi-ed-btnrow' })
-        for (const [label, title, fn] of [['Duplicar', 'Ctrl+D', duplicate], ['Frente', 'Trazer para a frente', () => order(1)], ['Trás', 'Mandar para trás', () => order(-1)], ['Excluir', 'Delete', remove]]) {
-            const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
-            b.addEventListener('click', fn)
-            row.appendChild(b)
-        }
-        props.appendChild(row)
+        editRow()
         props.appendChild(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
         props.appendChild(pair(field('X', s.x, 'number', v => { s.x = Number(v) || 0 }), field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })))
         if (def.line) {
@@ -267,6 +310,22 @@ export function createEditor (root, opts) {
             if (p === undefined) delete s.preview
             else s.preview = p
         }))
+        if (def.line || s.type === 'frame') return
+        props.appendChild(el('h5', {}, 'Ao clicar no dashboard'))
+        const act = s.action || { mode: 'none' }
+        const setAct = (k, v) => {
+            s.action = { mode: 'none', value: '', topic: '', confirm: 'no', ...s.action, [k]: v }
+            if (s.action.mode === 'none') delete s.action
+        }
+        props.appendChild(field('Ação', act.mode || 'none', 'select', v => { setAct('mode', v); setTimeout(showProps) }, ACTIONS))
+        if (act.mode && act.mode !== 'none') {
+            if (act.mode === 'value') props.appendChild(field('Valor enviado', act.value, 'text', v => setAct('value', v)))
+            const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
+            t.querySelector('input').placeholder = s.key || ''
+            props.appendChild(t)
+            if (act.mode !== 'pulse') props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
+        }
     }
 
     function refresh () { draw(); showProps() }
@@ -276,38 +335,76 @@ export function createEditor (root, opts) {
         if (!def) return
         const s = createSymbol(type, snap(cx - def.w / 2), snap(cy - def.h / 2))
         ed.symbols.push(s)
-        ed.sel = s.id
+        select([s.id])
         refresh()
         changed()
     }
 
     function remove () {
-        if (!ed.sel) return
-        ed.symbols = ed.symbols.filter(s => s.id !== ed.sel)
-        ed.sel = null
+        if (!ed.multi.length) return
+        ed.symbols = ed.symbols.filter(s => !ed.multi.includes(s.id))
+        select([])
         refresh()
         changed()
     }
 
+    // pastes copies 20 px down-right and selects them; returns the copies
     function paste (src) {
-        if (!src || !SYMBOLS[src.type]) return
-        const c = createSymbol(src.type, src.x + 20, src.y + 20)
-        Object.assign(c, clone(src), { id: c.id, x: src.x + 20, y: src.y + 20 })
-        ed.symbols.push(c)
-        ed.sel = c.id
+        const list = (Array.isArray(src) ? src : [src]).filter(x => x && SYMBOLS[x.type])
+        if (!list.length) return
+        const out = list.map(x => {
+            const c = createSymbol(x.type, x.x + 20, x.y + 20)
+            return Object.assign(c, clone(x), { id: c.id, x: x.x + 20, y: x.y + 20 })
+        })
+        ed.symbols.push(...out)
+        select(out.map(c => c.id))
         refresh()
         changed()
-        return c
+        return clone(out)
     }
-    function duplicate () { paste(selected()) }
+    function duplicate () { paste(selection()) }
     function order (dir) {
-        const i = ed.symbols.findIndex(s => s.id === ed.sel)
-        if (i < 0) return
-        const [s] = ed.symbols.splice(i, 1)
-        if (dir > 0) ed.symbols.push(s)
-        else ed.symbols.unshift(s)
+        const picked = selection()
+        if (!picked.length) return
+        const rest = ed.symbols.filter(s => !ed.multi.includes(s.id))
+        ed.symbols = dir > 0 ? [...rest, ...picked] : [...picked, ...rest]
         draw()
         changed()
+    }
+    function align (kind) {
+        const list = selection()
+        if (list.length < 2) return
+        const bs = list.map(box)
+        const L = Math.min(...bs.map(b => b.x))
+        const R = Math.max(...bs.map(b => b.x + b.w))
+        const T = Math.min(...bs.map(b => b.y))
+        const B = Math.max(...bs.map(b => b.y + b.h))
+        if (kind === 'hdist' || kind === 'vdist') {
+            if (list.length < 3) return api.setMessage('Selecione 3 ou mais para distribuir')
+            const hz = kind === 'hdist'
+            const idx = list.map((s, i) => i).sort((a, b) => hz ? bs[a].x - bs[b].x : bs[a].y - bs[b].y)
+            const total = idx.reduce((t, i) => t + (hz ? bs[i].w : bs[i].h), 0)
+            const gap = ((hz ? R - L : B - T) - total) / (list.length - 1)
+            let pos = hz ? L : T
+            for (const i of idx) {
+                if (hz) list[i].x = Math.round(list[i].x + pos - bs[i].x)
+                else list[i].y = Math.round(list[i].y + pos - bs[i].y)
+                pos += (hz ? bs[i].w : bs[i].h) + gap
+            }
+        } else {
+            list.forEach((s, i) => {
+                const b = bs[i]
+                const dx = { left: L - b.x, hcenter: (L + R) / 2 - (b.x + b.w / 2), right: R - (b.x + b.w) }[kind] || 0
+                const dy = { top: T - b.y, vcenter: (T + B) / 2 - (b.y + b.h / 2), bottom: B - (b.y + b.h) }[kind] || 0
+                s.x = Math.round(s.x + dx)
+                s.y = Math.round(s.y + dy)
+            })
+        }
+        draw()
+        changed()
+    }
+    function marquee (d) {
+        return { x: Math.min(d.start.x, d.cur.x), y: Math.min(d.start.y, d.cur.y), w: Math.abs(d.cur.x - d.start.x), h: Math.abs(d.cur.y - d.start.y) }
     }
     function normalizeLine (s) {
         const pts = linePoints(s)
@@ -367,29 +464,63 @@ export function createEditor (root, opts) {
             ed.drag = { mode: 'size', start: p, w: s.w, h: s.h }
         } else {
             const g = e.target.closest('.hmi-symbol')
-            if (!g) { ed.sel = null; refresh(); return }
-            ed.sel = g.getAttribute('data-id')
-            const s = selected()
-            ed.drag = { mode: 'move', start: p, x: s.x, y: s.y }
-            refresh()
+            const adding = e.shiftKey || e.ctrlKey || e.metaKey
+            if (!g) {
+                // rubber band selection
+                if (!adding) select([])
+                ed.drag = { mode: 'box', start: p, cur: p, base: [...ed.multi] }
+                refresh()
+            } else {
+                const id = g.getAttribute('data-id')
+                if (adding) {
+                    if (ed.multi.includes(id)) select(ed.multi.filter(x => x !== id))
+                    else select([...ed.multi, id], id)
+                    refresh()
+                    e.preventDefault()
+                    return
+                }
+                if (ed.multi.includes(id)) ed.sel = id
+                else select([id])
+                ed.drag = { mode: 'move', start: p, orig: selection().map(m => ({ m, x: m.x, y: m.y })) }
+                refresh()
+            }
         }
         svg.setPointerCapture(e.pointerId)
         e.preventDefault()
     })
     svg.addEventListener('pointermove', e => {
         const d = ed.drag
-        const s = selected()
-        if (!d || !s) return
+        if (!d) return
         const p = toSvg(e)
+        if (d.mode === 'box') {
+            d.cur = p
+            const r = marquee(d)
+            const hits = ed.symbols.filter(m => {
+                const b = box(m)
+                return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y
+            }).map(m => m.id)
+            select([...d.base, ...hits])
+            draw()
+            return
+        }
+        if (d.mode === 'move') {
+            const lead = d.orig.find(o => o.m.id === ed.sel) || d.orig[0]
+            if (!lead) return
+            const dx = snap(lead.x + p.x - d.start.x) - lead.x
+            const dy = snap(lead.y + p.y - d.start.y) - lead.y
+            for (const o of d.orig) { o.m.x = o.x + dx; o.m.y = o.y + dy }
+            d.moved = true
+            draw()
+            return
+        }
+        const s = selected()
+        if (!s) return
         if (d.mode === 'point') {
             const pts = linePoints(s)
             pts[d.i] = [snap(p.x) - s.x, snap(p.y) - s.y]
             s.props.points = pts
             s.w = Math.max(1, ...pts.map(q => q[0]))
             s.h = Math.max(1, ...pts.map(q => q[1]))
-        } else if (d.mode === 'move') {
-            s.x = snap(d.x + p.x - d.start.x)
-            s.y = snap(d.y + p.y - d.start.y)
         } else {
             s.w = Math.max(20, snap(d.w + p.x - d.start.x))
             s.h = Math.max(20, snap(d.h + p.y - d.start.y))
@@ -415,20 +546,24 @@ export function createEditor (root, opts) {
         if (e.ctrlKey || e.metaKey) {
             if (k === 'z' && !e.shiftKey) undo()
             else if (k === 'y' || (k === 'z' && e.shiftKey)) redo()
-            else if (k === 'c' && selected()) clipboard = clone(selected())
+            else if (k === 'c' && ed.multi.length) clipboard = clone(selection())
             else if (k === 'v' && clipboard) clipboard = paste(clipboard) || clipboard
             else if (k === 'd') duplicate()
-            else return
+            else if (k === 'a') { select(ed.symbols.map(m => m.id)); refresh() } else return
             e.preventDefault()
             e.stopPropagation()
             return
         }
-        const s = selected()
-        if (!s) return
+        const list = selection()
+        if (!list.length) return
         const step = e.shiftKey ? 10 : 1
         const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
         if (e.key === 'Delete' || e.key === 'Backspace') remove()
-        else if (moves[e.key]) { s.x += moves[e.key][0]; s.y += moves[e.key][1]; refresh(); changed() } else return
+        else if (e.key === 'Escape') { select([]); refresh() } else if (moves[e.key]) {
+            for (const m of list) { m.x += moves[e.key][0]; m.y += moves[e.key][1] }
+            refresh()
+            changed()
+        } else return
         e.preventDefault()
         e.stopPropagation()
     })

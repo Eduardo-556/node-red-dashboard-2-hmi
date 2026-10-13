@@ -25,6 +25,10 @@ function cleanSymbols (list) {
             props: s.props && typeof s.props === 'object' && !Array.isArray(s.props) ? s.props : {}
         }
         if (s.preview !== undefined && ['number', 'string', 'boolean'].includes(typeof s.preview)) clean.preview = s.preview
+        const a = s.action
+        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse'].includes(a.mode)) {
+            clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no' }
+        }
         out.push(clean)
     }
     return out

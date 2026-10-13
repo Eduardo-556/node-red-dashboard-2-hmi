@@ -109,6 +109,120 @@ var HmiEditor = (function(exports) {
 			],
 			render: renderMotor
 		},
+		valve: {
+			label: "Válvula",
+			group: "Equipamentos",
+			w: 60,
+			h: 50,
+			preview: 1,
+			defaults: {
+				label: "",
+				onWhen: "nonzero",
+				threshold: 0,
+				faultKey: "",
+				priority: "1"
+			},
+			fields: [
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				},
+				...ON_FIELDS,
+				{
+					key: "faultKey",
+					label: "Chave da falha (opcional)",
+					type: "text"
+				},
+				PRIORITY_FIELD
+			],
+			render: renderValve
+		},
+		pump: {
+			label: "Bomba",
+			group: "Equipamentos",
+			w: 60,
+			h: 60,
+			preview: 1,
+			defaults: {
+				label: "",
+				onWhen: "nonzero",
+				threshold: 0,
+				faultKey: "",
+				priority: "1"
+			},
+			fields: [
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				},
+				...ON_FIELDS,
+				{
+					key: "faultKey",
+					label: "Chave da falha (opcional)",
+					type: "text"
+				},
+				PRIORITY_FIELD
+			],
+			render: renderPump
+		},
+		tank: {
+			label: "Tanque",
+			group: "Equipamentos",
+			w: 100,
+			h: 160,
+			preview: 65,
+			defaults: {
+				label: "",
+				unit: "%",
+				decimals: 0,
+				min: 0,
+				max: 100,
+				lo: "",
+				hi: "",
+				priority: "2"
+			},
+			fields: [
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				},
+				{
+					key: "unit",
+					label: "Unidade",
+					type: "text"
+				},
+				{
+					key: "decimals",
+					label: "Casas decimais",
+					type: "number"
+				},
+				{
+					key: "min",
+					label: "Vazio (mín.)",
+					type: "number"
+				},
+				{
+					key: "max",
+					label: "Cheio (máx.)",
+					type: "number"
+				},
+				{
+					key: "lo",
+					label: "Alarme abaixo de",
+					type: "number"
+				},
+				{
+					key: "hi",
+					label: "Alarme acima de",
+					type: "number"
+				},
+				PRIORITY_FIELD
+			],
+			render: renderTank
+		},
 		frame: {
 			label: "Corpo",
 			group: "Equipamentos",
@@ -431,6 +545,39 @@ var HmiEditor = (function(exports) {
 				BLINK_FIELD
 			],
 			render: renderAlarm
+		},
+		button: {
+			label: "Botão",
+			group: "Comandos",
+			w: 140,
+			h: 44,
+			preview: 0,
+			defaults: {
+				text: "LIGAR",
+				textOn: "",
+				onWhen: "nonzero",
+				threshold: 0
+			},
+			action: {
+				mode: "pulse",
+				value: "",
+				topic: "",
+				confirm: "no"
+			},
+			fields: [
+				{
+					key: "text",
+					label: "Texto",
+					type: "text"
+				},
+				{
+					key: "textOn",
+					label: "Texto quando ligado (opcional)",
+					type: "text"
+				},
+				...ON_FIELDS
+			],
+			render: renderButton
 		}
 	};
 	var counter = 0;
@@ -447,7 +594,8 @@ var HmiEditor = (function(exports) {
 			h: def.h,
 			rot: 0,
 			key: "",
-			props: JSON.parse(JSON.stringify(def.defaults))
+			props: JSON.parse(JSON.stringify(def.defaults)),
+			...def.action ? { action: { ...def.action } } : {}
 		};
 	}
 	function valueFor(sym, values) {
@@ -547,10 +695,69 @@ var HmiEditor = (function(exports) {
 		const cx = w / 2;
 		const cy = r + 2;
 		const on = isOn(value, p.onWhen, p.threshold);
-		const fault = p.faultKey && opts.values ? isOn(opts.values[p.faultKey], "nonzero") === true : false;
+		const fault = faultOf(p, opts);
 		let out = `<g class="hmi-motor ${stateClass(on)}${fault ? " hmi-fault" : ""}"><rect class="hmi-foot" x="${f(cx - r * .8)}" y="${f(cy + r - 2)}" width="${f(r * 1.6)}" height="${f(Math.max(4, h - cy - r + 2))}" rx="2"/><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><text class="hmi-motor-m" x="${f(cx)}" y="${f(cy)}" font-size="${f(r * .9)}">M</text>`;
 		if (fault) out += alarmIndicator(w - 4, 6, p.priority);
 		return out + labelBelow(p, w, h) + "</g>";
+	}
+	function faultOf(p, opts) {
+		return p.faultKey && opts.values ? isOn(opts.values[p.faultKey], "nonzero") === true : false;
+	}
+	function renderValve(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const on = isOn(value, p.onWhen, p.threshold);
+		const fault = faultOf(p, opts);
+		const top = h * .36;
+		const cy = (top + h - 1) / 2;
+		const cx = w / 2;
+		const a = Math.min(w * .22, top * .9);
+		let out = `<g class="hmi-valve ${stateClass(on)}${fault ? " hmi-fault" : ""}"><line class="hmi-stem" x1="${f(cx)}" y1="${f(cy)}" x2="${f(cx)}" y2="${f(top * .55)}"/><path class="hmi-actuator" d="M${f(cx - a)} ${f(top * .55)}A${f(a)} ${f(a)} 0 0 1 ${f(cx + a)} ${f(top * .55)}Z"/><path class="hmi-body" d="M1.5 ${f(top)}L${f(cx)} ${f(cy)}L1.5 ${f(h - 1)}ZM${f(w - 1.5)} ${f(top)}L${f(cx)} ${f(cy)}L${f(w - 1.5)} ${f(h - 1)}Z"/>`;
+		if (fault) out += alarmIndicator(w - 4, 6, p.priority);
+		return out + labelBelow(p, w, h) + "</g>";
+	}
+	function renderPump(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const on = isOn(value, p.onWhen, p.threshold);
+		const fault = faultOf(p, opts);
+		const r = Math.max(6, Math.min(w, h * .9) / 2 - 2);
+		const cx = w / 2;
+		const cy = r + 2;
+		const t = r * .55;
+		let out = `<g class="hmi-pump ${stateClass(on)}${fault ? " hmi-fault" : ""}"><path class="hmi-foot" d="M${f(cx - r * .75)} ${f(h - 1)}L${f(cx - r * .45)} ${f(cy + r * .7)}H${f(cx + r * .45)}L${f(cx + r * .75)} ${f(h - 1)}Z"/><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><path class="hmi-pump-arrow" d="M${f(cx - t * .6)} ${f(cy - t)}L${f(cx + t)} ${f(cy)}L${f(cx - t * .6)} ${f(cy + t)}Z"/>`;
+		if (fault) out += alarmIndicator(w - 4, 6, p.priority);
+		return out + labelBelow(p, w, h) + "</g>";
+	}
+	function renderTank(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const v = num(value);
+		let min = num(p.min);
+		let max = num(p.max);
+		if (min === null) min = 0;
+		if (max === null || max <= min) max = min + 100;
+		const state = rangeState(value, p.lo, p.hi);
+		const cls = state === null ? "hmi-unknown" : state === "alarm" ? "hmi-alarm" : "hmi-normal";
+		const rx = Math.min(w * .18, 20);
+		const pad = 5;
+		const inner = h - 10;
+		const lh = inner * (v === null ? 0 : Math.max(0, Math.min(1, (v - min) / (max - min))));
+		const text = v === null ? "—" : formatValue(v, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
+		let out = `<g class="hmi-tank ${cls}"><rect class="hmi-body" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="${f(rx)}"/>` + (lh > 0 ? `<rect class="hmi-level" x="${pad}" y="${f(pad + inner - lh)}" width="${f(w - 10)}" height="${f(lh)}" rx="${f(Math.max(0, Math.min(rx - pad, lh / 2)))}"/>` : "") + `<rect class="hmi-tank-tag" x="${f(w * .12)}" y="${f(h / 2 - 13)}" width="${f(w * .76)}" height="26" rx="3"/><text class="hmi-tank-value" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(16, w * .15)))}">${escapeXml(text)}</text>`;
+		if (state === "alarm") out += alarmIndicator(w - 6, 8, p.priority);
+		return out + labelBelow(p, w, h) + "</g>";
+	}
+	function renderButton(sym, value, opts) {
+		const p = sym.props || {};
+		const w = sym.w;
+		const h = sym.h;
+		const on = isOn(value, p.onWhen, p.threshold);
+		const text = on && p.textOn ? p.textOn : p.text || "";
+		return `<g class="hmi-button ${stateClass(on)}"><rect class="hmi-button-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="6"/><text class="hmi-button-text" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(h * .38, w / Math.max(4, text.length) * 1.5)))}">${escapeXml(text)}</text></g>`;
 	}
 	function framePath(shape, w, h) {
 		const c = Math.min(w, h) * .15;
@@ -688,13 +895,13 @@ var HmiEditor = (function(exports) {
   --hmi-bg: #d9dadb; --hmi-equip: #c9cbcd; --hmi-equip-on: #808489; --hmi-stroke: #5f6368;
   --hmi-line: #8a8e93; --hmi-text: #1f2328; --hmi-text-dim: #55595e; --hmi-tag-bg: #e6e7e8;
   --hmi-alarm: #d71920; --hmi-warn: #f2b705; --hmi-low: #c46ad1; --hmi-ok: #4d5156; --hmi-info: #2f6fb3;
-  --hmi-dark: #a9acaf; --hmi-pit: #b9bbbd; --hmi-material: #3d4146;
+  --hmi-dark: #a9acaf; --hmi-pit: #b9bbbd; --hmi-material: #3d4146; --hmi-level: #8ea2b7;
 }
 .hmi-root.hmi-theme-classic {
   --hmi-bg: #2a2f36; --hmi-equip: #59626c; --hmi-equip-on: #8794a0; --hmi-stroke: #aab6c1;
   --hmi-line: #7b8895; --hmi-text: #e8edf1; --hmi-text-dim: #9aa4ae; --hmi-tag-bg: #1c2025;
   --hmi-alarm: #ef4444; --hmi-warn: #f59e0b; --hmi-low: #c084fc; --hmi-ok: #22c55e; --hmi-info: #38bdf8;
-  --hmi-dark: #3a4148; --hmi-pit: #1b1f23; --hmi-material: #c4d0db;
+  --hmi-dark: #3a4148; --hmi-pit: #1b1f23; --hmi-material: #c4d0db; --hmi-level: #2f80c8;
 }
 .hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
@@ -740,6 +947,31 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-motor.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-motor.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
 .hmi-root .hmi-motor.hmi-fault .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-valve .hmi-body, .hmi-root .hmi-pump .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; stroke-linejoin: round; }
+.hmi-root .hmi-valve.hmi-on .hmi-body, .hmi-root .hmi-pump.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-valve.hmi-unknown .hmi-body, .hmi-root .hmi-pump.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
+.hmi-root .hmi-valve.hmi-fault .hmi-body, .hmi-root .hmi-pump.hmi-fault .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-valve .hmi-stem { stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-valve .hmi-actuator { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-pump .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-pump-arrow { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root.hmi-theme-classic .hmi-pump.hmi-on .hmi-pump-arrow { fill: var(--hmi-ok); }
+.hmi-root.hmi-theme-classic .hmi-valve.hmi-on .hmi-body { fill: var(--hmi-ok); }
+.hmi-root .hmi-tank .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-tank.hmi-alarm .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
+.hmi-root .hmi-tank.hmi-unknown .hmi-body { stroke-dasharray: 6 4; }
+.hmi-root .hmi-level { fill: var(--hmi-level); }
+.hmi-root .hmi-tank-tag { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; opacity: .92; }
+.hmi-root .hmi-tank-value { fill: var(--hmi-text); font-family: Consolas, "Roboto Mono", monospace; font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-tank.hmi-alarm .hmi-tank-value { fill: var(--hmi-alarm); }
+.hmi-root .hmi-button-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-button.hmi-on .hmi-button-box { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-button-text { fill: var(--hmi-text); font-weight: 700; letter-spacing: .5px; dominant-baseline: central; }
+.hmi-root .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-tag-bg); }
+.hmi-root.hmi-theme-classic .hmi-button.hmi-on .hmi-button-text { fill: var(--hmi-text); }
+.hmi-root .hmi-clickable { cursor: pointer; touch-action: none; }
+.hmi-root .hmi-clickable:active .hmi-button-box { filter: brightness(.85); }
+.hmi-root .hmi-pressed .hmi-button-box { filter: brightness(.8); }
 .hmi-root .hmi-motor-m { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-motor.hmi-on .hmi-motor-m { fill: var(--hmi-ok); }
@@ -799,6 +1031,12 @@ var HmiEditor = (function(exports) {
 	//#region ui/editor/index.js
 	var GRID = 10;
 	var CSS_ID = "hmi-editor-style";
+	var ACTIONS = [
+		["none", "Nada"],
+		["value", "Enviar um valor"],
+		["toggle", "Inverter (liga / desliga)"],
+		["pulse", "Pulso (1 ao apertar, 0 ao soltar)"]
+	];
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
 	var clipboard = null;
 	var CSS$1 = `
@@ -829,7 +1067,7 @@ var HmiEditor = (function(exports) {
 .hmi-ed-props { width: 230px; flex: none; padding: 8px 10px; border-left: 1px solid var(--hmi-ed-border); overflow: auto; background: var(--hmi-ed-panel); }
 .hmi-ed-f { margin-bottom: 6px; }
 .hmi-ed-f label { display: block; width: auto; margin: 0 0 2px 0; font-size: 12px; }
-.hmi-ed-f input, .hmi-ed-f select { width: 100%; height: 30px; padding: 2px 6px; font: inherit; border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-bg); color: var(--hmi-ed-text); margin: 0; }
+.hmi-ed .hmi-ed-f input, .hmi-ed .hmi-ed-f select { width: 100% !important; max-width: none; height: 30px; padding: 2px 6px; font: inherit; border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-bg); color: var(--hmi-ed-text); margin: 0; }
 .hmi-ed-pair { display: flex; gap: 6px; }
 .hmi-ed-pair > div { flex: 1; min-width: 0; }
 .hmi-ed-props h4 { margin: 4px 0 8px 0; font-size: 14px; }
@@ -841,6 +1079,9 @@ var HmiEditor = (function(exports) {
 .hmi-ed-btn.hmi-ed-small { padding: 2px 8px; min-height: 26px; font-size: 12px; }
 .hmi-ed-btnrow { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px 0; }
 .hmi-ed-point { fill: #fff; stroke: #1e88e5; stroke-width: 2; cursor: move; }
+.hmi-ed-marquee { fill: rgba(30, 136, 229, .08); stroke: #1e88e5; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.hmi-ed-props h5 { margin: 14px 0 6px 0; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+.hmi-ed-align { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 10px; }
 .hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
 `;
 	function el(tag, attrs, text) {
@@ -874,6 +1115,7 @@ var HmiEditor = (function(exports) {
 		const ed = {
 			symbols: clone(o.symbols),
 			sel: null,
+			multi: [],
 			drag: null,
 			history: [],
 			future: []
@@ -930,7 +1172,26 @@ var HmiEditor = (function(exports) {
 			};
 		};
 		const snap = (v) => gridBox.checked ? Math.round(v / GRID) * GRID : Math.round(v);
-		const selected = () => ed.symbols.find((s) => s.id === ed.sel);
+		const selected = () => ed.multi.length === 1 ? ed.symbols.find((s) => s.id === ed.sel) : void 0;
+		const selection = () => ed.symbols.filter((s) => ed.multi.includes(s.id));
+		function select(ids, primary) {
+			ed.multi = ids.filter((id, i) => ids.indexOf(id) === i);
+			ed.sel = primary !== void 0 && ed.multi.includes(primary) ? primary : ed.multi[ed.multi.length - 1] || null;
+		}
+		function box(s) {
+			if (((Number(s.rot) || 0) % 180 + 180) % 180 === 90) return {
+				x: s.x + s.w / 2 - s.h / 2,
+				y: s.y + s.h / 2 - s.w / 2,
+				w: s.h,
+				h: s.w
+			};
+			return {
+				x: s.x,
+				y: s.y,
+				w: s.w,
+				h: s.h
+			};
+		}
 		const changed = () => {
 			ed.history.push(clone(ed.symbols));
 			if (ed.history.length > 100) ed.history.shift();
@@ -939,7 +1200,7 @@ var HmiEditor = (function(exports) {
 		};
 		function restore(list) {
 			ed.symbols = clone(list);
-			if (!selected()) ed.sel = null;
+			select(ed.multi.filter((id) => ed.symbols.some((s) => s.id === id)), ed.sel);
 			refresh();
 			if (o.onChange) o.onChange(api);
 		}
@@ -1003,6 +1264,13 @@ var HmiEditor = (function(exports) {
 			} else if (s) {
 				const rot = Number(s.rot) || 0;
 				out += "<g transform=\"translate(" + s.x + "," + s.y + ")" + (rot ? " rotate(" + rot + "," + s.w / 2 + "," + s.h / 2 + ")" : "") + "\"><rect class=\"hmi-ed-sel\" x=\"-3\" y=\"-3\" width=\"" + (s.w + 6) + "\" height=\"" + (s.h + 6) + "\"/><rect class=\"hmi-ed-handle\" data-handle=\"1\" x=\"" + (s.w - 2) + "\" y=\"" + (s.h - 2) + "\" width=\"10\" height=\"10\"/></g>";
+			} else for (const m of selection()) {
+				const b = box(m);
+				out += "<rect class=\"hmi-ed-sel\" x=\"" + (b.x - 3) + "\" y=\"" + (b.y - 3) + "\" width=\"" + (b.w + 6) + "\" height=\"" + (b.h + 6) + "\"/>";
+			}
+			if (ed.drag && ed.drag.mode === "box") {
+				const r = marquee(ed.drag);
+				out += "<rect class=\"hmi-ed-marquee\" x=\"" + r.x + "\" y=\"" + r.y + "\" width=\"" + r.w + "\" height=\"" + r.h + "\"/>";
 			}
 			svg.innerHTML = out;
 		}
@@ -1042,46 +1310,96 @@ var HmiEditor = (function(exports) {
 		function showProps() {
 			props.innerHTML = "";
 			const s = selected();
-			if (!s) {
-				const h = el("div", { class: "hmi-ed-hint" });
-				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica.";
-				props.appendChild(h);
-				return;
-			}
-			const def = SYMBOLS[s.type];
-			props.appendChild(el("h4", {}, def.label));
-			const row = el("div", { class: "hmi-ed-btnrow" });
-			for (const [label, title, fn] of [
-				[
-					"Duplicar",
-					"Ctrl+D",
-					duplicate
-				],
-				[
-					"Frente",
-					"Trazer para a frente",
-					() => order(1)
-				],
-				[
-					"Trás",
-					"Mandar para trás",
-					() => order(-1)
-				],
-				[
-					"Excluir",
-					"Delete",
-					remove
-				]
-			]) {
+			const smallBtn = (parent, label, title, fn) => {
 				const b = el("button", {
 					type: "button",
 					class: btnClass + " hmi-ed-small",
 					title
 				}, label);
 				b.addEventListener("click", fn);
-				row.appendChild(b);
+				parent.appendChild(b);
+			};
+			const editRow = () => {
+				const row = el("div", { class: "hmi-ed-btnrow" });
+				for (const [label, title, fn] of [
+					[
+						"Duplicar",
+						"Ctrl+D",
+						duplicate
+					],
+					[
+						"Frente",
+						"Trazer para a frente",
+						() => order(1)
+					],
+					[
+						"Trás",
+						"Mandar para trás",
+						() => order(-1)
+					],
+					[
+						"Excluir",
+						"Delete",
+						remove
+					]
+				]) smallBtn(row, label, title, fn);
+				props.appendChild(row);
+			};
+			if (ed.multi.length > 1) {
+				props.appendChild(el("h4", {}, ed.multi.length + " símbolos"));
+				editRow();
+				props.appendChild(el("h5", {}, "Alinhar"));
+				const grid = el("div", { class: "hmi-ed-align" });
+				for (const [label, title, kind] of [
+					[
+						"Esquerda",
+						"Alinhar à esquerda",
+						"left"
+					],
+					[
+						"Centro",
+						"Centralizar na horizontal",
+						"hcenter"
+					],
+					[
+						"Direita",
+						"Alinhar à direita",
+						"right"
+					],
+					[
+						"Topo",
+						"Alinhar no topo",
+						"top"
+					],
+					[
+						"Meio",
+						"Centralizar na vertical",
+						"vcenter"
+					],
+					[
+						"Base",
+						"Alinhar na base",
+						"bottom"
+					]
+				]) smallBtn(grid, label, title, () => align(kind));
+				props.appendChild(grid);
+				props.appendChild(el("h5", {}, "Distribuir (3 ou mais)"));
+				const dist = el("div", { class: "hmi-ed-btnrow" });
+				smallBtn(dist, "Na horizontal", "Mesmo espaço entre os símbolos, da esquerda para a direita", () => align("hdist"));
+				smallBtn(dist, "Na vertical", "Mesmo espaço entre os símbolos, de cima para baixo", () => align("vdist"));
+				props.appendChild(dist);
+				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Arraste qualquer um para mover todos. Shift+clique adiciona ou tira da seleção."));
+				return;
 			}
-			props.appendChild(row);
+			if (!s) {
+				const h = el("div", { class: "hmi-ed-hint" });
+				h.innerHTML = "Arraste um símbolo da barra de cima para a tela.<br><br>Clique num símbolo para editar. Arraste para mover e use o quadrado azul para redimensionar.<br><br>Vários símbolos: Shift+clique, ou arraste numa área vazia para fazer um retângulo de seleção.<br><br>Teclas: Delete apaga, setas movem (Shift = 10), Ctrl+Z desfaz, Ctrl+C / Ctrl+V copiam, Ctrl+D duplica, Ctrl+A seleciona tudo.";
+				props.appendChild(h);
+				return;
+			}
+			const def = SYMBOLS[s.type];
+			props.appendChild(el("h4", {}, def.label));
+			editRow();
 			props.appendChild(field("Chave do payload", s.key, "text", (v) => {
 				s.key = v.trim();
 			}));
@@ -1114,6 +1432,32 @@ var HmiEditor = (function(exports) {
 				if (p === void 0) delete s.preview;
 				else s.preview = p;
 			}));
+			if (def.line || s.type === "frame") return;
+			props.appendChild(el("h5", {}, "Ao clicar no dashboard"));
+			const act = s.action || { mode: "none" };
+			const setAct = (k, v) => {
+				s.action = {
+					mode: "none",
+					value: "",
+					topic: "",
+					confirm: "no",
+					...s.action,
+					[k]: v
+				};
+				if (s.action.mode === "none") delete s.action;
+			};
+			props.appendChild(field("Ação", act.mode || "none", "select", (v) => {
+				setAct("mode", v);
+				setTimeout(showProps);
+			}, ACTIONS));
+			if (act.mode && act.mode !== "none") {
+				if (act.mode === "value") props.appendChild(field("Valor enviado", act.value, "text", (v) => setAct("value", v)));
+				const t = field("Tópico (vazio = chave do payload)", act.topic, "text", (v) => setAct("topic", v));
+				t.querySelector("input").placeholder = s.key || "";
+				props.appendChild(t);
+				if (act.mode !== "pulse") props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
+				props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
+			}
 		}
 		function refresh() {
 			draw();
@@ -1124,42 +1468,90 @@ var HmiEditor = (function(exports) {
 			if (!def) return;
 			const s = createSymbol(type, snap(cx - def.w / 2), snap(cy - def.h / 2));
 			ed.symbols.push(s);
-			ed.sel = s.id;
+			select([s.id]);
 			refresh();
 			changed();
 		}
 		function remove() {
-			if (!ed.sel) return;
-			ed.symbols = ed.symbols.filter((s) => s.id !== ed.sel);
-			ed.sel = null;
+			if (!ed.multi.length) return;
+			ed.symbols = ed.symbols.filter((s) => !ed.multi.includes(s.id));
+			select([]);
 			refresh();
 			changed();
 		}
 		function paste(src) {
-			if (!src || !SYMBOLS[src.type]) return;
-			const c = createSymbol(src.type, src.x + 20, src.y + 20);
-			Object.assign(c, clone(src), {
-				id: c.id,
-				x: src.x + 20,
-				y: src.y + 20
+			const list = (Array.isArray(src) ? src : [src]).filter((x) => x && SYMBOLS[x.type]);
+			if (!list.length) return;
+			const out = list.map((x) => {
+				const c = createSymbol(x.type, x.x + 20, x.y + 20);
+				return Object.assign(c, clone(x), {
+					id: c.id,
+					x: x.x + 20,
+					y: x.y + 20
+				});
 			});
-			ed.symbols.push(c);
-			ed.sel = c.id;
+			ed.symbols.push(...out);
+			select(out.map((c) => c.id));
 			refresh();
 			changed();
-			return c;
+			return clone(out);
 		}
 		function duplicate() {
-			paste(selected());
+			paste(selection());
 		}
 		function order(dir) {
-			const i = ed.symbols.findIndex((s) => s.id === ed.sel);
-			if (i < 0) return;
-			const [s] = ed.symbols.splice(i, 1);
-			if (dir > 0) ed.symbols.push(s);
-			else ed.symbols.unshift(s);
+			const picked = selection();
+			if (!picked.length) return;
+			const rest = ed.symbols.filter((s) => !ed.multi.includes(s.id));
+			ed.symbols = dir > 0 ? [...rest, ...picked] : [...picked, ...rest];
 			draw();
 			changed();
+		}
+		function align(kind) {
+			const list = selection();
+			if (list.length < 2) return;
+			const bs = list.map(box);
+			const L = Math.min(...bs.map((b) => b.x));
+			const R = Math.max(...bs.map((b) => b.x + b.w));
+			const T = Math.min(...bs.map((b) => b.y));
+			const B = Math.max(...bs.map((b) => b.y + b.h));
+			if (kind === "hdist" || kind === "vdist") {
+				if (list.length < 3) return api.setMessage("Selecione 3 ou mais para distribuir");
+				const hz = kind === "hdist";
+				const idx = list.map((s, i) => i).sort((a, b) => hz ? bs[a].x - bs[b].x : bs[a].y - bs[b].y);
+				const total = idx.reduce((t, i) => t + (hz ? bs[i].w : bs[i].h), 0);
+				const gap = ((hz ? R - L : B - T) - total) / (list.length - 1);
+				let pos = hz ? L : T;
+				for (const i of idx) {
+					if (hz) list[i].x = Math.round(list[i].x + pos - bs[i].x);
+					else list[i].y = Math.round(list[i].y + pos - bs[i].y);
+					pos += (hz ? bs[i].w : bs[i].h) + gap;
+				}
+			} else list.forEach((s, i) => {
+				const b = bs[i];
+				const dx = {
+					left: L - b.x,
+					hcenter: (L + R) / 2 - (b.x + b.w / 2),
+					right: R - (b.x + b.w)
+				}[kind] || 0;
+				const dy = {
+					top: T - b.y,
+					vcenter: (T + B) / 2 - (b.y + b.h / 2),
+					bottom: B - (b.y + b.h)
+				}[kind] || 0;
+				s.x = Math.round(s.x + dx);
+				s.y = Math.round(s.y + dy);
+			});
+			draw();
+			changed();
+		}
+		function marquee(d) {
+			return {
+				x: Math.min(d.start.x, d.cur.x),
+				y: Math.min(d.start.y, d.cur.y),
+				w: Math.abs(d.cur.x - d.start.x),
+				h: Math.abs(d.cur.y - d.start.y)
+			};
 		}
 		function normalizeLine(s) {
 			const pts = linePoints(s);
@@ -1239,38 +1631,78 @@ var HmiEditor = (function(exports) {
 				};
 			} else {
 				const g = e.target.closest(".hmi-symbol");
+				const adding = e.shiftKey || e.ctrlKey || e.metaKey;
 				if (!g) {
-					ed.sel = null;
+					if (!adding) select([]);
+					ed.drag = {
+						mode: "box",
+						start: p,
+						cur: p,
+						base: [...ed.multi]
+					};
 					refresh();
-					return;
+				} else {
+					const id = g.getAttribute("data-id");
+					if (adding) {
+						if (ed.multi.includes(id)) select(ed.multi.filter((x) => x !== id));
+						else select([...ed.multi, id], id);
+						refresh();
+						e.preventDefault();
+						return;
+					}
+					if (ed.multi.includes(id)) ed.sel = id;
+					else select([id]);
+					ed.drag = {
+						mode: "move",
+						start: p,
+						orig: selection().map((m) => ({
+							m,
+							x: m.x,
+							y: m.y
+						}))
+					};
+					refresh();
 				}
-				ed.sel = g.getAttribute("data-id");
-				const s = selected();
-				ed.drag = {
-					mode: "move",
-					start: p,
-					x: s.x,
-					y: s.y
-				};
-				refresh();
 			}
 			svg.setPointerCapture(e.pointerId);
 			e.preventDefault();
 		});
 		svg.addEventListener("pointermove", (e) => {
 			const d = ed.drag;
-			const s = selected();
-			if (!d || !s) return;
+			if (!d) return;
 			const p = toSvg(e);
+			if (d.mode === "box") {
+				d.cur = p;
+				const r = marquee(d);
+				const hits = ed.symbols.filter((m) => {
+					const b = box(m);
+					return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y;
+				}).map((m) => m.id);
+				select([...d.base, ...hits]);
+				draw();
+				return;
+			}
+			if (d.mode === "move") {
+				const lead = d.orig.find((o) => o.m.id === ed.sel) || d.orig[0];
+				if (!lead) return;
+				const dx = snap(lead.x + p.x - d.start.x) - lead.x;
+				const dy = snap(lead.y + p.y - d.start.y) - lead.y;
+				for (const o of d.orig) {
+					o.m.x = o.x + dx;
+					o.m.y = o.y + dy;
+				}
+				d.moved = true;
+				draw();
+				return;
+			}
+			const s = selected();
+			if (!s) return;
 			if (d.mode === "point") {
 				const pts = linePoints(s);
 				pts[d.i] = [snap(p.x) - s.x, snap(p.y) - s.y];
 				s.props.points = pts;
 				s.w = Math.max(1, ...pts.map((q) => q[0]));
 				s.h = Math.max(1, ...pts.map((q) => q[1]));
-			} else if (d.mode === "move") {
-				s.x = snap(d.x + p.x - d.start.x);
-				s.y = snap(d.y + p.y - d.start.y);
 			} else {
 				s.w = Math.max(20, snap(d.w + p.x - d.start.x));
 				s.h = Math.max(20, snap(d.h + p.y - d.start.y));
@@ -1295,16 +1727,19 @@ var HmiEditor = (function(exports) {
 			if (e.ctrlKey || e.metaKey) {
 				if (k === "z" && !e.shiftKey) undo();
 				else if (k === "y" || k === "z" && e.shiftKey) redo();
-				else if (k === "c" && selected()) clipboard = clone(selected());
+				else if (k === "c" && ed.multi.length) clipboard = clone(selection());
 				else if (k === "v" && clipboard) clipboard = paste(clipboard) || clipboard;
 				else if (k === "d") duplicate();
-				else return;
+				else if (k === "a") {
+					select(ed.symbols.map((m) => m.id));
+					refresh();
+				} else return;
 				e.preventDefault();
 				e.stopPropagation();
 				return;
 			}
-			const s = selected();
-			if (!s) return;
+			const list = selection();
+			if (!list.length) return;
 			const step = e.shiftKey ? 10 : 1;
 			const moves = {
 				ArrowLeft: [-step, 0],
@@ -1313,9 +1748,14 @@ var HmiEditor = (function(exports) {
 				ArrowDown: [0, step]
 			};
 			if (e.key === "Delete" || e.key === "Backspace") remove();
-			else if (moves[e.key]) {
-				s.x += moves[e.key][0];
-				s.y += moves[e.key][1];
+			else if (e.key === "Escape") {
+				select([]);
+				refresh();
+			} else if (moves[e.key]) {
+				for (const m of list) {
+					m.x += moves[e.key][0];
+					m.y += moves[e.key][1];
+				}
 				refresh();
 				changed();
 			} else return;

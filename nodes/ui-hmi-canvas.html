@@ -120,7 +120,7 @@
             symbols: { value: [] }
         },
         inputs: 1,
-        outputs: 0,
+        outputs: 1,
         icon: 'font-awesome/fa-industry',
         paletteLabel: 'hmi canvas',
         label: function () {
@@ -234,6 +234,15 @@
         <dd>Values by key, e.g. the output of <code>schneider read</code>: <code>{ "rpm": 1450, "speed": 42.5 }</code>. Keys are merged with the previous values.</dd>
         <dt class="optional">topic <span class="property-type">string</span></dt>
         <dd>With a non-object payload, the value is stored under this key.</dd>
+    </dl>
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">number | boolean | string</span></dt>
+        <dd>Sent when a symbol with a click action is clicked on the dashboard: the configured value, the inverted value of its key (toggle), or 1 on press and 0 on release (pulse). Booleans are used when the key currently holds a boolean.</dd>
+        <dt>topic <span class="property-type">string</span></dt>
+        <dd>The action's topic, or the symbol's payload key when empty.</dd>
+        <dt>symbol <span class="property-type">object</span></dt>
+        <dd><code>{ id, type, key }</code> of the clicked symbol.</dd>
     </dl>
     <h3>Themes</h3>
     <p><b>Background</b>: <i>Transparente</i> removes the canvas fill so the dashboard page shows through.</p>
