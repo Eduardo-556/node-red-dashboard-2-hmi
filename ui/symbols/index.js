@@ -9,8 +9,10 @@ export const THEMES = {
 
 const ON_FIELDS = [
     { key: 'onWhen', label: 'Ligado quando', type: 'select', options: [['nonzero', 'valor ≠ 0 / true'], ['gt', 'valor > limite']] },
-    { key: 'threshold', label: 'Limite', type: 'number' }
+    { key: 'threshold', label: 'Limite', type: 'number' },
+    { key: 'invert', label: 'Inverter sinal', type: 'select', options: [['no', 'Não'], ['yes', 'Sim (lógica invertida / NF)']] }
 ]
+const INVERT_FIELD = ON_FIELDS[2]
 const COLOR_FIELD = { key: 'color', label: 'Cor quando ligado', type: 'select', options: [['auto', 'Do tema'], ['alarm', 'Alarme (vermelho)'], ['warn', 'Atenção (amarelo)'], ['info', 'Informação (azul)']] }
 const BLINK_FIELD = { key: 'blink', label: 'Piscar quando ligado', type: 'select', options: [['no', 'Não'], ['yes', 'Sim']] }
 // [shape, palette label, default w, default h, tone]
@@ -40,7 +42,23 @@ const SHAPES = [
     ['chamfer', 'Corpo metal (slitter)', 240, 300, 'metal'],
     ['rect', 'Base aço (slitter)', 300, 60, 'steel'],
     ['rect', 'Fosso fundo (slitter)', 170, 140, 'pitDeep'],
-    ['rect', 'Piso (slitter)', 600, 80, 'floor']
+    ['rect', 'Piso (slitter)', 600, 80, 'floor'],
+    // structures: beams, supports and pedestals (palette category "Estruturas")
+    ['beamSide', 'Viga (vista lateral)', 400, 30, '', 'Estruturas'],
+    ['beamI', 'Viga I (perfil)', 80, 100, '', 'Estruturas'],
+    ['channel', 'Perfil U (perfil)', 70, 100, '', 'Estruturas'],
+    ['angle', 'Cantoneira (perfil)', 80, 80, '', 'Estruturas'],
+    ['truss', 'Viga treliçada', 400, 60, '', 'Estruturas'],
+    ['tube', 'Tubo / eixo', 300, 24, '', 'Estruturas'],
+    ['column', 'Coluna com chapas', 40, 300, '', 'Estruturas'],
+    ['pedestal', 'Pedestal', 120, 140, '', 'Estruturas'],
+    ['bearing', 'Pedestal com mancal', 120, 160, '', 'Estruturas'],
+    ['bracket', 'Mão-francesa', 120, 120, '', 'Estruturas'],
+    ['aFrame', 'Cavalete', 200, 140, '', 'Estruturas'],
+    ['stand', 'Suporte com pés', 240, 120, '', 'Estruturas'],
+    ['basePlate', 'Chapa de base / sapata', 160, 24, '', 'Estruturas'],
+    ['beamSide', 'Viga aço (slitter)', 400, 30, 'steel', 'Estruturas'],
+    ['pedestal', 'Pedestal metal (slitter)', 120, 140, 'metal', 'Estruturas']
 ]
 const TONES = [
     ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
@@ -153,13 +171,13 @@ export const SYMBOLS = {
         preview: undefined,
         defaults: { shape: 'chamfer', tone: 'equip', label: '' },
         fields: [
-            { key: 'shape', label: 'Forma', type: 'select', options: SHAPES.map(([k, l]) => [k, l]) },
+            { key: 'shape', label: 'Forma', type: 'select', options: SHAPES.filter(([k], i) => SHAPES.findIndex(x => x[0] === k) === i).map(([k, l]) => [k, l]) },
             { key: 'tone', label: 'Tom', type: 'select', options: TONES, refresh: true },
             { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
             { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
             { key: 'label', label: 'Legenda', type: 'text' }
         ],
-        variants: SHAPES.map(([shape, label, w, h, tone]) => ({ label, w, h, props: { shape, tone: tone || 'equip' } })),
+        variants: SHAPES.map(([shape, label, w, h, tone, group]) => ({ label, w, h, category: group, props: { shape, tone: tone || 'equip' } })),
         render: renderFrame
     },
     line: {
@@ -312,7 +330,7 @@ export const SYMBOLS = {
         h: 40,
         preview: 1,
         defaults: { label: '', onWhen: 'nonzero', threshold: 0 },
-        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'onWhen', label: 'Avançado quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1]],
+        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'onWhen', label: 'Avançado quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1], INVERT_FIELD],
         render: renderCylinder
     },
     fan: {
@@ -352,7 +370,7 @@ export const SYMBOLS = {
         h: 44,
         preview: 1,
         defaults: { label: '', kind: 'photo', onWhen: 'nonzero', threshold: 0 },
-        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'kind', label: 'Tipo', type: 'select', options: [['photo', 'Fotoelétrico'], ['prox', 'Indutivo / proximidade'], ['limit', 'Fim de curso']] }, { key: 'onWhen', label: 'Detectando quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1]],
+        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'kind', label: 'Tipo', type: 'select', options: [['photo', 'Fotoelétrico'], ['prox', 'Indutivo / proximidade'], ['limit', 'Fim de curso']] }, { key: 'onWhen', label: 'Detectando quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1], { ...INVERT_FIELD, label: 'Inverter sinal (sensor NF)' }],
         render: renderSensor
     },
     gauge: {
@@ -435,13 +453,12 @@ export const SYMBOLS = {
 
 // Palette: categories in the order they appear in the editor. Symbols with
 // variants show one entry per variant (e.g. every frame shape).
-export const CATEGORIES = ['Formas', 'Equipamentos', 'Linhas', 'Valores', 'Estados', 'Comandos']
+export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Linhas', 'Valores', 'Estados', 'Comandos']
 export function paletteItems (category) {
     const out = []
     for (const [type, def] of Object.entries(SYMBOLS)) {
-        if (def.group !== category) continue
-        if (def.variants) def.variants.forEach((v, i) => out.push({ type, variant: i, label: v.label }))
-        else out.push({ type, variant: -1, label: def.label })
+        if (def.variants) def.variants.forEach((v, i) => { if ((v.category || def.group) === category) out.push({ type, variant: i, label: v.label }) })
+        else if (def.group === category) out.push({ type, variant: -1, label: def.label })
     }
     return out
 }
@@ -534,6 +551,12 @@ export function isOn (value, rule, threshold) {
     return Number(value) !== 0
 }
 
+// on/off state of a symbol from its props; "invert" flips it (NC contacts, active-low inputs)
+export function onState (value, p) {
+    const on = isOn(value, p && p.onWhen, p && p.threshold)
+    return on !== null && p && p.invert === 'yes' ? !on : on
+}
+
 export function formatValue (value, decimals, locale) {
     if (value === undefined || value === null || value === '') return '—'
     if (typeof value === 'boolean') return value ? 'ON' : 'OFF'
@@ -584,7 +607,7 @@ function renderReel (sym, value) {
     const cx = w / 2
     const cy = h / 2
     const r = Math.max(4, Math.min(w, h) / 2 - 2)
-    const cls = stateClass(isOn(value, p.onWhen, p.threshold))
+    const cls = stateClass(onState(value, p))
     // the spinning part is drawn around 0,0 and moved to the centre, so it turns on its own axis
     const spokes = [-90, 30, 150].map(a => {
         const rad = a * Math.PI / 180
@@ -611,7 +634,7 @@ function renderRoller (sym, value) {
     const cx = sym.w / 2
     const cy = sym.h / 2
     const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1)
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     return `<g class="hmi-roller ${stateClass(on)} hmi-${p.dir === 'ccw' ? 'ccw' : 'cw'}"><g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin">` +
         `<circle class="hmi-body" r="${f(r)}"/>` +
         `<line class="hmi-mark" x1="0" y1="${f(-r * 0.7)}" x2="0" y2="${f(r * 0.7)}"/></g></g></g>`
@@ -624,7 +647,7 @@ function renderMotor (sym, value, opts) {
     const r = Math.max(6, Math.min(w, h * 0.86) / 2 - 2)
     const cx = w / 2
     const cy = r + 2
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const fault = faultOf(p, opts)
     let out = `<g class="hmi-motor ${stateClass(on)}${fault ? ' hmi-fault' : ''}">` +
         `<rect class="hmi-foot" x="${f(cx - r * 0.8)}" y="${f(cy + r - 2)}" width="${f(r * 1.6)}" height="${f(Math.max(4, h - cy - r + 2))}" rx="2"/>` +
@@ -643,7 +666,7 @@ function renderValve (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const fault = faultOf(p, opts)
     const top = h * 0.36
     const cy = (top + h - 1) / 2
@@ -661,7 +684,7 @@ function renderPump (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const fault = faultOf(p, opts)
     const r = Math.max(6, Math.min(w, h * 0.9) / 2 - 2)
     const cx = w / 2
@@ -705,7 +728,7 @@ function renderButton (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const text = on && p.textOn ? p.textOn : (p.text || '')
     return `<g class="hmi-button ${stateClass(on)}">` +
         `<rect class="hmi-button-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="6"/>` +
@@ -714,6 +737,98 @@ function renderButton (sym, value, opts) {
 
 function poly (pts) {
     return `<polygon class="hmi-body" points="${pts.map(p => f(p[0]) + ',' + f(p[1])).join(' ')}"/>`
+}
+
+function box (x, y, w, h) {
+    return `<rect class="hmi-body" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}"/>`
+}
+
+// a straight bar of thickness t from (x1,y1) to (x2,y2): struts, legs, braces
+function strut (x1, y1, x2, y2, t) {
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1
+    const nx = -(y2 - y1) / len * t / 2
+    const ny = (x2 - x1) / len * t / 2
+    return poly([[x1 + nx, y1 + ny], [x2 + nx, y2 + ny], [x2 - nx, y2 - ny], [x1 - nx, y1 - ny]])
+}
+
+function bolts (y, w, r, n) {
+    let out = ''
+    for (let i = 0; i < n; i++) out += `<circle class="hmi-detail" cx="${f(w * (i + 0.5) / n)}" cy="${f(y)}" r="${f(r)}"/>`
+    return out
+}
+
+// beams, supports and pedestals; horizontal by default, rotate for other positions
+function structurePath (shape, w, h) {
+    const m = Math.min(w, h)
+    switch (shape) {
+    case 'beamSide': return box(0, 0, w, h) + `<path class="hmi-detail" d="M0 ${f(h * 0.2)}H${f(w)}M0 ${f(h * 0.8)}H${f(w)}"/>`
+    case 'beamI': {
+        const tf = h * 0.14
+        const tw = w * 0.16
+        return poly([[0, 0], [w, 0], [w, tf], [(w + tw) / 2, tf], [(w + tw) / 2, h - tf], [w, h - tf], [w, h], [0, h], [0, h - tf], [(w - tw) / 2, h - tf], [(w - tw) / 2, tf], [0, tf]])
+    }
+    case 'channel': {
+        const tf = h * 0.14
+        const tw = w * 0.22
+        return poly([[0, 0], [w, 0], [w, tf], [tw, tf], [tw, h - tf], [w, h - tf], [w, h], [0, h]])
+    }
+    case 'angle': {
+        const t = m * 0.18
+        return poly([[0, 0], [t, 0], [t, h - t], [w, h - t], [w, h], [0, h]])
+    }
+    case 'truss': {
+        const t = Math.max(3, h * 0.16)
+        const n = Math.max(2, Math.round(w / Math.max(h, 1)))
+        const step = w / n
+        let out = ''
+        for (let i = 0; i < n; i++) {
+            const x = i * step
+            out += strut(x + t / 2, h - t, x + step / 2, t, t * 0.7) + strut(x + step / 2, t, x + step - t / 2, h - t, t * 0.7)
+        }
+        return out + box(0, 0, w, t) + box(0, h - t, w, t)
+    }
+    case 'tube': return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}" rx="${f(Math.min(h * 0.2, 4))}"/>` +
+        `<path class="hmi-detail" d="M${f(Math.min(w * 0.03, 6))} ${f(h * 0.3)}H${f(w - Math.min(w * 0.03, 6))}"/>`
+    case 'column': {
+        const p = Math.max(4, h * 0.035)
+        const s = w * 0.25
+        return box(s, p, w - 2 * s, h - 2 * p) + box(0, 0, w, p) + box(0, h - p, w, p)
+    }
+    case 'pedestal': {
+        const top = h * 0.1
+        const base = h * 0.12
+        return poly([[w * 0.15, 0], [w * 0.85, 0], [w * 0.85, top], [w * 0.72, top], [w * 0.8, h - base], [w, h - base], [w, h], [0, h], [0, h - base], [w * 0.2, h - base], [w * 0.28, top], [w * 0.15, top]]) +
+            bolts(h - base / 2, w, Math.max(1.5, base * 0.22), 2)
+    }
+    case 'bearing': {
+        const r = Math.min(w * 0.36, h * 0.24)
+        const cy = r + 1
+        const base = h * 0.1
+        return poly([[w * 0.5 - r, cy], [w * 0.5 + r, cy], [w * 0.78, h - base], [w, h - base], [w, h], [0, h], [0, h - base], [w * 0.22, h - base]]) +
+            `<circle class="hmi-body" cx="${f(w / 2)}" cy="${f(cy)}" r="${f(r)}"/>` +
+            `<circle class="hmi-detail" cx="${f(w / 2)}" cy="${f(cy)}" r="${f(r * 0.45)}"/>` +
+            bolts(h - base / 2, w, Math.max(1.5, base * 0.22), 2)
+    }
+    case 'bracket': {
+        const t = Math.max(4, m * 0.1)
+        return box(0, 0, t, h) + box(0, 0, w, t) + strut(t / 2, h * 0.85, w * 0.85, t / 2, t * 0.8)
+    }
+    case 'aFrame': {
+        const t = Math.max(4, Math.min(w, h) * 0.08)
+        return strut(w * 0.35, t, t, h - t / 2, t) + strut(w * 0.65, t, w - t, h - t / 2, t) +
+            box(w * 0.22, h * 0.6, w * 0.56, t * 0.7) + box(w * 0.25, 0, w * 0.5, t * 1.4)
+    }
+    case 'stand': {
+        const top = Math.max(4, h * 0.12)
+        const t = Math.max(4, w * 0.05)
+        const foot = Math.max(3, h * 0.06)
+        return box(w * 0.04, top, t, h - top - foot) + box(w * 0.96 - t, top, t, h - top - foot) +
+            box(w * 0.04, h * 0.66, w * 0.92, t * 0.7) + box(0, 0, w, top) +
+            box(0, h - foot, w * 0.04 * 2 + t, foot) + box(w - (w * 0.04 * 2 + t), h - foot, w * 0.04 * 2 + t, foot)
+    }
+    case 'basePlate': return box(0, 0, w, h) + bolts(h / 2, w, Math.max(1.5, h * 0.18), Math.max(2, Math.round(w / Math.max(h * 3, 1))))
+    }
+    return null
 }
 
 // only images (data URLs or http/relative addresses); never javascript: or markup
@@ -728,7 +843,7 @@ function renderImage (sym, value) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const src = safeImageSrc(on === true && p.srcOn ? p.srcOn : p.src)
     const label = labelBelow(p, w, h)
     if (!src) {
@@ -751,7 +866,7 @@ function renderConveyor (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const r = Math.max(4, h / 2 - 1)
     const pr = r * 0.72
     let idlers = ''
@@ -777,7 +892,7 @@ function renderCylinder (sym, value) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const bx = w * 0.55
     const rodY = h / 2 - h * 0.09
     const rodEnd = on ? w - 8 : w * 0.66
@@ -793,7 +908,7 @@ function renderFan (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const r = Math.max(6, Math.min(w, h) / 2 - 2)
     const blades = [0, 120, 240].map(a => `<ellipse class="hmi-blade" cx="0" cy="${f(-r * 0.45)}" rx="${f(r * 0.2)}" ry="${f(r * 0.4)}" transform="rotate(${a})"/>`).join('')
     return `<g class="hmi-fan ${stateClass(on)}${faultClass(p, opts)}">` +
@@ -806,7 +921,7 @@ function renderKnife (sym, value) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const r = Math.max(6, Math.min(w, h) / 2 - 2)
     const marks = [0, 60, 120, 180, 240, 300].map(a => {
         const rad = a * Math.PI / 180
@@ -823,7 +938,7 @@ function renderHeater (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const n = Math.max(3, Math.round(w / 14))
     let d = `M6 ${f(h / 2)}`
     for (let i = 0; i < n; i++) {
@@ -840,7 +955,7 @@ function renderSensor (sym, value) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const kind = ['prox', 'limit'].includes(p.kind) ? p.kind : 'photo'
     let body
     if (kind === 'photo') {
@@ -997,7 +1112,7 @@ function renderSwitch (sym, value) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const r = h / 2 - 3
     const kx = on ? w - r - 3 : r + 3
     const text = on ? p.textOn : p.textOff
@@ -1024,6 +1139,8 @@ function renderSetpoint (sym, value, opts) {
 }
 
 function framePath (shape, w, h) {
+    const st = structurePath(shape, w, h)
+    if (st) return st
     const m = Math.min(w, h)
     const c = m * 0.15
     const a = m * 0.3
@@ -1100,7 +1217,7 @@ function renderLine (sym, value, opts) {
     const pts = linePoints(sym)
     if (pts.length < 2) return ''
     const d = 'M' + pts.map(pt => f(pt[0]) + ' ' + f(pt[1])).join('L')
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const style = ['pipe', 'conveyor', 'signal'].includes(p.style) ? p.style : 'strip'
     const flow = ['always', 'never'].includes(p.flow) ? p.flow : 'auto'
     return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}">` +
@@ -1135,7 +1252,7 @@ function renderText (sym, value, opts) {
 
 function renderLed (sym, value) {
     const p = sym.props || {}
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1.5)
     return `<g class="hmi-led ${stateClass(on)} ${colorClass(p)}${blinkClass(p, on)}">` +
         `<circle class="hmi-dot" cx="${f(sym.w / 2)}" cy="${f(sym.h / 2)}" r="${f(r)}"/>` + labelBelow(p, sym.w, sym.h) + '</g>'
@@ -1145,7 +1262,7 @@ function renderChip (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     let text = on ? p.textOn : p.textOff
     if (on === null) text = '—'
     else if (!text) text = formatValue(value, '', opts.locale)
@@ -1159,7 +1276,7 @@ function renderAlarm (sym, value, opts) {
     const p = sym.props || {}
     const w = sym.w
     const h = sym.h
-    const on = isOn(value, p.onWhen, p.threshold)
+    const on = onState(value, p)
     if (!on && !opts.editor) return ''
     const pr = ['1', '2', '3'].includes(String(p.priority)) ? String(p.priority) : '1'
     // text sits right of the priority indicator and shrinks to fit the box
@@ -1312,6 +1429,7 @@ export const CSS = `
 .hmi-root .hmi-detail { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-frame.hmi-tone-outline .hmi-body { fill: none; }
 .hmi-root .hmi-frame.hmi-tone-fixed .hmi-body { fill: var(--hmi-tone-fill); stroke: var(--hmi-tone-stroke); }
+.hmi-root .hmi-frame.hmi-tone-fixed .hmi-detail { stroke: var(--hmi-tone-stroke); }
 .hmi-root .hmi-frame.hmi-tone-guard .hmi-body { fill: none; stroke-dasharray: 8 5; stroke-width: 2; }
 .hmi-root .hmi-left { text-anchor: start; }
 .hmi-root .hmi-right { text-anchor: end; }

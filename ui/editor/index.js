@@ -29,6 +29,20 @@ const ICONS = {
 const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
+// copied rules; kept in localStorage too, so they reach the dashboard tab from the Node-RED editor
+const RULES_STORE = 'hmi-editor-rules'
+let ruleClipboard = null
+function copyRules (rules) {
+    ruleClipboard = clone(rules)
+    try { localStorage.setItem(RULES_STORE, JSON.stringify(ruleClipboard)) } catch (e) {}
+}
+function copiedRules () {
+    try {
+        const saved = JSON.parse(localStorage.getItem(RULES_STORE) || 'null')
+        if (Array.isArray(saved)) ruleClipboard = saved
+    } catch (e) {}
+    return Array.isArray(ruleClipboard) ? ruleClipboard.filter(r => r && typeof r === 'object') : []
+}
 
 const CSS = `
 .hmi-ed { --hmi-ed-border: var(--red-ui-form-input-border-color, #c8ccd0); --hmi-ed-panel: var(--red-ui-secondary-background, #f3f4f5); --hmi-ed-bg: var(--red-ui-primary-background, #ffffff); --hmi-ed-text: var(--red-ui-primary-text-color, #222);
@@ -338,6 +352,7 @@ export function createEditor (root, opts) {
             input = el('select')
             for (const [val, text] of options) input.appendChild(el('option', { value: val }, text))
             input.value = String(value === undefined ? '' : value)
+            if (input.selectedIndex < 0 && options.length) input.value = options[0][0] // older symbols without this setting
         } else {
             input = el('input', { type: ['number', 'color'].includes(type) ? type : 'text' })
             input.value = value === undefined || value === null ? (type === 'color' ? '#000000' : '') : value
@@ -394,6 +409,12 @@ export function createEditor (root, opts) {
             const grid = el('div', { class: 'hmi-ed-align' })
             for (const [label, title, kind] of [['Esquerda', 'Alinhar à esquerda', 'left'], ['Centro', 'Centralizar na horizontal', 'hcenter'], ['Direita', 'Alinhar à direita', 'right'], ['Topo', 'Alinhar no topo', 'top'], ['Meio', 'Centralizar na vertical', 'vcenter'], ['Base', 'Alinhar na base', 'bottom']]) smallBtn(grid, label, title, () => align(kind))
             props.appendChild(grid)
+            if (copiedRules().length) {
+                props.appendChild(el('h5', {}, 'Regras'))
+                const rr = el('div', { class: 'hmi-ed-btnrow' })
+                pasteRulesButton(rr, smallBtn, selection())
+                props.appendChild(rr)
+            }
             props.appendChild(el('h5', {}, 'Distribuir (3 ou mais)'))
             const dist = el('div', { class: 'hmi-ed-btnrow' })
             smallBtn(dist, 'Na horizontal', 'Mesmo espaço entre os símbolos, da esquerda para a direita', () => align('hdist'))
@@ -479,10 +500,11 @@ export function createEditor (root, opts) {
             kf.querySelector('input').placeholder = s.key || ''
             card.appendChild(kf)
             card.appendChild(pair(field('Quando', r.op || 'on', 'select', v => { r.op = v }, RULE_OPS), field('Valor', r.value ?? '', 'text', v => { r.value = v })))
-            const del = el('div', { class: 'hmi-ed-f' })
-            del.appendChild(el('label', {}, '\u00a0'))
-            smallBtn(del, 'Remover', 'Apagar esta regra', () => { s.rules = rules.filter((x, k) => k !== i); if (!s.rules.length) delete s.rules; refresh(); changed() })
-            card.appendChild(pair(field('Efeito', r.effect || 'alarm', 'select', v => { r.effect = v }, RULE_EFFECTS), del))
+            card.appendChild(field('Efeito', r.effect || 'alarm', 'select', v => { r.effect = v }, RULE_EFFECTS))
+            const btns = el('div', { class: 'hmi-ed-btnrow' })
+            smallBtn(btns, 'Copiar', 'Copiar esta regra para colar em outro símbolo', () => { copyRules([r]); refresh() })
+            smallBtn(btns, 'Remover', 'Apagar esta regra', () => { s.rules = rules.filter((x, k) => k !== i); if (!s.rules.length) delete s.rules; refresh(); changed() })
+            card.appendChild(btns)
             props.appendChild(card)
         })
         const row = el('div', { class: 'hmi-ed-btnrow' })
@@ -491,8 +513,23 @@ export function createEditor (root, opts) {
             refresh()
             changed()
         })
+        if (rules.length > 1) smallBtn(row, 'Copiar todas', 'Copiar as ' + rules.length + ' regras', () => { copyRules(rules); refresh() })
+        pasteRulesButton(row, smallBtn, [s])
         props.appendChild(row)
         if (!rules.length) props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Ex.: esconder a bobina quando "temBobina" estiver desligado, ou deixar o corpo vermelho quando "falha" ligar. Usa o valor do CLP, sem escala.'))
+    }
+
+    // "Colar regra(s)" appends the copied rules to every target symbol;
+    // a rule with an empty key keeps following the key of the symbol it lands on
+    function pasteRulesButton (row, smallBtn, targets) {
+        const copied = copiedRules()
+        if (!copied.length) return
+        const n = copied.length
+        smallBtn(row, n === 1 ? 'Colar regra' : 'Colar ' + n + ' regras', targets.length > 1 ? 'Colar nas ' + targets.length + ' seleções' : 'Adicionar as regras copiadas', () => {
+            for (const t of targets) t.rules = [...(Array.isArray(t.rules) ? t.rules : []), ...clone(copied)]
+            refresh()
+            changed()
+        })
     }
 
     function imageFields (s, smallBtn) {

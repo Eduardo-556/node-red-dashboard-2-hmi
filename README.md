@@ -27,7 +27,8 @@ Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item p
 | Categoria | Itens |
 |---|---|
 | Formas | Imagem própria (SVG, PNG, JPG até 400 KB, ou um endereço), com uma segunda imagem opcional para quando a chave ligar. Retângulo, cantos redondos, chanfrado em cima, chanfrado nos cantos, curva à esquerda/direita, arco em cima, cápsula (tanque deitado), círculo/elipse, triângulo, trapézio, base/pé, funil, silo, hexágono, losango, paralelogramo, em L, em U, painel elétrico, proteção (tracejado) e fosso. Tons: os do tema (equipamento, escuro, fosso), só contorno, tracejado, os da tela da slitter (metal, metal com borda clara, aço escuro, grafite, fosso fundo, parede, piso, piso escuro, sensor) e cor personalizada. |
-| Equipamentos | Bobina, rolo, motor, válvula, bomba, tanque (nível), esteira, cilindro (avançado/recuado), ventilador, faca circular, resistência e sensor (fotoelétrico, indutivo, fim de curso). Motor, válvula, bomba, esteira, ventilador e resistência aceitam uma **chave de falha**. |
+| Estruturas | Viga (vista lateral), viga I, perfil U, cantoneira, viga treliçada, tubo/eixo, coluna com chapas, pedestal, pedestal com mancal, mão-francesa, cavalete, suporte com pés e chapa de base/sapata. Mesmos tons das formas; gire para ficar na vertical. |
+| Equipamentos | Bobina, rolo, motor, válvula, bomba, tanque (nível), esteira, cilindro (avançado/recuado), ventilador, faca circular, resistência e sensor (fotoelétrico, indutivo, fim de curso). Motor, válvula, bomba, esteira, ventilador e resistência aceitam uma **chave de falha**. Todo símbolo liga/desliga tem **Inverter sinal**, para sensor NF ou entrada ativa em 0. |
 | Linhas | Material/chapa, tubulação, esteira e sinal. Arraste os pontos; puxe o ponto do meio para criar uma dobra; duplo clique apaga um ponto. |
 | Valores | Tag, KPI, texto, medidor (ponteiro), barra vertical e tendência (gráfico dos últimos segundos). Tag, medidor e barra têm escala e alarme abaixo/acima de um limite. |
 | Estados | LED, status (texto ligado/desligado), alarme (só aparece quando ativo) e torre de sinalização (uma chave para cada cor). |
@@ -39,7 +40,7 @@ Em **Escala do valor**, o símbolo mostra `valor × multiplicar + somar`. Ex.: o
 
 ### Regras
 
-Qualquer símbolo pode ter **regras**: quando uma chave (ou a do próprio símbolo) estiver ligada, desligada, igual, diferente, maior ou menor que um valor, o símbolo fica vermelho, amarelo, azul, verde, apagado, pisca ou some. Ex.: esconder a bobina quando `temBobina` = 0. As regras usam o valor do CLP, sem escala. No editor, símbolos escondidos aparecem transparentes.
+Qualquer símbolo pode ter **regras**: quando uma chave (ou a do próprio símbolo) estiver ligada, desligada, igual, diferente, maior ou menor que um valor, o símbolo fica vermelho, amarelo, azul, verde, apagado, pisca ou some. Ex.: esconder a bobina quando `temBobina` = 0. As regras usam o valor do CLP, sem escala. No editor, símbolos escondidos aparecem transparentes. **Copiar** (numa regra) ou **Copiar todas** guarda as regras; **Colar regra** adiciona em outro símbolo, ou em todos os selecionados. Regra com chave vazia passa a usar a chave do símbolo onde foi colada.
 
 ### Comandos (clique no dashboard)
 
@@ -95,11 +96,11 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
-Palette (dropdown per category): 22 shapes; reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), shape tones from the slitter screen plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
+Palette (dropdown per category): 22 shapes; structures (beam side view, I-beam, U-channel, angle, truss, tube, column, pedestal, bearing pedestal, bracket, A-frame, stand, base plate); reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), shape tones from the slitter screen plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
 
 Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, or navigation to another dashboard page, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
-Per symbol: **scale** (`raw × factor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
+Per symbol: **scale** (`raw × factor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

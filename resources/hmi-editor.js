@@ -5,16 +5,26 @@ var HmiEditor = (function(exports) {
 		isa101: "ISA-101",
 		classic: "Clássico"
 	};
-	var ON_FIELDS = [{
-		key: "onWhen",
-		label: "Ligado quando",
-		type: "select",
-		options: [["nonzero", "valor ≠ 0 / true"], ["gt", "valor > limite"]]
-	}, {
-		key: "threshold",
-		label: "Limite",
-		type: "number"
-	}];
+	var ON_FIELDS = [
+		{
+			key: "onWhen",
+			label: "Ligado quando",
+			type: "select",
+			options: [["nonzero", "valor ≠ 0 / true"], ["gt", "valor > limite"]]
+		},
+		{
+			key: "threshold",
+			label: "Limite",
+			type: "number"
+		},
+		{
+			key: "invert",
+			label: "Inverter sinal",
+			type: "select",
+			options: [["no", "Não"], ["yes", "Sim (lógica invertida / NF)"]]
+		}
+	];
+	var INVERT_FIELD = ON_FIELDS[2];
 	var COLOR_FIELD = {
 		key: "color",
 		label: "Cor quando ligado",
@@ -194,6 +204,126 @@ var HmiEditor = (function(exports) {
 			600,
 			80,
 			"floor"
+		],
+		[
+			"beamSide",
+			"Viga (vista lateral)",
+			400,
+			30,
+			"",
+			"Estruturas"
+		],
+		[
+			"beamI",
+			"Viga I (perfil)",
+			80,
+			100,
+			"",
+			"Estruturas"
+		],
+		[
+			"channel",
+			"Perfil U (perfil)",
+			70,
+			100,
+			"",
+			"Estruturas"
+		],
+		[
+			"angle",
+			"Cantoneira (perfil)",
+			80,
+			80,
+			"",
+			"Estruturas"
+		],
+		[
+			"truss",
+			"Viga treliçada",
+			400,
+			60,
+			"",
+			"Estruturas"
+		],
+		[
+			"tube",
+			"Tubo / eixo",
+			300,
+			24,
+			"",
+			"Estruturas"
+		],
+		[
+			"column",
+			"Coluna com chapas",
+			40,
+			300,
+			"",
+			"Estruturas"
+		],
+		[
+			"pedestal",
+			"Pedestal",
+			120,
+			140,
+			"",
+			"Estruturas"
+		],
+		[
+			"bearing",
+			"Pedestal com mancal",
+			120,
+			160,
+			"",
+			"Estruturas"
+		],
+		[
+			"bracket",
+			"Mão-francesa",
+			120,
+			120,
+			"",
+			"Estruturas"
+		],
+		[
+			"aFrame",
+			"Cavalete",
+			200,
+			140,
+			"",
+			"Estruturas"
+		],
+		[
+			"stand",
+			"Suporte com pés",
+			240,
+			120,
+			"",
+			"Estruturas"
+		],
+		[
+			"basePlate",
+			"Chapa de base / sapata",
+			160,
+			24,
+			"",
+			"Estruturas"
+		],
+		[
+			"beamSide",
+			"Viga aço (slitter)",
+			400,
+			30,
+			"steel",
+			"Estruturas"
+		],
+		[
+			"pedestal",
+			"Pedestal metal (slitter)",
+			120,
+			140,
+			"metal",
+			"Estruturas"
 		]
 	];
 	var TONES = [
@@ -475,7 +605,7 @@ var HmiEditor = (function(exports) {
 					key: "shape",
 					label: "Forma",
 					type: "select",
-					options: SHAPES.map(([k, l]) => [k, l])
+					options: SHAPES.filter(([k], i) => SHAPES.findIndex((x) => x[0] === k) === i).map(([k, l]) => [k, l])
 				},
 				{
 					key: "tone",
@@ -502,10 +632,11 @@ var HmiEditor = (function(exports) {
 					type: "text"
 				}
 			],
-			variants: SHAPES.map(([shape, label, w, h, tone]) => ({
+			variants: SHAPES.map(([shape, label, w, h, tone, group]) => ({
 				label,
 				w,
 				h,
+				category: group,
 				props: {
 					shape,
 					tone: tone || "equip"
@@ -934,7 +1065,8 @@ var HmiEditor = (function(exports) {
 					type: "select",
 					options: ON_FIELDS[0].options
 				},
-				ON_FIELDS[1]
+				ON_FIELDS[1],
+				INVERT_FIELD
 			],
 			render: renderCylinder
 		},
@@ -1040,7 +1172,11 @@ var HmiEditor = (function(exports) {
 					type: "select",
 					options: ON_FIELDS[0].options
 				},
-				ON_FIELDS[1]
+				ON_FIELDS[1],
+				{
+					...INVERT_FIELD,
+					label: "Inverter sinal (sensor NF)"
+				}
 			],
 			render: renderSensor
 		},
@@ -1248,6 +1384,7 @@ var HmiEditor = (function(exports) {
 	};
 	var CATEGORIES = [
 		"Formas",
+		"Estruturas",
 		"Equipamentos",
 		"Linhas",
 		"Valores",
@@ -1256,19 +1393,18 @@ var HmiEditor = (function(exports) {
 	];
 	function paletteItems(category) {
 		const out = [];
-		for (const [type, def] of Object.entries(SYMBOLS)) {
-			if (def.group !== category) continue;
-			if (def.variants) def.variants.forEach((v, i) => out.push({
+		for (const [type, def] of Object.entries(SYMBOLS)) if (def.variants) def.variants.forEach((v, i) => {
+			if ((v.category || def.group) === category) out.push({
 				type,
 				variant: i,
 				label: v.label
-			}));
-			else out.push({
-				type,
-				variant: -1,
-				label: def.label
 			});
-		}
+		});
+		else if (def.group === category) out.push({
+			type,
+			variant: -1,
+			label: def.label
+		});
 		return out;
 	}
 	var counter = 0;
@@ -1375,6 +1511,10 @@ var HmiEditor = (function(exports) {
 		if (typeof value === "string" && isNaN(Number(value))) return value.length > 0;
 		return Number(value) !== 0;
 	}
+	function onState(value, p) {
+		const on = isOn(value, p && p.onWhen, p && p.threshold);
+		return on !== null && p && p.invert === "yes" ? !on : on;
+	}
 	function formatValue(value, decimals, locale) {
 		if (value === void 0 || value === null || value === "") return "—";
 		if (typeof value === "boolean") return value ? "ON" : "OFF";
@@ -1426,7 +1566,7 @@ var HmiEditor = (function(exports) {
 		const cx = w / 2;
 		const cy = h / 2;
 		const r = Math.max(4, Math.min(w, h) / 2 - 2);
-		const cls = stateClass(isOn(value, p.onWhen, p.threshold));
+		const cls = stateClass(onState(value, p));
 		const spokes = [
 			-90,
 			30,
@@ -1451,7 +1591,7 @@ var HmiEditor = (function(exports) {
 		const cx = sym.w / 2;
 		const cy = sym.h / 2;
 		const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1);
-		return `<g class="hmi-roller ${stateClass(isOn(value, p.onWhen, p.threshold))} hmi-${p.dir === "ccw" ? "ccw" : "cw"}"><g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin"><circle class="hmi-body" r="${f(r)}"/><line class="hmi-mark" x1="0" y1="${f(-r * .7)}" x2="0" y2="${f(r * .7)}"/></g></g></g>`;
+		return `<g class="hmi-roller ${stateClass(onState(value, p))} hmi-${p.dir === "ccw" ? "ccw" : "cw"}"><g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin"><circle class="hmi-body" r="${f(r)}"/><line class="hmi-mark" x1="0" y1="${f(-r * .7)}" x2="0" y2="${f(r * .7)}"/></g></g></g>`;
 	}
 	function renderMotor(sym, value, opts) {
 		const p = sym.props || {};
@@ -1460,7 +1600,7 @@ var HmiEditor = (function(exports) {
 		const r = Math.max(6, Math.min(w, h * .86) / 2 - 2);
 		const cx = w / 2;
 		const cy = r + 2;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const fault = faultOf(p, opts);
 		let out = `<g class="hmi-motor ${stateClass(on)}${fault ? " hmi-fault" : ""}"><rect class="hmi-foot" x="${f(cx - r * .8)}" y="${f(cy + r - 2)}" width="${f(r * 1.6)}" height="${f(Math.max(4, h - cy - r + 2))}" rx="2"/><circle class="hmi-body" cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}"/><text class="hmi-motor-m" x="${f(cx)}" y="${f(cy)}" font-size="${f(r * .9)}">M</text>`;
 		if (fault) out += alarmIndicator(w - 4, 6, p.priority);
@@ -1473,7 +1613,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const fault = faultOf(p, opts);
 		const top = h * .36;
 		const cy = (top + h - 1) / 2;
@@ -1487,7 +1627,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const fault = faultOf(p, opts);
 		const r = Math.max(6, Math.min(w, h * .9) / 2 - 2);
 		const cx = w / 2;
@@ -1521,12 +1661,146 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const text = on && p.textOn ? p.textOn : p.text || "";
 		return `<g class="hmi-button ${stateClass(on)}"><rect class="hmi-button-box" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="6"/><text class="hmi-button-text" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(h * .38, w / Math.max(4, text.length) * 1.5)))}">${escapeXml(text)}</text></g>`;
 	}
 	function poly(pts) {
 		return `<polygon class="hmi-body" points="${pts.map((p) => f(p[0]) + "," + f(p[1])).join(" ")}"/>`;
+	}
+	function box(x, y, w, h) {
+		return `<rect class="hmi-body" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}"/>`;
+	}
+	function strut(x1, y1, x2, y2, t) {
+		const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+		const nx = -(y2 - y1) / len * t / 2;
+		const ny = (x2 - x1) / len * t / 2;
+		return poly([
+			[x1 + nx, y1 + ny],
+			[x2 + nx, y2 + ny],
+			[x2 - nx, y2 - ny],
+			[x1 - nx, y1 - ny]
+		]);
+	}
+	function bolts(y, w, r, n) {
+		let out = "";
+		for (let i = 0; i < n; i++) out += `<circle class="hmi-detail" cx="${f(w * (i + .5) / n)}" cy="${f(y)}" r="${f(r)}"/>`;
+		return out;
+	}
+	function structurePath(shape, w, h) {
+		const m = Math.min(w, h);
+		switch (shape) {
+			case "beamSide": return box(0, 0, w, h) + `<path class="hmi-detail" d="M0 ${f(h * .2)}H${f(w)}M0 ${f(h * .8)}H${f(w)}"/>`;
+			case "beamI": {
+				const tf = h * .14;
+				const tw = w * .16;
+				return poly([
+					[0, 0],
+					[w, 0],
+					[w, tf],
+					[(w + tw) / 2, tf],
+					[(w + tw) / 2, h - tf],
+					[w, h - tf],
+					[w, h],
+					[0, h],
+					[0, h - tf],
+					[(w - tw) / 2, h - tf],
+					[(w - tw) / 2, tf],
+					[0, tf]
+				]);
+			}
+			case "channel": {
+				const tf = h * .14;
+				const tw = w * .22;
+				return poly([
+					[0, 0],
+					[w, 0],
+					[w, tf],
+					[tw, tf],
+					[tw, h - tf],
+					[w, h - tf],
+					[w, h],
+					[0, h]
+				]);
+			}
+			case "angle": {
+				const t = m * .18;
+				return poly([
+					[0, 0],
+					[t, 0],
+					[t, h - t],
+					[w, h - t],
+					[w, h],
+					[0, h]
+				]);
+			}
+			case "truss": {
+				const t = Math.max(3, h * .16);
+				const n = Math.max(2, Math.round(w / Math.max(h, 1)));
+				const step = w / n;
+				let out = "";
+				for (let i = 0; i < n; i++) {
+					const x = i * step;
+					out += strut(x + t / 2, h - t, x + step / 2, t, t * .7) + strut(x + step / 2, t, x + step - t / 2, h - t, t * .7);
+				}
+				return out + box(0, 0, w, t) + box(0, h - t, w, t);
+			}
+			case "tube": return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}" rx="${f(Math.min(h * .2, 4))}"/><path class="hmi-detail" d="M${f(Math.min(w * .03, 6))} ${f(h * .3)}H${f(w - Math.min(w * .03, 6))}"/>`;
+			case "column": {
+				const p = Math.max(4, h * .035);
+				const s = w * .25;
+				return box(s, p, w - 2 * s, h - 2 * p) + box(0, 0, w, p) + box(0, h - p, w, p);
+			}
+			case "pedestal": {
+				const top = h * .1;
+				const base = h * .12;
+				return poly([
+					[w * .15, 0],
+					[w * .85, 0],
+					[w * .85, top],
+					[w * .72, top],
+					[w * .8, h - base],
+					[w, h - base],
+					[w, h],
+					[0, h],
+					[0, h - base],
+					[w * .2, h - base],
+					[w * .28, top],
+					[w * .15, top]
+				]) + bolts(h - base / 2, w, Math.max(1.5, base * .22), 2);
+			}
+			case "bearing": {
+				const r = Math.min(w * .36, h * .24);
+				const cy = r + 1;
+				const base = h * .1;
+				return poly([
+					[w * .5 - r, cy],
+					[w * .5 + r, cy],
+					[w * .78, h - base],
+					[w, h - base],
+					[w, h],
+					[0, h],
+					[0, h - base],
+					[w * .22, h - base]
+				]) + `<circle class="hmi-body" cx="${f(w / 2)}" cy="${f(cy)}" r="${f(r)}"/><circle class="hmi-detail" cx="${f(w / 2)}" cy="${f(cy)}" r="${f(r * .45)}"/>` + bolts(h - base / 2, w, Math.max(1.5, base * .22), 2);
+			}
+			case "bracket": {
+				const t = Math.max(4, m * .1);
+				return box(0, 0, t, h) + box(0, 0, w, t) + strut(t / 2, h * .85, w * .85, t / 2, t * .8);
+			}
+			case "aFrame": {
+				const t = Math.max(4, Math.min(w, h) * .08);
+				return strut(w * .35, t, t, h - t / 2, t) + strut(w * .65, t, w - t, h - t / 2, t) + box(w * .22, h * .6, w * .56, t * .7) + box(w * .25, 0, w * .5, t * 1.4);
+			}
+			case "stand": {
+				const top = Math.max(4, h * .12);
+				const t = Math.max(4, w * .05);
+				const foot = Math.max(3, h * .06);
+				return box(w * .04, top, t, h - top - foot) + box(w * .96 - t, top, t, h - top - foot) + box(w * .04, h * .66, w * .92, t * .7) + box(0, 0, w, top) + box(0, h - foot, w * .04 * 2 + t, foot) + box(w - (w * .04 * 2 + t), h - foot, w * .04 * 2 + t, foot);
+			}
+			case "basePlate": return box(0, 0, w, h) + bolts(h / 2, w, Math.max(1.5, h * .18), Math.max(2, Math.round(w / Math.max(h * 3, 1))));
+		}
+		return null;
 	}
 	function safeImageSrc(src) {
 		const s = String(src || "").trim();
@@ -1538,7 +1812,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const src = safeImageSrc(isOn(value, p.onWhen, p.threshold) === true && p.srcOn ? p.srcOn : p.src);
+		const src = safeImageSrc(onState(value, p) === true && p.srcOn ? p.srcOn : p.src);
 		const label = labelBelow(p, w, h);
 		if (!src) {
 			const m = Math.min(w, h);
@@ -1555,7 +1829,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const r = Math.max(4, h / 2 - 1);
 		const pr = r * .72;
 		let idlers = "";
@@ -1574,7 +1848,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const bx = w * .55;
 		const rodY = h / 2 - h * .09;
 		const rodEnd = on ? w - 8 : w * .66;
@@ -1584,7 +1858,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const r = Math.max(6, Math.min(w, h) / 2 - 2);
 		const blades = [
 			0,
@@ -1597,7 +1871,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const r = Math.max(6, Math.min(w, h) / 2 - 2);
 		const marks = [
 			0,
@@ -1616,7 +1890,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const n = Math.max(3, Math.round(w / 14));
 		let d = `M6 ${f(h / 2)}`;
 		for (let i = 0; i < n; i++) {
@@ -1630,7 +1904,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const kind = ["prox", "limit"].includes(p.kind) ? p.kind : "photo";
 		let body;
 		if (kind === "photo") body = `<path class="hmi-beam" d="M${f(w * .5)} ${f(h / 2)}H${f(w - 1)}"/><rect class="hmi-body" x="1" y="${f(h * .2)}" width="${f(w * .5)}" height="${f(h * .6)}" rx="3"/><circle class="hmi-lens" cx="${f(w * .5)}" cy="${f(h / 2)}" r="${f(h * .12)}"/>`;
@@ -1765,7 +2039,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const r = h / 2 - 3;
 		const kx = on ? w - r - 3 : r + 3;
 		const text = on ? p.textOn : p.textOff;
@@ -1782,6 +2056,8 @@ var HmiEditor = (function(exports) {
 		return `<g class="hmi-setpoint${unknown}"><rect class="hmi-setpoint-box" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="4"/><text class="hmi-tag-title" x="${f(w / 2)}" y="${f(h * .28)}" font-size="${f(Math.max(9, Math.min(13, h * .2)))}">${escapeXml(p.title || sym.key || "")}</text><text class="hmi-tag-value" x="${f(w / 2)}" y="${f(h * .72)}" font-size="${f(Math.max(11, Math.min(26, h * .34)))}">${escapeXml(text)}</text><path class="hmi-pencil" d="M${px} 19l2 -5 7 -7 3 3 -7 7z"/></g>`;
 	}
 	function framePath(shape, w, h) {
+		const st = structurePath(shape, w, h);
+		if (st) return st;
 		const m = Math.min(w, h);
 		const c = m * .15;
 		const a = m * .3;
@@ -1920,7 +2196,7 @@ var HmiEditor = (function(exports) {
 		const pts = linePoints(sym);
 		if (pts.length < 2) return "";
 		const d = "M" + pts.map((pt) => f(pt[0]) + " " + f(pt[1])).join("L");
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const style = [
 			"pipe",
 			"conveyor",
@@ -1949,7 +2225,7 @@ var HmiEditor = (function(exports) {
 	}
 	function renderLed(sym, value) {
 		const p = sym.props || {};
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		const r = Math.max(3, Math.min(sym.w, sym.h) / 2 - 1.5);
 		return `<g class="hmi-led ${stateClass(on)} ${colorClass(p)}${blinkClass(p, on)}"><circle class="hmi-dot" cx="${f(sym.w / 2)}" cy="${f(sym.h / 2)}" r="${f(r)}"/>` + labelBelow(p, sym.w, sym.h) + "</g>";
 	}
@@ -1957,7 +2233,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		let text = on ? p.textOn : p.textOff;
 		if (on === null) text = "—";
 		else if (!text) text = formatValue(value, "", opts.locale);
@@ -1967,7 +2243,7 @@ var HmiEditor = (function(exports) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const on = isOn(value, p.onWhen, p.threshold);
+		const on = onState(value, p);
 		if (!on && !opts.editor) return "";
 		const pr = [
 			"1",
@@ -2111,6 +2387,7 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-detail { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-frame.hmi-tone-outline .hmi-body { fill: none; }
 .hmi-root .hmi-frame.hmi-tone-fixed .hmi-body { fill: var(--hmi-tone-fill); stroke: var(--hmi-tone-stroke); }
+.hmi-root .hmi-frame.hmi-tone-fixed .hmi-detail { stroke: var(--hmi-tone-stroke); }
 .hmi-root .hmi-frame.hmi-tone-guard .hmi-body { fill: none; stroke-dasharray: 8 5; stroke-width: 2; }
 .hmi-root .hmi-left { text-anchor: start; }
 .hmi-root .hmi-right { text-anchor: end; }
@@ -2336,6 +2613,21 @@ var HmiEditor = (function(exports) {
 	];
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
 	var clipboard = null;
+	var RULES_STORE = "hmi-editor-rules";
+	var ruleClipboard = null;
+	function copyRules(rules) {
+		ruleClipboard = clone(rules);
+		try {
+			localStorage.setItem(RULES_STORE, JSON.stringify(ruleClipboard));
+		} catch (e) {}
+	}
+	function copiedRules() {
+		try {
+			const saved = JSON.parse(localStorage.getItem(RULES_STORE) || "null");
+			if (Array.isArray(saved)) ruleClipboard = saved;
+		} catch (e) {}
+		return Array.isArray(ruleClipboard) ? ruleClipboard.filter((r) => r && typeof r === "object") : [];
+	}
 	var CSS$1 = `
 .hmi-ed { --hmi-ed-border: var(--red-ui-form-input-border-color, #c8ccd0); --hmi-ed-panel: var(--red-ui-secondary-background, #f3f4f5); --hmi-ed-bg: var(--red-ui-primary-background, #ffffff); --hmi-ed-text: var(--red-ui-primary-text-color, #222);
   border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-panel); color: var(--hmi-ed-text); display: flex; flex-direction: column; font-family: "Helvetica Neue", Arial, Helvetica, sans-serif; font-size: 14px; box-sizing: border-box; }
@@ -2671,6 +2963,7 @@ var HmiEditor = (function(exports) {
 				input = el("select");
 				for (const [val, text] of options) input.appendChild(el("option", { value: val }, text));
 				input.value = String(value === void 0 ? "" : value);
+				if (input.selectedIndex < 0 && options.length) input.value = options[0][0];
 			} else {
 				input = el("input", { type: ["number", "color"].includes(type) ? type : "text" });
 				input.value = value === void 0 || value === null ? type === "color" ? "#000000" : "" : value;
@@ -2786,6 +3079,12 @@ var HmiEditor = (function(exports) {
 					]
 				]) smallBtn(grid, label, title, () => align(kind));
 				props.appendChild(grid);
+				if (copiedRules().length) {
+					props.appendChild(el("h5", {}, "Regras"));
+					const rr = el("div", { class: "hmi-ed-btnrow" });
+					pasteRulesButton(rr, smallBtn, selection());
+					props.appendChild(rr);
+				}
 				props.appendChild(el("h5", {}, "Distribuir (3 ou mais)"));
 				const dist = el("div", { class: "hmi-ed-btnrow" });
 				smallBtn(dist, "Na horizontal", "Mesmo espaço entre os símbolos, da esquerda para a direita", () => align("hdist"));
@@ -2911,17 +3210,21 @@ var HmiEditor = (function(exports) {
 				}, RULE_OPS), field("Valor", r.value ?? "", "text", (v) => {
 					r.value = v;
 				})));
-				const del = el("div", { class: "hmi-ed-f" });
-				del.appendChild(el("label", {}, "\xA0"));
-				smallBtn(del, "Remover", "Apagar esta regra", () => {
+				card.appendChild(field("Efeito", r.effect || "alarm", "select", (v) => {
+					r.effect = v;
+				}, RULE_EFFECTS));
+				const btns = el("div", { class: "hmi-ed-btnrow" });
+				smallBtn(btns, "Copiar", "Copiar esta regra para colar em outro símbolo", () => {
+					copyRules([r]);
+					refresh();
+				});
+				smallBtn(btns, "Remover", "Apagar esta regra", () => {
 					s.rules = rules.filter((x, k) => k !== i);
 					if (!s.rules.length) delete s.rules;
 					refresh();
 					changed();
 				});
-				card.appendChild(pair(field("Efeito", r.effect || "alarm", "select", (v) => {
-					r.effect = v;
-				}, RULE_EFFECTS), del));
+				card.appendChild(btns);
 				props.appendChild(card);
 			});
 			const row = el("div", { class: "hmi-ed-btnrow" });
@@ -2935,8 +3238,23 @@ var HmiEditor = (function(exports) {
 				refresh();
 				changed();
 			});
+			if (rules.length > 1) smallBtn(row, "Copiar todas", "Copiar as " + rules.length + " regras", () => {
+				copyRules(rules);
+				refresh();
+			});
+			pasteRulesButton(row, smallBtn, [s]);
 			props.appendChild(row);
 			if (!rules.length) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Ex.: esconder a bobina quando \"temBobina\" estiver desligado, ou deixar o corpo vermelho quando \"falha\" ligar. Usa o valor do CLP, sem escala."));
+		}
+		function pasteRulesButton(row, smallBtn, targets) {
+			const copied = copiedRules();
+			if (!copied.length) return;
+			const n = copied.length;
+			smallBtn(row, n === 1 ? "Colar regra" : "Colar " + n + " regras", targets.length > 1 ? "Colar nas " + targets.length + " seleções" : "Adicionar as regras copiadas", () => {
+				for (const t of targets) t.rules = [...Array.isArray(t.rules) ? t.rules : [], ...clone(copied)];
+				refresh();
+				changed();
+			});
 		}
 		function imageFields(s, smallBtn) {
 			props.appendChild(el("h5", {}, "Arquivo"));
@@ -3501,6 +3819,7 @@ var HmiEditor = (function(exports) {
 	exports.injectStyles = injectStyles;
 	exports.isOn = isOn;
 	exports.linePoints = linePoints;
+	exports.onState = onState;
 	exports.paletteItems = paletteItems;
 	exports.parsePreview = parsePreview;
 	exports.rangeState = rangeState;

@@ -157,3 +157,28 @@ test('slitter tones and custom colours on shapes', () => {
     assert.ok(c.includes('--hmi-tone-fill:#ff0000;--hmi-tone-stroke:#8a939d'))
     assert.ok(!c.includes('<script>'))
 })
+
+test('inverted signal flips sensors and other on/off symbols', () => {
+    const s = createSymbol('sensor', 0, 0)
+    assert.ok(renderSymbol(s, 1).includes('hmi-on'))
+    s.props.invert = 'yes'
+    assert.ok(!renderSymbol(s, 1).includes('hmi-on'))
+    assert.ok(renderSymbol(s, 0).includes('hmi-on'))
+    assert.ok(renderSymbol(s, undefined).includes('hmi-unknown'))
+    const m = createSymbol('motor', 0, 0)
+    m.props.invert = 'yes'
+    assert.ok(renderSymbol(m, false).includes('hmi-on'))
+})
+
+test('beams, supports and pedestals have their own palette menu', () => {
+    const items = paletteItems('Estruturas')
+    assert.ok(items.length >= 13)
+    assert.ok(!paletteItems('Formas').some(i => i.label.startsWith('Viga')))
+    for (const it of items) {
+        const s = createSymbol(it.type, 0, 0, it.variant)
+        assert.ok(!('category' in s))
+        const out = renderSymbol(s)
+        assert.ok(out.includes('hmi-body'), it.label)
+        assert.ok(!/NaN|undefined/.test(out), it.label)
+    }
+})
