@@ -1,3 +1,5 @@
+import { moreSymbols, MORE_CSS } from './more.js'
+
 // Symbol library shared by the Node-RED editor (drag-and-drop preview) and the
 // dashboard widget. Every symbol draws itself as SVG markup in its own box
 // (0,0)-(w,h); the caller places the box on the canvas.
@@ -453,7 +455,7 @@ export const SYMBOLS = {
 
 // Palette: categories in the order they appear in the editor. Symbols with
 // variants show one entry per variant (e.g. every frame shape).
-export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Linhas', 'Valores', 'Estados', 'Comandos']
+export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Estados', 'Comandos']
 export function paletteItems (category) {
     const out = []
     for (const [type, def] of Object.entries(SYMBOLS)) {
@@ -1495,14 +1497,14 @@ export const CSS = `
 .hmi-root .hmi-rule-hidden { opacity: .25; }
 .hmi-root .hmi-rule-blink { animation: hmi-blink 1s steps(2) infinite; }
 .hmi-root .hmi-rule-dim { opacity: .35; }
-.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-alarm) !important; }
-.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-warn) !important; }
-.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-info) !important; }
-.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: #2e9d4f !important; }
-.hmi-root .hmi-rule-alarm .hmi-path { stroke: var(--hmi-alarm) !important; }
-.hmi-root .hmi-rule-warn .hmi-path { stroke: var(--hmi-warn) !important; }
-.hmi-root .hmi-rule-info .hmi-path { stroke: var(--hmi-info) !important; }
-.hmi-root .hmi-rule-ok .hmi-path { stroke: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-path, .hmi-fit-pipe) { stroke: #2e9d4f !important; }
 .hmi-root .hmi-rule-alarm .hmi-text text { fill: var(--hmi-alarm); }
 .hmi-root .hmi-rule-warn .hmi-text text { fill: var(--hmi-warn); }
 .hmi-root .hmi-rule-info .hmi-text text { fill: var(--hmi-info); }
@@ -1557,7 +1559,10 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-`
+` + MORE_CSS
+
+// second batch of symbols, built from the helpers above
+Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
 
 export function injectStyles (doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null)

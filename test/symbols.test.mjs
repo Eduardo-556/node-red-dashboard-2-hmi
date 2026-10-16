@@ -182,3 +182,40 @@ test('beams, supports and pedestals have their own palette menu', () => {
         assert.ok(!/NaN|undefined/.test(out), it.label)
     }
 })
+
+test('process, factory and electrical symbols render in every state', () => {
+    for (const cat of ['Processo', 'Fábrica', 'Elétrica']) assert.ok(paletteItems(cat).length >= 6, cat)
+    for (const c of CATEGORIES) {
+        for (const it of paletteItems(c)) {
+            const s = createSymbol(it.type, 0, 0, it.variant)
+            for (const v of [undefined, 0, 1, 55, -20, true, 'texto']) {
+                const out = renderSymbol(s, v, { values: { a: 1 }, locale: 'pt-BR' })
+                assert.ok(!/NaN|undefined|Infinity/.test(out), it.label + ' ' + v)
+            }
+        }
+    }
+})
+
+test('ISA-101 bar, mode, VFD and crane read their values', () => {
+    const b = createSymbol('isaBar', 0, 0, 0)
+    assert.ok(renderSymbol(b, 50).includes('hmi-isabar hmi-normal'))
+    assert.ok(renderSymbol(b, 85).includes('hmi-isabar hmi-warn'))
+    assert.ok(renderSymbol(b, 95).includes('hmi-isabar hmi-alarm'))
+    b.props.spKey = 'sp'
+    assert.ok(renderSymbol(b, 50, { values: { sp: 40 } }).includes('hmi-isa-sp'))
+    const m = createSymbol('mode', 0, 0)
+    assert.ok(renderSymbol(m, 1).includes('hmi-normal') && renderSymbol(m, 1).includes('>AUTO<'))
+    assert.ok(renderSymbol(m, 0).includes('hmi-abnormal') && renderSymbol(m, 0).includes('>MANUAL<'))
+    const v = createSymbol('vfd', 0, 0)
+    assert.ok(renderSymbol(v, 0).includes('hmi-off'))
+    assert.ok(renderSymbol(v, 42.5, { locale: 'pt-BR' }).includes('42,5 Hz'))
+    v.props.runKey = 'run'
+    assert.ok(renderSymbol(v, 42.5, { values: { run: 0 } }).includes('hmi-off'))
+    const c = createSymbol('crane', 0, 0, 0)
+    const left = renderSymbol(c, 0).match(/class="hmi-body" x="([\d.]+)"/)[1]
+    const right = renderSymbol(c, 100).match(/class="hmi-body" x="([\d.]+)"/)[1]
+    assert.ok(Number(right) > Number(left) + 200)
+    const h = createSymbol('counter', 0, 0, 0)
+    h.props.src = 's'
+    assert.ok(renderSymbol(h, 7380).includes('2 h 03 min'))
+})

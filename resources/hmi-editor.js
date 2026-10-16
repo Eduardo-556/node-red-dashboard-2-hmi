@@ -1,5 +1,1911 @@
 var HmiEditor = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+	//#region ui/symbols/more.js
+	function moreSymbols(H) {
+		const { f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD } = H;
+		const LABEL = {
+			key: "label",
+			label: "Legenda",
+			type: "text"
+		};
+		const TITLE = {
+			key: "title",
+			label: "Título",
+			type: "text"
+		};
+		const UNIT = {
+			key: "unit",
+			label: "Unidade",
+			type: "text"
+		};
+		const DEC = {
+			key: "decimals",
+			label: "Casas decimais",
+			type: "number"
+		};
+		const LO = {
+			key: "lo",
+			label: "Alarme abaixo de",
+			type: "number"
+		};
+		const HI = {
+			key: "hi",
+			label: "Alarme acima de",
+			type: "number"
+		};
+		const MIN = {
+			key: "min",
+			label: "Mínimo",
+			type: "number"
+		};
+		const MAX = {
+			key: "max",
+			label: "Máximo",
+			type: "number"
+		};
+		const DIR = {
+			key: "dir",
+			label: "Sentido",
+			type: "select",
+			options: [["cw", "Horário"], ["ccw", "Anti-horário"]]
+		};
+		const EQ_DEFAULTS = {
+			label: "",
+			onWhen: "nonzero",
+			threshold: 0,
+			invert: "no",
+			faultKey: "",
+			priority: "1"
+		};
+		const EQ_FIELDS = [
+			LABEL,
+			...ON_FIELDS,
+			FAULT_FIELD,
+			PRIORITY_FIELD
+		];
+		const key = (k, label) => ({
+			key: k,
+			label,
+			type: "text"
+		});
+		const raw = (opts, k) => k && opts && opts.values ? opts.values[k] : void 0;
+		const keyOn = (opts, k) => k ? isOn(raw(opts, k), "nonzero") : null;
+		const valueText = (v, p, opts) => formatValue(v, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
+		const alarmCls = (st) => st === null ? "hmi-unknown" : st === "alarm" ? "hmi-on hmi-alarm" : "hmi-on hmi-normal";
+		const rect = (cls, x, y, w, h, rx) => `<rect class="${cls}" x="${f(x)}" y="${f(y)}" width="${f(Math.max(0, w))}" height="${f(Math.max(0, h))}"${rx ? ` rx="${f(rx)}"` : ""}/>`;
+		const circle = (cls, cx, cy, r) => `<circle class="${cls}" cx="${f(cx)}" cy="${f(cy)}" r="${f(Math.max(0, r))}"/>`;
+		const path = (cls, d) => `<path class="${cls}" d="${d}"/>`;
+		const poly = (cls, pts) => `<polygon class="${cls}" points="${pts.map((q) => f(q[0]) + "," + f(q[1])).join(" ")}"/>`;
+		const disp = (x, y, w, h, text, size) => rect("hmi-disp", x, y, w, h, 2) + `<text class="hmi-disp-text" x="${f(x + w / 2)}" y="${f(y + h / 2)}" font-size="${f(size || Math.max(9, Math.min(h * .62, (w - 4) / Math.max(4, String(text).length) * 1.55)))}">${escapeXml(text)}</text>`;
+		const spin = (cx, cy, inner, dir) => `<g transform="translate(${f(cx)},${f(cy)})"><g class="hmi-spin${dir === "ccw" ? " hmi-ccw" : ""}">${inner}</g></g>`;
+		const blades = (r, n) => Array.from({ length: n }, (x, i) => {
+			const a = i * 2 * Math.PI / n;
+			return `M0 0L${f(Math.cos(a) * r)} ${f(Math.sin(a) * r)}`;
+		}).join("");
+		const eq = (name, on, p, opts, w, h, body, extra) => `<g class="hmi-eq hmi-${name} ${stateClass(on)}${faultClass(p, opts)}${extra || ""}">${body}${faultMark(p, opts, w)}${labelBelow(p, w, h)}</g>`;
+		function renderVfd(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const v = num(value);
+			const run = p.runKey ? keyOn(opts, p.runKey) : v === null ? null : v !== 0;
+			const rev = p.dirKey ? keyOn(opts, p.dirKey) === true : v !== null && v < 0;
+			const text = v === null ? "—" : valueText(p.dirKey ? v : Math.abs(v), p, opts);
+			const ay = h * .62;
+			const as = Math.min(w * .12, 9);
+			const d = rev ? -1 : 1;
+			const keys = [
+				0,
+				1,
+				2
+			].map((i) => rect("hmi-key", w * (.16 + i * .25), h * .78, w * .18, h * .08, 1.5)).join("");
+			return eq("vfd", run, p, opts, w, h, rect("hmi-body", 1, 1, w - 2, h - 2, 4) + disp(w * .12, h * .1, w * .76, h * .26, text) + circle("hmi-led", w * .22, ay, Math.min(w, h) * .055) + path("hmi-arrowhead", `M${f(w * .62 - as * d)} ${f(ay - as)}L${f(w * .62 + as * d)} ${f(ay)}L${f(w * .62 - as * d)} ${f(ay + as)}Z`) + keys);
+		}
+		function renderBreaker(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const trip = keyOn(opts, p.tripKey) === true;
+			const s = Math.min(w * .7, h * .4);
+			const cx = w / 2;
+			const y0 = (h - s) / 2;
+			return eq("breaker", on, p, opts, w, h, path("hmi-wire", `M${f(cx)} 0V${f(y0)}M${f(cx)} ${f(y0 + s)}V${f(h)}`) + rect("hmi-body", cx - s / 2, y0, s, s, 2) + (on === false ? path("hmi-wire hmi-open-mark", `M${f(cx - s * .3)} ${f(y0 + s * .3)}L${f(cx + s * .3)} ${f(y0 + s * .7)}`) : "") + (trip ? alarmIndicator(w - 4, 6, p.priority) : ""), trip ? " hmi-fault" : "");
+		}
+		function renderContactor(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const cx = w * .62;
+			const y1 = h * .3;
+			const y2 = h * .7;
+			const end = on ? [cx, y2] : [cx + w * .26, y2 - h * .06];
+			return eq("contactor", on, p, opts, w, h, path("hmi-wire", `M${f(cx)} 0V${f(y1)}M${f(cx)} ${f(y2)}V${f(h)}`) + circle("hmi-terminal", cx, y1, 2.5) + circle("hmi-terminal", cx, y2, 2.5) + path("hmi-blade-line", `M${f(cx)} ${f(y1)}L${f(end[0])} ${f(end[1])}`) + path("hmi-link", `M${f(w * .38)} ${f(h / 2)}H${f(cx + (on ? 0 : w * .13))}`) + rect("hmi-body", 1, h / 2 - h * .14, w * .38, h * .28, 2) + `<text class="hmi-glyph" x="${f(1 + w * .19)}" y="${f(h / 2)}" font-size="${f(Math.min(w * .26, h * .2))}">K</text>`);
+		}
+		function renderTransformer(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.min(w / 2 - 2, h * .24);
+			const cx = w / 2;
+			const c1 = h / 2 - r * .62;
+			const c2 = h / 2 + r * .62;
+			const rating = p.rating ? `<text class="hmi-sub-label" x="${f(w / 2)}" y="${f(h + (p.label ? 34 : 18))}">${escapeXml(p.rating)}</text>` : "";
+			return eq("transformer", on, p, opts, w, h, path("hmi-wire", `M${f(cx)} 0V${f(c1 - r)}M${f(cx)} ${f(c2 + r)}V${f(h)}`) + circle("hmi-body hmi-coil1", cx, c1, r) + circle("hmi-body hmi-coil2", cx, c2, r) + rating);
+		}
+		function renderGenerator(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.min(w / 2 - 2, (h - 12) / 2);
+			const cx = w / 2;
+			const cy = h - r - 2;
+			return eq("generator", on, p, opts, w, h, path("hmi-wire", `M${f(cx)} 0V${f(cy - r)}`) + circle("hmi-body", cx, cy, r) + `<text class="hmi-glyph" x="${f(cx)}" y="${f(cy - r * .12)}" font-size="${f(r * .8)}">G</text>` + path("hmi-wave", `M${f(cx - r * .4)} ${f(cy + r * .5)}q${f(r * .2)} ${f(-r * .28)} ${f(r * .4)} 0t${f(r * .4)} 0`));
+		}
+		function renderEnergyMeter(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const e = raw(opts, p.energyKey);
+			const kw = valueText(value, p, opts);
+			const kwh = formatValue(e, p.energyDecimals, opts.locale) + (p.energyUnit ? " " + p.energyUnit : "");
+			return `<g class="hmi-eq hmi-meter ${value === void 0 || value === null ? "hmi-unknown" : "hmi-on"}">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="8" y="${f(Math.min(16, h * .2))}" font-size="${f(Math.max(9, Math.min(12, h * .15)))}">${escapeXml(p.title || sym.key || "")}</text>` + disp(6, h * .3, w - 12, h * .32, kw) + (p.energyKey ? `<text class="hmi-tag-value hmi-right" x="${f(w - 8)}" y="${f(h * .84)}" font-size="${f(Math.max(9, Math.min(14, h * .17)))}">${escapeXml(kwh)}</text>` : "") + labelBelow(p, w, h) + "</g>";
+		}
+		function renderCompressor(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.max(6, Math.min(w, h * .9) / 2 - 2);
+			const cx = w / 2;
+			const cy = r + 2;
+			return eq("compressor", on, p, opts, w, h, path("hmi-foot", `M${f(cx - r * .75)} ${f(h - 1)}L${f(cx - r * .45)} ${f(cy + r * .7)}H${f(cx + r * .45)}L${f(cx + r * .75)} ${f(h - 1)}Z`) + circle("hmi-body", cx, cy, r) + path("hmi-inner", `M${f(cx - r * .72)} ${f(cy - r * .68)}L${f(cx + r * .78)} ${f(cy - r * .34)}M${f(cx - r * .72)} ${f(cy + r * .68)}L${f(cx + r * .78)} ${f(cy + r * .34)}`));
+		}
+		function renderBlower(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.max(6, Math.min(w * .8, h) / 2 - 2);
+			const cx = r + 2;
+			const cy = h - r - 2;
+			return eq("blower", on, p, opts, w, h, rect("hmi-body", cx, cy - r, Math.min(w - cx - 1, r * 1.35), r * .62, 1) + circle("hmi-body", cx, cy, r) + spin(cx, cy, path("hmi-inner", blades(r * .72, 6)) + circle("hmi-hub", 0, 0, r * .18), p.dir));
+		}
+		function renderBagFilter(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const st = rangeState(value, p.lo, p.hi);
+			const top = h * .62;
+			const n = Math.max(2, Math.min(8, Math.round(w / 22)));
+			let bags = "";
+			for (let i = 0; i < n; i++) {
+				const bw = (w - 16) / n;
+				bags += rect("hmi-bag", 8 + i * bw + bw * .2, h * .3, bw * .6, top - h * .34, bw * .3);
+			}
+			const text = value === void 0 || value === null ? "ΔP —" : "ΔP " + valueText(value, p, opts);
+			let out = `<g class="hmi-eq hmi-bagfilter ${alarmCls(st)}">` + poly("hmi-body", [
+				[1, 1],
+				[w - 1, 1],
+				[w - 1, top],
+				[w * .6, h * .9],
+				[w * .4, h * .9],
+				[1, top]
+			]) + rect("hmi-part", w * .4, h * .9, w * .2, h * .1 - 1, 1) + bags + disp(w * .08, h * .06, w * .84, h * .16, text);
+			if (st === "alarm") out += alarmIndicator(w - 6, h * .06 + 2, p.priority);
+			return out + labelBelow(p, w, h) + "</g>";
+		}
+		function renderControlValve(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const v = num(value);
+			const sc = scaleOf(p);
+			const fr = v === null ? null : sc.frac(v);
+			const top = h * .5;
+			const cy = (top + h - 1) / 2;
+			const cx = w / 2;
+			const text = v === null ? "—" : formatValue(fr * 100, 0, opts.locale) + " %";
+			return eq("cvalve", fr === null ? null : fr > .005, p, opts, w, h, path("hmi-stem", `M${f(cx)} ${f(cy)}V${f(h * .34)}`) + (fr !== null ? rect("hmi-stroke-pos", cx - 1.5, h * .34, 3, (cy - h * .34) * fr) : "") + disp(w * .06, 1, w * .88, h * .32, text) + path("hmi-body", `M1.5 ${f(top)}L${f(cx)} ${f(cy)}L1.5 ${f(h - 1)}ZM${f(w - 1.5)} ${f(top)}L${f(cx)} ${f(cy)}L${f(w - 1.5)} ${f(h - 1)}Z`));
+		}
+		function renderValve3(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const cx = w / 2;
+			const cy = h * .42;
+			const a = Math.min(cx - 1.5, cy * .9);
+			const open = (port) => on === null ? "" : (port === "b" ? on : port === "c" ? !on : true) ? " hmi-open" : "";
+			return eq("valve3", on, p, opts, w, h, path("hmi-stem", `M${f(cx)} ${f(cy)}V${f(cy - a * .9)}`) + rect("hmi-actuator", cx - a * .45, cy - a * .9 - 6, a * .9, 6, 1) + poly("hmi-body hmi-port" + open("a"), [
+				[1.5, cy - a * .6],
+				[cx, cy],
+				[1.5, cy + a * .6]
+			]) + poly("hmi-body hmi-port" + open("c"), [
+				[w - 1.5, cy - a * .6],
+				[cx, cy],
+				[w - 1.5, cy + a * .6]
+			]) + poly("hmi-body hmi-port" + open("b"), [
+				[cx - a * .6, h - 1.5],
+				[cx, cy],
+				[cx + a * .6, h - 1.5]
+			]));
+		}
+		function renderDamper(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const v = num(value);
+			const fr = v === null ? null : scaleOf(p).frac(v);
+			const ang = (fr === null ? .5 : fr) * Math.PI / 2;
+			const L = (h - 8) / 2;
+			const cx = w / 2;
+			const cy = h / 2;
+			const dx = Math.sin(ang) * L;
+			const dy = Math.cos(ang) * L;
+			return eq("damper", fr === null ? null : fr > .005, p, opts, w, h, rect("hmi-body", 1, 1, w - 2, h - 2, 1) + path("hmi-damper-blade", `M${f(cx - dx)} ${f(cy + dy)}L${f(cx + dx)} ${f(cy - dy)}`) + circle("hmi-hub", cx, cy, 3) + (w >= 80 ? `<text class="hmi-sub-value hmi-right" x="${f(w - 6)}" y="${f(h - 7)}">${fr === null ? "—" : escapeXml(formatValue(fr * 100, 0, opts.locale) + " %")}</text>` : ""));
+		}
+		function renderMixer(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const mh = h * .16;
+			const vy = h * .22;
+			const cx = w / 2;
+			const iy = h * .8;
+			const bw = w * .28;
+			return eq("mixer", on, p, opts, w, h, rect("hmi-body hmi-vessel", 1, vy, w - 2, h - vy - 1, Math.min(w * .16, 18)) + path("hmi-shaft", `M${f(cx)} ${f(mh)}V${f(iy)}`) + `<g transform="translate(${f(cx)},${f(iy)})"><g class="hmi-stir">${poly("hmi-part", [
+				[-bw, -h * .03],
+				[0, 0],
+				[-bw, h * .03]
+			])}${poly("hmi-part", [
+				[bw, -h * .03],
+				[0, 0],
+				[bw, h * .03]
+			])}</g></g>` + rect("hmi-body hmi-drive", cx - w * .16, 1, w * .32, mh, 2) + `<text class="hmi-glyph" x="${f(cx)}" y="${f(1 + mh / 2)}" font-size="${f(Math.min(mh * .6, w * .16))}">M</text>`);
+		}
+		function renderHeatExchanger(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const y0 = h * .22;
+			const y1 = h * .78;
+			const hw = Math.min(w * .08, 16);
+			const nz = Math.min(w * .07, 12);
+			const tubes = [
+				.38,
+				.5,
+				.62
+			].map((t) => `M${f(hw + 6)} ${f(h * t)}H${f(w - hw - 6)}`).join("");
+			return eq("exchanger", on, p, opts, w, h, rect("hmi-part", w * .22, 1, nz, y0, 1) + rect("hmi-part", w * .78 - nz, y1, nz, h - y1 - 1, 1) + rect("hmi-body", hw, y0, w - 2 * hw, y1 - y0, 3) + rect("hmi-part", 1, y0 + 3, hw, y1 - y0 - 6, 2) + rect("hmi-part", w - hw - 1, y0 + 3, hw, y1 - y0 - 6, 2) + path("hmi-detail", tubes));
+		}
+		function renderBoiler(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const cx = w / 2;
+			const sw = w * .18;
+			const fy = h * .82;
+			const flame = `M${f(cx)} ${f(fy - h * .22)}C${f(cx + w * .22)} ${f(fy - h * .1)} ${f(cx + w * .16)} ${f(fy)} ${f(cx)} ${f(fy)}C${f(cx - w * .16)} ${f(fy)} ${f(cx - w * .22)} ${f(fy - h * .1)} ${f(cx)} ${f(fy - h * .22)}Z`;
+			return eq("boiler", on, p, opts, w, h, rect("hmi-part", w * .62, 1, sw, h * .14, 1) + rect("hmi-body", 1, h * .12, w - 2, h * .88 - 1, Math.min(w * .3, 26)) + rect("hmi-part", 1, fy + 2, w * .3, h - fy - 4, 2) + (on ? path("hmi-flame", flame) : ""));
+		}
+		function renderCoolingTower(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const top = h * .16;
+			const base = h * .9;
+			const cx = w / 2;
+			const fr = Math.min(w * .3, top * 2);
+			return eq("tower", on, p, opts, w, h, path("hmi-body", `M${f(w * .22)} ${f(top)}H${f(w * .78)}Q${f(w * .68)} ${f(h * .5)} ${f(w - 4)} ${f(base)}H4Q${f(w * .32)} ${f(h * .5)} ${f(w * .22)} ${f(top)}Z`) + rect("hmi-part", 1, base, w - 2, h - base - 1, 2) + path("hmi-detail", `M${f(w * .2)} ${f(h * .62)}H${f(w * .8)}M${f(w * .16)} ${f(h * .72)}H${f(w * .84)}`) + `<g transform="translate(${f(cx)},${f(top - 2)})"><g transform="scale(1,0.32)"><g class="hmi-spin">${circle("hmi-light", 0, 0, fr)}${path("hmi-inner", blades(fr, 4))}</g></g></g>`);
+		}
+		function renderChiller(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.min(w * .16, h * .28);
+			const fans = [.3, .7].map((x) => circle("hmi-light", w * x, r + 3, r) + spin(w * x, r + 3, path("hmi-inner", blades(r * .85, 3)))).join("");
+			const s = Math.min(w, h) * .13;
+			const sx = w * .22;
+			const sy = h * .72;
+			const flake = [
+				0,
+				60,
+				120
+			].map((a) => {
+				const rad = a * Math.PI / 180;
+				return `M${f(sx - Math.cos(rad) * s)} ${f(sy - Math.sin(rad) * s)}L${f(sx + Math.cos(rad) * s)} ${f(sy + Math.sin(rad) * s)}`;
+			}).join("");
+			return eq("chiller", on, p, opts, w, h, rect("hmi-body", 1, r * 2 + 6, w - 2, h - r * 2 - 7, 3) + fans + path("hmi-inner", flake) + path("hmi-detail", `M${f(w * .45)} ${f(h * .62)}H${f(w * .9)}M${f(w * .45)} ${f(h * .74)}H${f(w * .9)}M${f(w * .45)} ${f(h * .86)}H${f(w * .9)}`));
+		}
+		function renderCyclone(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const y0 = h * .1;
+			const y1 = h * .45;
+			const y2 = h * .88;
+			return eq("cyclone", on, p, opts, w, h, rect("hmi-part", w * .38, 1, w * .24, y0 + 4, 1) + rect("hmi-part", 1, y0 + 4, w * .2, h * .12, 1) + path("hmi-body", `M${f(w * .12)} ${f(y0)}H${f(w * .88)}V${f(y1)}L${f(w * .58)} ${f(y2)}H${f(w * .42)}L${f(w * .12)} ${f(y1)}Z`) + rect("hmi-part", w * .42, y2, w * .16, h - y2 - 1, 1) + path("hmi-detail hmi-dashed", `M${f(w * .2)} ${f(h * .2)}Q${f(w * .5)} ${f(h * .3)} ${f(w * .8)} ${f(h * .24)}M${f(w * .24)} ${f(h * .4)}Q${f(w * .5)} ${f(h * .5)} ${f(w * .74)} ${f(h * .44)}M${f(w * .36)} ${f(h * .62)}Q${f(w * .5)} ${f(h * .68)} ${f(w * .64)} ${f(h * .63)}`));
+		}
+		function renderFlowmeter(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const st = rangeState(value, p.lo, p.hi);
+			const py = h * .66;
+			const ph = h * .26;
+			const r = Math.min(h * .3, w * .2);
+			const cx = r + 4;
+			const cy = r + 2;
+			let out = `<g class="hmi-eq hmi-flowmeter ${alarmCls(st)}">` + rect("hmi-pipe-body", 1, py, w - 2, ph, 1) + rect("hmi-part", cx - r * .9, py - 3, r * 1.8, ph + 6, 2) + path("hmi-stem", `M${f(cx)} ${f(cy + r)}V${f(py - 3)}`) + circle("hmi-body", cx, cy, r) + `<text class="hmi-glyph" x="${f(cx)}" y="${f(cy)}" font-size="${f(r * .7)}">${escapeXml(p.tagText || "FT")}</text>`;
+			if (w > cx + r + 30) out += disp(cx + r + 6, cy - Math.min(r, 12), w - cx - r - 8, Math.min(2 * r, 24), valueText(value, p, opts));
+			if (st === "alarm") out += alarmIndicator(w - 6, 6, p.priority);
+			return out + labelBelow(p, w, h) + "</g>";
+		}
+		function renderInstrument(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const st = rangeState(value, p.lo, p.hi);
+			const r = Math.max(8, Math.min(w, h) / 2 - 2);
+			const cx = w / 2;
+			const cy = h / 2;
+			const loc = [
+				"panel",
+				"behind",
+				"dcs"
+			].includes(p.location) ? p.location : "field";
+			const fs = Math.max(8, r * .48);
+			let out = `<g class="hmi-eq hmi-instrument ${alarmCls(st)} hmi-loc-${loc}">` + (loc === "dcs" ? rect("hmi-part hmi-dcs", cx - r, cy - r, 2 * r, 2 * r, 1) : "") + circle("hmi-body", cx, cy, r) + (loc === "panel" || loc === "behind" ? path("hmi-inner" + (loc === "behind" ? " hmi-dashed" : ""), `M${f(cx - r)} ${f(cy)}H${f(cx + r)}`) : "") + `<text class="hmi-glyph" x="${f(cx)}" y="${f(cy - r * .36)}" font-size="${f(fs)}">${escapeXml(p.letters || "")}</text><text class="hmi-glyph hmi-thin" x="${f(cx)}" y="${f(cy + r * .4)}" font-size="${f(fs * .9)}">${escapeXml(p.number || "")}</text>`;
+			let y = h + 16;
+			if (p.showValue !== "no" && sym.key) {
+				out += `<text class="hmi-tag-value" x="${f(cx)}" y="${f(y)}" font-size="13">${escapeXml(valueText(value, p, opts))}</text>`;
+				y += 18;
+			}
+			if (st === "alarm") out += alarmIndicator(cx + r * .8, cy - r * .8, p.priority);
+			if (p.label) out += `<text class="hmi-label" x="${f(cx)}" y="${f(y)}">${escapeXml(p.label)}</text>`;
+			return out + "</g>";
+		}
+		function renderCrane(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const hoist = p.kind === "hoist";
+			const v = num(value);
+			const bh = Math.max(10, h * .08);
+			const tw = Math.min(w * .18, 70);
+			const th = Math.max(12, h * .1);
+			const x = hoist ? (w - tw) / 2 : v === null ? (w - tw) / 2 : 6 + scaleOf(p).frac(v) * (w - tw - 12);
+			let hf;
+			if (hoist) hf = v === null ? .5 : scaleOf(p).frac(v);
+			else {
+				const hv = num(raw(opts, p.hookKey));
+				hf = hv === null ? .5 : scaleOf({
+					min: p.hookMin,
+					max: p.hookMax
+				}).frac(hv);
+			}
+			const top = bh + th;
+			const hookY = top + 10 + (1 - hf) * (h - top - 40);
+			const cx = x + tw / 2;
+			const load = keyOn(opts, p.loadKey) === true;
+			const out = (hoist ? rect("hmi-part", w * .3, 1, w * .4, bh, 1) : rect("hmi-part", 1, 1, w - 2, bh, 1) + rect("hmi-part", 1, 1, 10, bh + 6, 1) + rect("hmi-part", w - 11, 1, 10, bh + 6, 1)) + rect("hmi-body", x, bh + 1, tw, th, 2) + path("hmi-cable", `M${f(cx - 3)} ${f(top + 1)}V${f(hookY)}M${f(cx + 3)} ${f(top + 1)}V${f(hookY)}`) + rect("hmi-part", cx - 8, hookY, 16, 8, 2) + path("hmi-hook", `M${f(cx)} ${f(hookY + 8)}v8a5 5 0 1 1 -8 -3`) + (load ? rect("hmi-load", cx - tw * .55, hookY + 22, tw * 1.1, Math.min(30, h - hookY - 22), 2) : "");
+			return eq("crane", v !== null ? true : null, p, opts, w, h, out);
+		}
+		function renderRobot(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const weld = keyOn(opts, p.weldKey) === true;
+			const sx = w * .32;
+			const sy = h * .72;
+			const t = Math.max(6, Math.min(w, h) * .09);
+			const ex = w * .5;
+			const ey = h * .2;
+			const tx = w * .88;
+			const ty = h * .42;
+			const seg = (x1, y1, x2, y2) => {
+				const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+				const nx = -(y2 - y1) / len * t / 2;
+				const ny = (x2 - x1) / len * t / 2;
+				return poly("hmi-body", [
+					[x1 + nx, y1 + ny],
+					[x2 + nx, y2 + ny],
+					[x2 - nx, y2 - ny],
+					[x1 - nx, y1 - ny]
+				]);
+			};
+			const star = Array.from({ length: 8 }, (x, i) => {
+				const a = i * Math.PI / 4;
+				const r = i % 2 ? 4 : 10;
+				return [tx + 4 + Math.cos(a) * r, ty + 10 + Math.sin(a) * r];
+			});
+			return eq("robot", on, p, opts, w, h, rect("hmi-part", w * .1, h - h * .1, w * .44, h * .1 - 1, 2) + rect("hmi-part", sx - w * .12, sy, w * .24, h * .18, 2) + `<g transform="translate(${f(sx)},${f(sy)})"><g class="hmi-arm"><g transform="translate(${f(-sx)},${f(-sy)})">` + seg(sx, sy, ex, ey) + seg(ex, ey, tx, ty) + circle("hmi-joint", ex, ey, t * .7) + path("hmi-stem", `M${f(tx)} ${f(ty)}l4 10`) + (weld ? poly("hmi-spark", star) : "") + "</g></g></g>" + circle("hmi-joint", sx, sy, t * .8));
+		}
+		function renderWelder(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const v = num(value);
+			const arc = p.arcKey ? keyOn(opts, p.arcKey) : v === null ? null : v > 0;
+			return eq("welder", arc, p, opts, w, h, rect("hmi-body", 1, 1, w - 2, h - 2, 4) + disp(w * .12, h * .1, w * .76, h * .26, valueText(value, p, opts)) + circle("hmi-led hmi-led-arc", w * .25, h * .54, Math.min(w, h) * .06) + `<text class="hmi-sub-value hmi-left" x="${f(w * .36)}" y="${f(h * .54)}">ARCO</text>` + circle("hmi-terminal-big", w * .32, h * .8, Math.min(w, h) * .07) + circle("hmi-terminal-big", w * .68, h * .8, Math.min(w, h) * .07));
+		}
+		function renderOven(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const st = rangeState(value, p.lo, p.hi);
+			const open = keyOn(opts, p.doorKey) === true;
+			const heat = keyOn(opts, p.heatKey) === true;
+			const dx = w * .62;
+			const waves = [
+				.2,
+				.33,
+				.46
+			].map((x) => `M${f(w * x)} ${f(h * .82)}q${f(w * .03)} ${f(-h * .06)} 0 ${f(-h * .12)}t0 ${f(-h * .12)}`).join("");
+			let out = `<g class="hmi-eq hmi-oven ${alarmCls(st)}${heat ? " hmi-heating" : ""}${open ? " hmi-door-open" : ""}">` + rect("hmi-body", 1, 1, w - 2, h - 2, 3) + disp(w * .08, h * .08, w * .48, h * .2, valueText(value, p, opts)) + path("hmi-heat", waves) + (open ? poly("hmi-door", [
+				[dx, h * .08],
+				[w - 1 + w * .12, h * .16],
+				[w - 1 + w * .12, h * .84],
+				[dx, h * .92]
+			]) + rect("hmi-opening", dx, h * .08, w - dx - 6, h * .84, 1) : rect("hmi-door", dx, h * .08, w - dx - 6, h * .84, 2) + rect("hmi-part", dx + 6, h * .45, 4, h * .12, 1));
+			if (st === "alarm") out += alarmIndicator(w - 8, 8, p.priority);
+			return out + labelBelow(p, w, h) + "</g>";
+		}
+		function renderPaintBooth(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const top = h * .2;
+			const r = Math.min(top * .7, w * .08);
+			const gx = w * .18;
+			const gy = h * .55;
+			return eq("booth", on, p, opts, w, h, rect("hmi-part", w * .74, 1, r * 2.4, top, 1) + spin(w * .74 + r * 1.2, top / 2 + 1, circle("hmi-light", 0, 0, r) + path("hmi-inner", blades(r * .9, 3))) + rect("hmi-body", 1, top, w - 2, h - top - 1, 2) + path("hmi-detail", `M1 ${f(h - 8)}H${f(w - 1)}`) + rect("hmi-part", gx - w * .07, gy - 5, w * .1, 10, 2) + rect("hmi-part", gx - w * .05, gy + 4, 5, h * .12, 1) + path("hmi-spray", `M${f(gx + w * .03)} ${f(gy)}L${f(w * .6)} ${f(gy - h * .18)}V${f(gy + h * .18)}Z`) + rect("hmi-part", w * .62, h * .32, w * .2, h * .44, 2));
+		}
+		function renderCalender(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.min(w * .16, h * .2);
+			const cx = w / 2;
+			const d = r * 2.1;
+			const ty = r + 4;
+			const by = ty + r * 1.95;
+			const roll = (x, y, dir) => spin(x, y, circle("hmi-body", 0, 0, r) + path("hmi-mark", `M0 ${f(-r * .7)}V${f(r * .7)}`), dir);
+			const back = p.dir === "ccw" ? "cw" : "ccw";
+			return eq("calender", on, p, opts, w, h, rect("hmi-part hmi-frame-back", cx - d - r - 6, 1, (d + r + 6) * 2, h - 2, 4) + path("hmi-plate", `M2 ${f(by - r - 3)}Q${f(cx)} ${f(ty + r + 6)} ${f(w - 2)} ${f(by - r - 3)}`) + roll(cx, ty, p.dir) + roll(cx - d, by, back) + roll(cx + d, by, back));
+		}
+		function renderPress(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			let fr = null;
+			const v = num(value);
+			if (v !== null) fr = scaleOf(p).frac(v);
+			else if (typeof value === "boolean") fr = value ? 1 : 0;
+			const crown = h * .16;
+			const bed = h * .8;
+			const cw = w * .12;
+			const rh = h * .14;
+			const travel = bed - crown - rh - h * .08;
+			const ry = crown + (fr === null ? 0 : fr) * travel;
+			return eq("press", fr === null ? null : fr > .02, p, opts, w, h, rect("hmi-part", 1, 1, cw, h - 2, 1) + rect("hmi-part", w - cw - 1, 1, cw, h - 2, 1) + rect("hmi-body", 1, 1, w - 2, crown, 2) + rect("hmi-stem-rect", w / 2 - w * .05, crown, w * .1, ry - crown) + rect("hmi-body hmi-ram", cw + 3, ry, w - 2 * cw - 6, rh, 2) + rect("hmi-body", cw + 3, bed, w - 2 * cw - 6, h * .08, 1) + rect("hmi-part", 1, h - h * .1, w - 2, h * .1 - 1, 2));
+		}
+		function renderScale(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const st = rangeState(value, p.lo, p.hi);
+			const py = h * .72;
+			let out = `<g class="hmi-eq hmi-scale ${alarmCls(st)}">` + rect("hmi-body", 1, py, w - 2, h * .16, 2) + rect("hmi-part", 6, py + h * .16, 10, h - py - h * .16 - 1, 1) + rect("hmi-part", w - 16, py + h * .16, 10, h - py - h * .16 - 1, 1) + path("hmi-stem", `M${f(w / 2)} ${f(py)}V${f(h * .5)}`) + disp(w * .18, 2, w * .64, h * .46, valueText(value, p, opts));
+			if (st === "alarm") out += alarmIndicator(w - 6, 8, p.priority);
+			return out + labelBelow(p, w, h) + "</g>";
+		}
+		function renderVehicle(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const kind = ["agv", "forklift"].includes(p.kind) ? p.kind : "cart";
+			const moves = p.move === "pos";
+			const v = num(value);
+			const rail = kind === "cart";
+			const vh = rail ? h - 8 : h;
+			const vw = Math.min(w, vh * 1.7);
+			const x = moves ? v === null ? (w - vw) / 2 : scaleOf(p).frac(v) * (w - vw) : (w - vw) / 2;
+			const on = moves ? v === null ? null : true : onState(value, p);
+			const wr = Math.max(3, vh * .12);
+			const wy = vh - wr - 1;
+			let body;
+			if (kind === "forklift") body = rect("hmi-part", x + vw * .08, 1, vw * .05, vh * .8, 1) + rect("hmi-part", x, vh * .68, vw * .3, vh * .06, 1) + rect("hmi-body", x + vw * .16, vh * .3, vw * .8, vh * .48, 4) + path("hmi-detail", `M${f(x + vw * .4)} ${f(vh * .3)}V${f(vh * .06)}H${f(x + vw * .8)}V${f(vh * .3)}`);
+			else if (kind === "agv") body = rect("hmi-body", x + 1, vh * .2, vw - 2, vh * .58, 4) + rect("hmi-led-rect", x + vw * .1, vh * .32, vw * .8, vh * .08, 2) + path("hmi-arrowhead", `M${f(x + vw * .45)} ${f(vh * .48)}l${f(vw * .1)} ${f(vh * .1)}l${f(-vw * .1)} ${f(vh * .1)}Z`);
+			else body = rect("hmi-body", x + 1, vh * .3, vw - 2, vh * .48, 3) + rect("hmi-load", x + vw * .15, vh * .05, vw * .7, vh * .25, 2);
+			const wheels = circle("hmi-wheel", x + vw * .22, wy, wr) + circle("hmi-wheel", x + vw * .78, wy, wr);
+			return eq("vehicle hmi-" + kind, on, p, opts, w, h, (rail ? rect("hmi-part", 1, h - 6, w - 2, 5, 1) : "") + body + wheels);
+		}
+		function renderRollerTable(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const r = Math.max(4, Math.min(h * .32, 16));
+			const n = Math.max(2, Math.floor((w - 4) / (r * 2.6)));
+			let rolls = "";
+			for (let i = 0; i < n; i++) {
+				const x = 2 + r + (w - 4 - 2 * r) * i / (n - 1);
+				rolls += spin(x, r + 2, circle("hmi-body", 0, 0, r) + path("hmi-mark", `M0 ${f(-r * .7)}V${f(r * .7)}`), p.dir);
+			}
+			return eq("rolltable", on, p, opts, w, h, rect("hmi-part", 1, r + 2, w - 2, h - r - 3, 2) + rolls);
+		}
+		function renderIsaBar(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const vert = h >= w;
+			const sc = scaleOf(p);
+			const v = num(value);
+			const lolo = num(p.lolo);
+			const lo = num(p.lo);
+			const hi = num(p.hi);
+			const hihi = num(p.hihi);
+			let level = v === null ? null : "normal";
+			if (v !== null) {
+				if (lolo !== null && v < lolo || hihi !== null && v > hihi) level = "alarm";
+				else if (lo !== null && v < lo || hi !== null && v > hi) level = "warn";
+			}
+			const t = vert ? Math.max(8, Math.min(18, w * .24)) : Math.max(8, Math.min(18, h * .2));
+			const A0 = vert ? h - 24 : 10;
+			const A1 = vert ? 22 : w - 10;
+			const c0 = vert ? (w - t) / 2 : 26;
+			const along = (val) => A0 + sc.frac(val) * (A1 - A0);
+			const band = (a, b, cls) => {
+				const s = Math.min(along(a), along(b));
+				const len = Math.abs(along(b) - along(a));
+				return vert ? rect(cls, c0, s, t, len) : rect(cls, s, c0, len, t);
+			};
+			const P = (a, c) => vert ? [c, a] : [a, c];
+			const tri = (a, c, dir, cls) => poly(cls, [
+				P(a, c),
+				P(a - 6, c + dir * 10),
+				P(a + 6, c + dir * 10)
+			]);
+			let out = `<g class="hmi-isabar hmi-${level === null ? "unknown" : level}">` + band(sc.min, sc.max, "hmi-isa-track");
+			if (lolo !== null) out += band(sc.min, lolo, "hmi-isa-ll");
+			if (hihi !== null) out += band(hihi, sc.max, "hmi-isa-ll");
+			if (lo !== null || hi !== null) out += band(lo === null ? sc.min : lo, hi === null ? sc.max : hi, "hmi-isa-normal");
+			const sp = num(raw(opts, p.spKey));
+			if (sp !== null) out += tri(along(Math.max(sc.min, Math.min(sc.max, sp))), c0 + t + 1, 1, "hmi-isa-sp");
+			if (v !== null) out += tri(along(Math.max(sc.min, Math.min(sc.max, v))), c0 - 1, -1, "hmi-isa-ptr");
+			const text = valueText(value, p, opts);
+			const title = escapeXml(p.title || sym.key || "");
+			if (vert) out += `<text class="hmi-tag-title" x="${f(w / 2)}" y="12" font-size="${f(Math.max(9, Math.min(12, w * .18)))}">${title}</text><text class="hmi-tag-value" x="${f(w / 2)}" y="${f(h - 6)}" font-size="${f(Math.max(9, Math.min(15, w * .2)))}">${escapeXml(text)}</text>`;
+			else out += `<text class="hmi-tag-title hmi-left" x="10" y="11" font-size="11">${title}</text><text class="hmi-tag-value hmi-right" x="${f(w - 10)}" y="11" font-size="12">${escapeXml(text)}</text>`;
+			if (level === "alarm" || level === "warn") {
+				const pr = level === "alarm" ? "1" : p.priority || "2";
+				out += vert ? alarmIndicator(w - 9, 30, pr) : alarmIndicator(w - 10, c0 + t + 18, pr);
+			}
+			return out + "</g>";
+		}
+		function renderCounter(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const v = num(value);
+			let text;
+			if (v === null) text = "—";
+			else if (p.kind === "hours" && (p.src === "s" || p.src === "min")) {
+				const totalMin = Math.floor(p.src === "s" ? v / 60 : v);
+				text = formatValue(Math.floor(totalMin / 60), 0, opts.locale) + " h " + String(totalMin % 60).padStart(2, "0") + " min";
+			} else text = formatValue(v, p.kind === "hours" ? p.decimals : 0, opts.locale) + (p.kind === "hours" ? " h" : p.unit ? " " + p.unit : "");
+			const ir = Math.min(h * .28, 16);
+			const ix = ir + 8;
+			const iy = h * .58;
+			const icon = p.kind === "hours" ? circle("hmi-icon", ix, iy, ir) + path("hmi-icon-hand", `M${f(ix)} ${f(iy)}V${f(iy - ir * .65)}M${f(ix)} ${f(iy)}L${f(ix + ir * .5)} ${f(iy + ir * .2)}`) : rect("hmi-icon", ix - ir, iy - ir * .7, ir * 2, ir * 1.4, 2) + `<text class="hmi-glyph" x="${f(ix)}" y="${f(iy)}" font-size="${f(ir)}">#</text>`;
+			return `<g class="hmi-counter ${v === null ? "hmi-unknown" : "hmi-normal"}">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="8" y="${f(Math.min(15, h * .25))}" font-size="${f(Math.max(8, Math.min(12, h * .18, (w - 16) / Math.max(4, String(p.title || sym.key || "").length) * 1.6)))}">${escapeXml(p.title || sym.key || "")}</text>` + icon + `<text class="hmi-tag-value hmi-right" x="${f(w - 8)}" y="${f(iy + 1)}" font-size="${f(Math.max(10, Math.min(h * .32, (w - ix - ir - 16) / Math.max(4, text.length) * 1.55)))}" dominant-baseline="central">${escapeXml(text)}</text>` + labelBelow(p, w, h) + "</g>";
+		}
+		function modeTexts(s) {
+			const out = {};
+			for (const part of String(s || "").split(",")) {
+				const i = part.indexOf("=");
+				if (i > 0) out[part.slice(0, i).trim()] = part.slice(i + 1).trim();
+			}
+			return out;
+		}
+		function renderMode(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const texts = modeTexts(p.texts);
+			let k = value;
+			if (typeof k === "boolean") k = k ? 1 : 0;
+			const known = k !== void 0 && k !== null && k !== "";
+			const text = known ? texts[String(k)] !== void 0 ? texts[String(k)] : String(k) : "—";
+			const abnormal = known && p.normal !== void 0 && p.normal !== "" && String(k) !== String(p.normal);
+			const cls = !known ? "hmi-unknown" : abnormal ? "hmi-abnormal" : "hmi-normal";
+			const title = p.title ? `<text class="hmi-tag-title hmi-left" x="8" y="${f(h / 2)}" font-size="${f(Math.max(9, Math.min(12, h * .34)))}" dominant-baseline="central">${escapeXml(p.title)}</text>` : "";
+			return `<g class="hmi-mode ${cls}">` + rect("hmi-mode-box", 1, 1, w - 2, h - 2, 4) + title + `<text class="hmi-mode-text${p.title ? " hmi-right" : ""}" x="${f(p.title ? w - 8 : w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(h * .46, 18)))}">${escapeXml(text)}</text>` + labelBelow(p, w, h) + "</g>";
+		}
+		function renderInterlock(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const s = Math.min(w, h);
+			const cx = w / 2;
+			if (p.kind === "perm") {
+				const r = s / 2 - 2;
+				const cy = h / 2;
+				const mark = on === false ? `M${f(cx - r * .4)} ${f(cy - r * .4)}L${f(cx + r * .4)} ${f(cy + r * .4)}M${f(cx + r * .4)} ${f(cy - r * .4)}L${f(cx - r * .4)} ${f(cy + r * .4)}` : `M${f(cx - r * .45)} ${f(cy)}L${f(cx - r * .1)} ${f(cy + r * .38)}L${f(cx + r * .48)} ${f(cy - r * .35)}`;
+				return `<g class="hmi-perm ${stateClass(on)}">${circle("hmi-perm-ring", cx, cy, r)}${path("hmi-perm-mark", mark)}${labelBelow(p, w, h)}</g>`;
+			}
+			const bw = s * .7;
+			const bh = s * .5;
+			const by = h - bh - 2;
+			const sr = bw * .3;
+			const lift = on ? 0 : sr * .8;
+			return `<g class="hmi-lock ${stateClass(on)}">` + path("hmi-shackle", `M${f(cx - sr)} ${f(by)}V${f(by - sr - lift)}a${f(sr)} ${f(sr)} 0 0 1 ${f(sr * 2)} 0V${f(by - (on ? 0 : lift * .2))}`) + rect("hmi-lock-body", cx - bw / 2, by, bw, bh, 3) + circle("hmi-keyhole", cx, by + bh * .45, Math.max(1.5, bh * .12)) + labelBelow(p, w, h) + "</g>";
+		}
+		function renderFitting(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = p.onWhen && sym.key ? onState(value, p) : null;
+			const t = Math.max(2, Number(p.thick) || 8);
+			const cx = w / 2;
+			const cy = h / 2;
+			let d = "";
+			let extra = "";
+			switch (p.kind) {
+				case "tee":
+					d = `M0 ${f(cy)}H${f(w)}M${f(cx)} ${f(cy)}V${f(h)}`;
+					break;
+				case "cross":
+					d = `M0 ${f(cy)}H${f(w)}M${f(cx)} 0V${f(h)}`;
+					break;
+				case "flange":
+					d = `M0 ${f(cy)}H${f(w)}`;
+					extra = rect("hmi-flange", cx - t * .9, cy - t * 1.4, t * .7, t * 2.8, 1) + rect("hmi-flange", cx + t * .2, cy - t * 1.4, t * .7, t * 2.8, 1);
+					break;
+				case "reducer":
+					extra = poly("hmi-fit-fill", [
+						[0, cy - t * .9],
+						[w * .35, cy - t * .9],
+						[w * .65, cy - t / 2],
+						[w, cy - t / 2],
+						[w, cy + t / 2],
+						[w * .65, cy + t / 2],
+						[w * .35, cy + t * .9],
+						[0, cy + t * .9]
+					]);
+					break;
+				case "cap":
+					d = `M0 ${f(cy)}H${f(w - t)}`;
+					extra = path("hmi-fit-fill", `M${f(w - t * 1.2)} ${f(cy - t * .75)}h${f(t * .4)}a${f(t * .75)} ${f(t * .75)} 0 0 1 0 ${f(t * 1.5)}h${f(-t * .4)}Z`);
+					break;
+				default: d = `M0 ${f(cy)}H${f(cx)}V${f(h)}`;
+			}
+			const sw = ` style="stroke-width:${f(t)}px"`;
+			return `<g class="hmi-fitting ${stateClass(on)}">` + (d ? `<path class="hmi-hit" d="${d}"/><path class="hmi-fit-pipe" d="${d}"${sw}/>` : "") + extra + "</g>";
+		}
+		function renderArrow(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = sym.key ? onState(value, p) : true;
+			const color = [
+				"info",
+				"warn",
+				"alarm",
+				"ok"
+			].includes(p.color) ? p.color : "auto";
+			const t = h * .36;
+			const hl = Math.min(w * .4, h * .9);
+			let shape;
+			if (p.kind === "double") shape = poly("hmi-arrow-body", [
+				[0, h / 2],
+				[hl, 0],
+				[hl, h / 2 - t / 2],
+				[w - hl, h / 2 - t / 2],
+				[w - hl, 0],
+				[w, h / 2],
+				[w - hl, h],
+				[w - hl, h / 2 + t / 2],
+				[hl, h / 2 + t / 2],
+				[hl, h]
+			]);
+			else if (p.kind === "chevron") {
+				const n = Math.max(1, Math.round(w / (h * .9)));
+				const step = w / n;
+				shape = Array.from({ length: n }, (x, i) => {
+					const x0 = i * step;
+					const k = step * .45;
+					return poly("hmi-arrow-body", [
+						[x0, 0],
+						[x0 + k, 0],
+						[x0 + step * .9, h / 2],
+						[x0 + k, h],
+						[x0, h],
+						[x0 + step * .9 - k, h / 2]
+					]);
+				}).join("");
+			} else shape = poly("hmi-arrow-body", [
+				[0, h / 2 - t / 2],
+				[w - hl, h / 2 - t / 2],
+				[w - hl, 0],
+				[w, h / 2],
+				[w - hl, h],
+				[w - hl, h / 2 + t / 2],
+				[0, h / 2 + t / 2]
+			]);
+			return `<g class="hmi-arrow hmi-c-${color} ${stateClass(on)}">${shape}${labelBelow(p, w, h)}</g>`;
+		}
+		return {
+			vfd: {
+				label: "Inversor de frequência",
+				group: "Elétrica",
+				w: 90,
+				h: 130,
+				preview: 42.5,
+				defaults: {
+					label: "",
+					unit: "Hz",
+					decimals: 1,
+					runKey: "",
+					dirKey: "",
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					UNIT,
+					DEC,
+					key("runKey", "Chave rodando (vazio = valor ≠ 0)"),
+					key("dirKey", "Chave reverso (vazio = valor negativo)"),
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderVfd
+			},
+			breaker: {
+				label: "Disjuntor",
+				group: "Elétrica",
+				w: 50,
+				h: 90,
+				preview: 1,
+				defaults: {
+					label: "",
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no",
+					tripKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					{
+						...ON_FIELDS[0],
+						label: "Fechado quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD,
+					key("tripKey", "Chave disparado (opcional)"),
+					PRIORITY_FIELD
+				],
+				render: renderBreaker
+			},
+			contactor: {
+				label: "Contator",
+				group: "Elétrica",
+				w: 60,
+				h: 90,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: [
+					LABEL,
+					{
+						...ON_FIELDS[0],
+						label: "Fechado quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD,
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderContactor
+			},
+			transformer: {
+				label: "Transformador",
+				group: "Elétrica",
+				w: 80,
+				h: 120,
+				preview: 1,
+				defaults: {
+					...EQ_DEFAULTS,
+					rating: "13,8 / 0,38 kV"
+				},
+				fields: [
+					LABEL,
+					{
+						key: "rating",
+						label: "Texto embaixo (tensão, potência)",
+						type: "text"
+					},
+					{
+						...ON_FIELDS[0],
+						label: "Energizado quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD,
+					{
+						...FAULT_FIELD,
+						label: "Chave de alarme (temperatura, Buchholz)"
+					},
+					PRIORITY_FIELD
+				],
+				render: renderTransformer
+			},
+			generator: {
+				label: "Gerador",
+				group: "Elétrica",
+				w: 70,
+				h: 90,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderGenerator
+			},
+			energyMeter: {
+				label: "Medidor de energia",
+				group: "Elétrica",
+				w: 150,
+				h: 90,
+				preview: 37.4,
+				defaults: {
+					title: "POTÊNCIA",
+					label: "",
+					unit: "kW",
+					decimals: 1,
+					energyKey: "",
+					energyUnit: "kWh",
+					energyDecimals: 0
+				},
+				fields: [
+					TITLE,
+					LABEL,
+					UNIT,
+					DEC,
+					key("energyKey", "Chave da energia (kWh)"),
+					{
+						key: "energyUnit",
+						label: "Unidade da energia",
+						type: "text"
+					},
+					{
+						key: "energyDecimals",
+						label: "Casas da energia",
+						type: "number"
+					}
+				],
+				render: renderEnergyMeter
+			},
+			compressor: {
+				label: "Compressor",
+				group: "Processo",
+				w: 70,
+				h: 76,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderCompressor
+			},
+			blower: {
+				label: "Soprador (blower)",
+				group: "Processo",
+				w: 90,
+				h: 70,
+				preview: 1,
+				defaults: {
+					...EQ_DEFAULTS,
+					dir: "cw"
+				},
+				fields: [...EQ_FIELDS, DIR],
+				render: renderBlower
+			},
+			bagFilter: {
+				label: "Filtro de mangas",
+				group: "Processo",
+				w: 110,
+				h: 180,
+				preview: 85,
+				defaults: {
+					label: "",
+					unit: "mmca",
+					decimals: 0,
+					lo: "",
+					hi: 150,
+					priority: "2"
+				},
+				fields: [
+					LABEL,
+					UNIT,
+					DEC,
+					LO,
+					HI,
+					PRIORITY_FIELD
+				],
+				render: renderBagFilter
+			},
+			controlValve: {
+				label: "Válvula de controle",
+				group: "Processo",
+				w: 70,
+				h: 90,
+				preview: 45,
+				defaults: {
+					label: "",
+					min: 0,
+					max: 100,
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					{
+						...MIN,
+						label: "Valor fechada"
+					},
+					{
+						...MAX,
+						label: "Valor aberta"
+					},
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderControlValve
+			},
+			valve3: {
+				label: "Válvula 3 vias",
+				group: "Processo",
+				w: 70,
+				h: 70,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: [
+					LABEL,
+					{
+						...ON_FIELDS[0],
+						label: "Saída de baixo quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD,
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderValve3
+			},
+			damper: {
+				label: "Damper (registro de duto)",
+				group: "Processo",
+				w: 120,
+				h: 50,
+				preview: 60,
+				defaults: {
+					label: "",
+					min: 0,
+					max: 100,
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					{
+						...MIN,
+						label: "Valor fechado"
+					},
+					{
+						...MAX,
+						label: "Valor aberto"
+					},
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderDamper
+			},
+			mixer: {
+				label: "Misturador / agitador",
+				group: "Processo",
+				w: 100,
+				h: 160,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderMixer
+			},
+			heatExchanger: {
+				label: "Trocador de calor",
+				group: "Processo",
+				w: 190,
+				h: 80,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderHeatExchanger
+			},
+			boiler: {
+				label: "Caldeira",
+				group: "Processo",
+				w: 100,
+				h: 170,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: [
+					LABEL,
+					{
+						...ON_FIELDS[0],
+						label: "Queimador ligado quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD,
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderBoiler
+			},
+			coolingTower: {
+				label: "Torre de resfriamento",
+				group: "Processo",
+				w: 130,
+				h: 160,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderCoolingTower
+			},
+			chiller: {
+				label: "Chiller",
+				group: "Processo",
+				w: 160,
+				h: 100,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderChiller
+			},
+			cyclone: {
+				label: "Ciclone",
+				group: "Processo",
+				w: 80,
+				h: 170,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderCyclone
+			},
+			flowmeter: {
+				label: "Medidor de vazão",
+				group: "Processo",
+				w: 150,
+				h: 64,
+				preview: 12.6,
+				defaults: {
+					label: "",
+					tagText: "FT",
+					unit: "m³/h",
+					decimals: 1,
+					lo: "",
+					hi: "",
+					priority: "2"
+				},
+				fields: [
+					LABEL,
+					{
+						key: "tagText",
+						label: "Letras no círculo",
+						type: "text"
+					},
+					UNIT,
+					DEC,
+					LO,
+					HI,
+					PRIORITY_FIELD
+				],
+				render: renderFlowmeter
+			},
+			instrument: {
+				label: "Instrumento ISA (bolha)",
+				group: "Processo",
+				w: 64,
+				h: 64,
+				preview: 6.2,
+				defaults: {
+					letters: "PT",
+					number: "101",
+					location: "field",
+					showValue: "yes",
+					label: "",
+					unit: "bar",
+					decimals: 1,
+					lo: "",
+					hi: "",
+					priority: "2"
+				},
+				fields: [
+					{
+						key: "letters",
+						label: "Letras (ex. PT, TT, FIC)",
+						type: "text"
+					},
+					{
+						key: "number",
+						label: "Número da malha",
+						type: "text"
+					},
+					{
+						key: "location",
+						label: "Montagem",
+						type: "select",
+						options: [
+							["field", "Campo (sem traço)"],
+							["panel", "Painel (traço)"],
+							["behind", "Atrás do painel (tracejado)"],
+							["dcs", "Supervisório / CLP (quadrado)"]
+						]
+					},
+					{
+						key: "showValue",
+						label: "Mostrar valor",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					},
+					LABEL,
+					UNIT,
+					DEC,
+					LO,
+					HI,
+					PRIORITY_FIELD
+				],
+				render: renderInstrument
+			},
+			crane: {
+				label: "Ponte rolante / talha",
+				group: "Fábrica",
+				variants: [{
+					label: "Ponte rolante",
+					w: 420,
+					h: 220,
+					props: { kind: "crane" }
+				}, {
+					label: "Talha",
+					w: 140,
+					h: 200,
+					props: { kind: "hoist" }
+				}],
+				w: 420,
+				h: 220,
+				preview: 40,
+				defaults: {
+					kind: "crane",
+					label: "",
+					min: 0,
+					max: 100,
+					hookKey: "",
+					hookMin: 0,
+					hookMax: 100,
+					loadKey: "",
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [["crane", "Ponte rolante (chave = posição do carro)"], ["hoist", "Talha (chave = altura do gancho)"]],
+						refresh: true
+					},
+					LABEL,
+					{
+						...MIN,
+						label: "Valor mín. (esquerda / embaixo)"
+					},
+					{
+						...MAX,
+						label: "Valor máx. (direita / em cima)"
+					},
+					{
+						...key("hookKey", "Chave da altura do gancho"),
+						when: (p) => p.kind !== "hoist"
+					},
+					{
+						key: "hookMin",
+						label: "Gancho embaixo",
+						type: "number",
+						when: (p) => p.kind !== "hoist"
+					},
+					{
+						key: "hookMax",
+						label: "Gancho em cima",
+						type: "number",
+						when: (p) => p.kind !== "hoist"
+					},
+					key("loadKey", "Chave com carga (opcional)"),
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderCrane
+			},
+			robot: {
+				label: "Robô (braço)",
+				group: "Fábrica",
+				w: 110,
+				h: 120,
+				preview: 1,
+				defaults: {
+					...EQ_DEFAULTS,
+					weldKey: ""
+				},
+				fields: [...EQ_FIELDS, key("weldKey", "Chave soldando (faísca)")],
+				render: renderRobot
+			},
+			welder: {
+				label: "Fonte de solda",
+				group: "Fábrica",
+				w: 80,
+				h: 110,
+				preview: 180,
+				defaults: {
+					label: "",
+					unit: "A",
+					decimals: 0,
+					arcKey: "",
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					UNIT,
+					DEC,
+					key("arcKey", "Chave arco aberto (vazio = valor > 0)"),
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderWelder
+			},
+			oven: {
+				label: "Estufa / forno",
+				group: "Fábrica",
+				w: 170,
+				h: 130,
+				preview: 180,
+				defaults: {
+					label: "",
+					unit: "°C",
+					decimals: 0,
+					lo: "",
+					hi: 220,
+					priority: "2",
+					doorKey: "",
+					heatKey: ""
+				},
+				fields: [
+					LABEL,
+					UNIT,
+					DEC,
+					LO,
+					HI,
+					PRIORITY_FIELD,
+					key("doorKey", "Chave porta aberta"),
+					key("heatKey", "Chave aquecendo")
+				],
+				render: renderOven
+			},
+			paintBooth: {
+				label: "Cabine de pintura",
+				group: "Fábrica",
+				w: 190,
+				h: 130,
+				preview: 1,
+				defaults: { ...EQ_DEFAULTS },
+				fields: EQ_FIELDS,
+				render: renderPaintBooth
+			},
+			calender: {
+				label: "Calandra (3 rolos)",
+				group: "Fábrica",
+				w: 160,
+				h: 120,
+				preview: 1,
+				defaults: {
+					...EQ_DEFAULTS,
+					dir: "cw"
+				},
+				fields: [...EQ_FIELDS, DIR],
+				render: renderCalender
+			},
+			press: {
+				label: "Prensa / dobradeira",
+				group: "Fábrica",
+				w: 120,
+				h: 160,
+				preview: 30,
+				defaults: {
+					label: "",
+					min: 0,
+					max: 100,
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					LABEL,
+					{
+						...MIN,
+						label: "Valor em cima"
+					},
+					{
+						...MAX,
+						label: "Valor embaixo"
+					},
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderPress
+			},
+			scale: {
+				label: "Balança",
+				group: "Fábrica",
+				w: 150,
+				h: 80,
+				preview: 1250,
+				defaults: {
+					label: "",
+					unit: "kg",
+					decimals: 1,
+					lo: "",
+					hi: "",
+					priority: "2"
+				},
+				fields: [
+					LABEL,
+					UNIT,
+					DEC,
+					LO,
+					HI,
+					PRIORITY_FIELD
+				],
+				render: renderScale
+			},
+			vehicle: {
+				label: "Veículo",
+				group: "Fábrica",
+				variants: [
+					{
+						label: "Carrinho de transferência",
+						w: 320,
+						h: 70,
+						props: {
+							kind: "cart",
+							move: "pos"
+						}
+					},
+					{
+						label: "AGV",
+						w: 90,
+						h: 50,
+						props: {
+							kind: "agv",
+							move: "fixed"
+						}
+					},
+					{
+						label: "Empilhadeira",
+						w: 110,
+						h: 80,
+						props: {
+							kind: "forklift",
+							move: "fixed"
+						}
+					}
+				],
+				w: 320,
+				h: 70,
+				preview: 50,
+				defaults: {
+					kind: "cart",
+					move: "pos",
+					label: "",
+					min: 0,
+					max: 100,
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no",
+					faultKey: "",
+					priority: "1"
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [
+							["cart", "Carrinho no trilho"],
+							["agv", "AGV"],
+							["forklift", "Empilhadeira"]
+						]
+					},
+					{
+						key: "move",
+						label: "A chave é",
+						type: "select",
+						options: [["pos", "Posição (anda na largura)"], ["fixed", "Ligado / desligado"]],
+						refresh: true
+					},
+					LABEL,
+					{
+						...MIN,
+						label: "Posição esquerda",
+						when: (p) => p.move === "pos"
+					},
+					{
+						...MAX,
+						label: "Posição direita",
+						when: (p) => p.move === "pos"
+					},
+					{
+						...ON_FIELDS[0],
+						when: (p) => p.move !== "pos"
+					},
+					{
+						...ON_FIELDS[1],
+						when: (p) => p.move !== "pos"
+					},
+					{
+						...INVERT_FIELD,
+						when: (p) => p.move !== "pos"
+					},
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderVehicle
+			},
+			rollerTable: {
+				label: "Mesa de rolos",
+				group: "Fábrica",
+				w: 260,
+				h: 44,
+				preview: 1,
+				defaults: {
+					...EQ_DEFAULTS,
+					dir: "cw"
+				},
+				fields: [...EQ_FIELDS, DIR],
+				render: renderRollerTable
+			},
+			isaBar: {
+				label: "Barra ISA-101",
+				group: "Valores",
+				variants: [{
+					label: "Barra ISA-101 (vertical)",
+					w: 80,
+					h: 220
+				}, {
+					label: "Barra ISA-101 (horizontal)",
+					w: 260,
+					h: 80
+				}],
+				w: 80,
+				h: 220,
+				preview: 62,
+				defaults: {
+					title: "TEMPERATURA",
+					unit: "°C",
+					decimals: 0,
+					min: 0,
+					max: 100,
+					lolo: 10,
+					lo: 30,
+					hi: 80,
+					hihi: 90,
+					spKey: "",
+					priority: "2"
+				},
+				fields: [
+					TITLE,
+					UNIT,
+					DEC,
+					MIN,
+					MAX,
+					{
+						key: "lolo",
+						label: "Alarme muito baixo (LL)",
+						type: "number"
+					},
+					{
+						key: "lo",
+						label: "Faixa normal de (L)",
+						type: "number"
+					},
+					{
+						key: "hi",
+						label: "Faixa normal até (H)",
+						type: "number"
+					},
+					{
+						key: "hihi",
+						label: "Alarme muito alto (HH)",
+						type: "number"
+					},
+					key("spKey", "Chave do setpoint (opcional)"),
+					{
+						...PRIORITY_FIELD,
+						label: "Prioridade fora de L/H"
+					}
+				],
+				render: renderIsaBar
+			},
+			counter: {
+				label: "Contador",
+				group: "Valores",
+				variants: [{
+					label: "Horas de funcionamento",
+					w: 170,
+					h: 64,
+					props: {
+						kind: "hours",
+						title: "HORAS DE FUNCIONAMENTO"
+					}
+				}, {
+					label: "Contador de partidas",
+					w: 170,
+					h: 64,
+					props: {
+						kind: "count",
+						title: "PARTIDAS",
+						unit: ""
+					}
+				}],
+				w: 170,
+				h: 64,
+				preview: 1234,
+				defaults: {
+					kind: "hours",
+					title: "HORAS",
+					src: "h",
+					decimals: 0,
+					unit: "",
+					label: ""
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [["hours", "Horas"], ["count", "Contagem"]],
+						refresh: true
+					},
+					TITLE,
+					{
+						key: "src",
+						label: "O CLP manda em",
+						type: "select",
+						options: [
+							["h", "Horas"],
+							["min", "Minutos"],
+							["s", "Segundos"]
+						],
+						when: (p) => p.kind === "hours"
+					},
+					{
+						...DEC,
+						when: (p) => p.kind === "hours"
+					},
+					{
+						...UNIT,
+						when: (p) => p.kind !== "hours"
+					},
+					LABEL
+				],
+				render: renderCounter
+			},
+			mode: {
+				label: "Modo (MAN / AUTO)",
+				group: "Estados",
+				w: 150,
+				h: 36,
+				preview: 1,
+				defaults: {
+					title: "MODO",
+					texts: "0=MANUAL,1=AUTO,2=LOCAL,3=REMOTO",
+					normal: "1",
+					label: ""
+				},
+				fields: [
+					TITLE,
+					{
+						key: "texts",
+						label: "Textos (valor=texto, separados por vírgula)",
+						type: "text"
+					},
+					{
+						key: "normal",
+						label: "Valor normal (os outros ficam destacados)",
+						type: "text"
+					},
+					LABEL
+				],
+				render: renderMode
+			},
+			interlock: {
+				label: "Intertravamento",
+				group: "Estados",
+				variants: [{
+					label: "Intertravamento (cadeado)",
+					w: 40,
+					h: 46,
+					props: { kind: "lock" }
+				}, {
+					label: "Permissivo (OK)",
+					w: 40,
+					h: 40,
+					props: { kind: "perm" }
+				}],
+				w: 40,
+				h: 46,
+				preview: 1,
+				defaults: {
+					kind: "lock",
+					label: "",
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no"
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [["lock", "Intertravamento (ligado = bloqueado)"], ["perm", "Permissivo (ligado = OK)"]]
+					},
+					LABEL,
+					...ON_FIELDS
+				],
+				render: renderInterlock
+			},
+			fitting: {
+				label: "Conexão de tubo",
+				group: "Linhas",
+				variants: [
+					{
+						label: "Cotovelo",
+						w: 50,
+						h: 50,
+						props: { kind: "elbow" }
+					},
+					{
+						label: "Tê",
+						w: 80,
+						h: 50,
+						props: { kind: "tee" }
+					},
+					{
+						label: "Cruzeta",
+						w: 60,
+						h: 60,
+						props: { kind: "cross" }
+					},
+					{
+						label: "Flange",
+						w: 50,
+						h: 40,
+						props: { kind: "flange" }
+					},
+					{
+						label: "Redução",
+						w: 70,
+						h: 30,
+						props: { kind: "reducer" }
+					},
+					{
+						label: "Tampão",
+						w: 40,
+						h: 30,
+						props: { kind: "cap" }
+					}
+				],
+				w: 50,
+				h: 50,
+				preview: void 0,
+				defaults: {
+					kind: "elbow",
+					thick: 8,
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no"
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [
+							["elbow", "Cotovelo"],
+							["tee", "Tê"],
+							["cross", "Cruzeta"],
+							["flange", "Flange"],
+							["reducer", "Redução"],
+							["cap", "Tampão"]
+						]
+					},
+					{
+						key: "thick",
+						label: "Espessura (8 = tubulação)",
+						type: "number"
+					},
+					...ON_FIELDS
+				],
+				render: renderFitting
+			},
+			arrow: {
+				label: "Seta",
+				group: "Linhas",
+				variants: [
+					{
+						label: "Seta",
+						w: 90,
+						h: 30,
+						props: { kind: "single" }
+					},
+					{
+						label: "Seta dupla",
+						w: 110,
+						h: 30,
+						props: { kind: "double" }
+					},
+					{
+						label: "Seta de sentido (>>>)",
+						w: 90,
+						h: 26,
+						props: { kind: "chevron" }
+					}
+				],
+				w: 90,
+				h: 30,
+				preview: void 0,
+				defaults: {
+					kind: "single",
+					color: "auto",
+					label: "",
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no"
+				},
+				fields: [
+					{
+						key: "kind",
+						label: "Tipo",
+						type: "select",
+						options: [
+							["single", "Seta"],
+							["double", "Seta dupla"],
+							["chevron", "Sentido (>>>)"]
+						]
+					},
+					{
+						key: "color",
+						label: "Cor",
+						type: "select",
+						options: [
+							["auto", "Do tema"],
+							["info", "Azul"],
+							["ok", "Verde"],
+							["warn", "Amarelo"],
+							["alarm", "Vermelho"]
+						]
+					},
+					LABEL,
+					{
+						...ON_FIELDS[0],
+						label: "Com chave: acesa quando"
+					},
+					ON_FIELDS[1],
+					INVERT_FIELD
+				],
+				render: renderArrow
+			}
+		};
+	}
+	var MORE_CSS = `
+.hmi-root .hmi-eq .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1.5; stroke-linejoin: round; }
+.hmi-root .hmi-eq.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-eq.hmi-unknown .hmi-body { stroke-dasharray: 5 3; }
+.hmi-root .hmi-eq .hmi-part, .hmi-root .hmi-eq .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-eq .hmi-light { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-eq .hmi-inner, .hmi-root .hmi-eq .hmi-mark { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.5; stroke-linecap: round; }
+.hmi-root .hmi-eq.hmi-on .hmi-inner { stroke: var(--hmi-tag-bg); }
+.hmi-root .hmi-eq .hmi-light ~ .hmi-inner, .hmi-root .hmi-eq .hmi-spin .hmi-inner { stroke: var(--hmi-stroke); }
+.hmi-root .hmi-eq .hmi-hub { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-eq .hmi-dashed { stroke-dasharray: 4 3; }
+.hmi-root .hmi-eq .hmi-glyph, .hmi-root .hmi-counter .hmi-glyph { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-eq.hmi-on:not(.hmi-instrument):not(.hmi-flowmeter) .hmi-glyph { fill: var(--hmi-tag-bg); }
+.hmi-root .hmi-eq .hmi-glyph.hmi-thin { font-weight: 500; }
+.hmi-root .hmi-disp { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-disp-text { fill: var(--hmi-text); font-family: Consolas, "Roboto Mono", monospace; font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-alarm .hmi-disp { stroke: var(--hmi-alarm); stroke-width: 2; }
+.hmi-root .hmi-alarm .hmi-disp-text { fill: var(--hmi-alarm); }
+.hmi-root .hmi-alarm.hmi-eq .hmi-body { stroke: var(--hmi-alarm); stroke-width: 2.5; }
+.hmi-root .hmi-sub-label { fill: var(--hmi-text-dim); font-size: 12px; font-weight: 600; }
+.hmi-root .hmi-sub-value { fill: var(--hmi-text); font-size: 11px; font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-eq .hmi-spin, .hmi-root .hmi-eq .hmi-stir, .hmi-root .hmi-eq .hmi-arm { transform-box: view-box; transform-origin: 0 0; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin { animation: hmi-spin 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin.hmi-ccw { animation: hmi-spin-ccw 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-stir { animation: hmi-stir .8s ease-in-out infinite alternate; }
+.hmi-root.hmi-theme-classic .hmi-robot.hmi-on .hmi-arm { animation: hmi-arm 2.4s ease-in-out infinite alternate; }
+.hmi-root .hmi-eq .hmi-led, .hmi-root .hmi-eq .hmi-led-rect { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-eq.hmi-on .hmi-led, .hmi-root .hmi-eq.hmi-on .hmi-led-rect { fill: var(--hmi-ok); }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-led-arc { fill: var(--hmi-warn); }
+.hmi-root .hmi-eq.hmi-fault .hmi-led { fill: var(--hmi-alarm); }
+.hmi-root .hmi-eq .hmi-key { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-eq .hmi-arrowhead { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-eq .hmi-wire, .hmi-root .hmi-eq .hmi-blade-line { fill: none; stroke: var(--hmi-stroke); stroke-width: 2.5; stroke-linecap: round; }
+.hmi-root .hmi-eq .hmi-link { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.hmi-root .hmi-eq .hmi-terminal { fill: var(--hmi-stroke); }
+.hmi-root .hmi-eq .hmi-terminal-big { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-eq .hmi-wave { fill: none; stroke: var(--hmi-text); stroke-width: 1.8; }
+.hmi-root .hmi-eq.hmi-on .hmi-wave { stroke: var(--hmi-tag-bg); }
+.hmi-root .hmi-transformer .hmi-coil2 { fill-opacity: .75; }
+.hmi-root .hmi-eq .hmi-stem { fill: none; stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-eq .hmi-stroke-pos { fill: var(--hmi-text); }
+.hmi-root .hmi-eq .hmi-actuator { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-valve3 .hmi-port { fill: var(--hmi-tag-bg); }
+.hmi-root .hmi-valve3 .hmi-port.hmi-open { fill: var(--hmi-equip-on); }
+.hmi-root.hmi-theme-classic .hmi-valve3 .hmi-port.hmi-open { fill: var(--hmi-ok); }
+.hmi-root .hmi-damper-blade { stroke: var(--hmi-text); stroke-width: 3; stroke-linecap: round; }
+.hmi-root .hmi-damper.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-bag { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-bagfilter.hmi-on .hmi-body, .hmi-root .hmi-oven.hmi-on .hmi-body, .hmi-root .hmi-scale.hmi-on .hmi-body, .hmi-root .hmi-flowmeter.hmi-on .hmi-body, .hmi-root .hmi-instrument.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-instrument .hmi-body { fill: var(--hmi-tag-bg); }
+.hmi-root .hmi-instrument.hmi-on .hmi-body { fill: var(--hmi-tag-bg); }
+.hmi-root .hmi-instrument .hmi-dcs { fill: none; }
+.hmi-root .hmi-instrument.hmi-alarm .hmi-body { stroke: var(--hmi-alarm); stroke-width: 2.5; }
+.hmi-root .hmi-pipe-body { fill: var(--hmi-line); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-mixer .hmi-vessel { fill: var(--hmi-equip) !important; }
+.hmi-root .hmi-mixer .hmi-shaft { stroke: var(--hmi-stroke); stroke-width: 2.5; }
+.hmi-root .hmi-flame { fill: var(--hmi-equip-on); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root.hmi-theme-classic .hmi-flame { fill: var(--hmi-warn); stroke: #e8590c; }
+.hmi-root .hmi-boiler.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-cable { stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-hook { fill: none; stroke: var(--hmi-stroke); stroke-width: 2.5; stroke-linecap: round; }
+.hmi-root .hmi-load { fill: var(--hmi-material); stroke: var(--hmi-stroke); stroke-width: 1; opacity: .85; }
+.hmi-root .hmi-joint { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-spark { fill: var(--hmi-warn); stroke: #a15c00; stroke-width: .8; }
+.hmi-root .hmi-heat { fill: none; stroke: var(--hmi-line); stroke-width: 1.8; stroke-linecap: round; }
+.hmi-root .hmi-oven.hmi-heating .hmi-heat { stroke: var(--hmi-text); }
+.hmi-root.hmi-theme-classic .hmi-oven.hmi-heating .hmi-heat { stroke: var(--hmi-warn); }
+.hmi-root .hmi-door { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-opening { fill: var(--hmi-pit); stroke: var(--hmi-warn); stroke-width: 2; }
+.hmi-root .hmi-spray { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; stroke-dasharray: 3 3; opacity: .3; }
+.hmi-root .hmi-booth.hmi-on .hmi-spray { opacity: .9; stroke-dasharray: none; }
+.hmi-root .hmi-booth.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-plate { fill: none; stroke: var(--hmi-material); stroke-width: 4; }
+.hmi-root .hmi-calender .hmi-body, .hmi-root .hmi-rolltable .hmi-body { fill: var(--hmi-tag-bg); }
+.hmi-root .hmi-calender.hmi-on .hmi-body, .hmi-root .hmi-rolltable.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-stem-rect { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-wheel { fill: var(--hmi-text-dim); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-crane.hmi-on .hmi-body, .hmi-root .hmi-vehicle.hmi-cart.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-meter.hmi-on .hmi-body { fill: var(--hmi-equip); }
+.hmi-root .hmi-isa-track { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-isa-ll { fill: var(--hmi-dark); opacity: .55; }
+.hmi-root .hmi-isa-normal { fill: var(--hmi-line); opacity: .55; }
+.hmi-root .hmi-isa-ptr { fill: var(--hmi-text); }
+.hmi-root .hmi-isa-sp { fill: none; stroke: var(--hmi-info); stroke-width: 2; }
+.hmi-root .hmi-isabar.hmi-warn .hmi-isa-ptr { fill: var(--hmi-warn); stroke: #000; stroke-width: 1; }
+.hmi-root .hmi-isabar.hmi-alarm .hmi-isa-ptr { fill: var(--hmi-alarm); stroke: #000; stroke-width: 1; }
+.hmi-root .hmi-isabar.hmi-alarm .hmi-tag-value { fill: var(--hmi-alarm); }
+.hmi-root .hmi-counter .hmi-icon { fill: var(--hmi-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-counter .hmi-icon-hand { stroke: var(--hmi-text); stroke-width: 1.8; stroke-linecap: round; }
+.hmi-root .hmi-mode-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-mode-text { fill: var(--hmi-text); font-weight: 800; letter-spacing: .5px; dominant-baseline: central; }
+.hmi-root .hmi-mode.hmi-abnormal .hmi-mode-box { fill: var(--hmi-warn); stroke: #000; stroke-width: 1.5; }
+.hmi-root .hmi-mode.hmi-abnormal .hmi-mode-text, .hmi-root .hmi-mode.hmi-abnormal .hmi-tag-title { fill: #000; }
+.hmi-root .hmi-mode.hmi-unknown .hmi-mode-box { stroke-dasharray: 4 3; }
+.hmi-root .hmi-lock-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-shackle { fill: none; stroke: var(--hmi-stroke); stroke-width: 3; stroke-linecap: round; }
+.hmi-root .hmi-keyhole { fill: var(--hmi-stroke); }
+.hmi-root .hmi-lock.hmi-on .hmi-lock-body { fill: var(--hmi-warn); stroke: #000; }
+.hmi-root .hmi-lock.hmi-unknown .hmi-lock-body { stroke-dasharray: 3 2; }
+.hmi-root .hmi-perm-ring { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-perm-mark { fill: none; stroke: var(--hmi-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.hmi-root .hmi-perm.hmi-off .hmi-perm-ring { fill: var(--hmi-warn); stroke: #000; }
+.hmi-root .hmi-perm.hmi-unknown .hmi-perm-ring { stroke-dasharray: 3 2; }
+.hmi-root .hmi-fitting .hmi-hit { fill: none; stroke: transparent; stroke-width: 16; }
+.hmi-root .hmi-fit-pipe { fill: none; stroke: var(--hmi-line); stroke-linecap: butt; stroke-linejoin: round; }
+.hmi-root .hmi-fit-fill, .hmi-root .hmi-flange { fill: var(--hmi-line); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-fitting.hmi-on .hmi-fit-pipe { stroke: var(--hmi-equip-on); }
+.hmi-root .hmi-fitting.hmi-on .hmi-fit-fill { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-arrow-body { fill: var(--hmi-line); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-arrow.hmi-c-info .hmi-arrow-body { fill: var(--hmi-info); }
+.hmi-root .hmi-arrow.hmi-c-ok .hmi-arrow-body { fill: #2e9d4f; }
+.hmi-root .hmi-arrow.hmi-c-warn .hmi-arrow-body { fill: var(--hmi-warn); }
+.hmi-root .hmi-arrow.hmi-c-alarm .hmi-arrow-body { fill: var(--hmi-alarm); }
+.hmi-root .hmi-arrow.hmi-off .hmi-arrow-body { opacity: .25; }
+@keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
+@keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
+`;
+	//#endregion
 	//#region ui/symbols/index.js
 	var THEMES = {
 		isa101: "ISA-101",
@@ -1386,6 +3292,9 @@ var HmiEditor = (function(exports) {
 		"Formas",
 		"Estruturas",
 		"Equipamentos",
+		"Processo",
+		"Fábrica",
+		"Elétrica",
 		"Linhas",
 		"Valores",
 		"Estados",
@@ -2453,14 +4362,14 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-rule-hidden { opacity: .25; }
 .hmi-root .hmi-rule-blink { animation: hmi-blink 1s steps(2) infinite; }
 .hmi-root .hmi-rule-dim { opacity: .35; }
-.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-alarm) !important; }
-.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-warn) !important; }
-.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: var(--hmi-info) !important; }
-.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill) { fill: #2e9d4f !important; }
-.hmi-root .hmi-rule-alarm .hmi-path { stroke: var(--hmi-alarm) !important; }
-.hmi-root .hmi-rule-warn .hmi-path { stroke: var(--hmi-warn) !important; }
-.hmi-root .hmi-rule-info .hmi-path { stroke: var(--hmi-info) !important; }
-.hmi-root .hmi-rule-ok .hmi-path { stroke: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-body, .hmi-tag-box, .hmi-chip-box, .hmi-button-box, .hmi-setpoint-box, .hmi-switch-track, .hmi-kpi-card, .hmi-blade, .hmi-dot, .hmi-level, .hmi-vbar-fill, .hmi-mode-box, .hmi-lock-body, .hmi-perm-ring, .hmi-arrow-body, .hmi-fit-fill) { fill: #2e9d4f !important; }
+.hmi-root .hmi-rule-alarm :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-alarm) !important; }
+.hmi-root .hmi-rule-warn :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-warn) !important; }
+.hmi-root .hmi-rule-info :is(.hmi-path, .hmi-fit-pipe) { stroke: var(--hmi-info) !important; }
+.hmi-root .hmi-rule-ok :is(.hmi-path, .hmi-fit-pipe) { stroke: #2e9d4f !important; }
 .hmi-root .hmi-rule-alarm .hmi-text text { fill: var(--hmi-alarm); }
 .hmi-root .hmi-rule-warn .hmi-text text { fill: var(--hmi-warn); }
 .hmi-root .hmi-rule-info .hmi-text text { fill: var(--hmi-info); }
@@ -2515,7 +4424,27 @@ var HmiEditor = (function(exports) {
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-`;
+` + MORE_CSS;
+	Object.assign(SYMBOLS, moreSymbols({
+		f,
+		num,
+		escapeXml,
+		isOn,
+		onState,
+		formatValue,
+		rangeState,
+		alarmIndicator,
+		stateClass,
+		labelBelow,
+		faultOf,
+		faultMark,
+		faultClass,
+		scaleOf,
+		ON_FIELDS,
+		INVERT_FIELD,
+		FAULT_FIELD,
+		PRIORITY_FIELD
+	}));
 	function injectStyles(doc) {
 		const d = doc || (typeof document !== "undefined" ? document : null);
 		if (!d || d.getElementById("hmi-symbols-style")) return;
