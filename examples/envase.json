@@ -1,0 +1,545 @@
+[
+    {
+        "id": "ex_env",
+        "type": "tab",
+        "label": "IHM envase",
+        "info": "Linha de envase simulada, montada com as montagens prontas (Estação de envase e Cilindro com válvula). Abra /dashboard/envase."
+    },
+    {
+        "id": "hx_base",
+        "type": "ui-base",
+        "name": "Dashboard",
+        "path": "/dashboard",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "navigationStyle": "none",
+        "titleBarStyle": "hidden"
+    },
+    {
+        "id": "hx_theme",
+        "type": "ui-theme",
+        "name": "Default",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "pg_env",
+        "type": "ui-page",
+        "name": "Envase",
+        "ui": "hx_base",
+        "path": "/envase",
+        "icon": "bottle-wine",
+        "layout": "grid",
+        "theme": "hx_theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 5,
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "env_cmt",
+        "type": "comment",
+        "z": "ex_env",
+        "name": "Ciclo simulado a cada 1 s: a garrafa chega, o cilindro trava, enche, tampa, rotula e solta.",
+        "info": "",
+        "x": 360,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "env_tick",
+        "type": "inject",
+        "z": "ex_env",
+        "name": "a cada 1 s",
+        "props": [],
+        "repeat": "1",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "x": 120,
+        "y": 120,
+        "wires": [
+            [
+                "env_sim"
+            ]
+        ]
+    },
+    {
+        "id": "env_sim",
+        "type": "function",
+        "z": "ex_env",
+        "name": "simula envase",
+        "func": "// Ciclo de envase simulado. Troque pelos valores do seu CLP.\n// passos: 0 esteira leva a garrafa, 1 trava (cilindro) e enche, 2 tampa, 3 rotula, 4 solta\nconst s = flow.get('sim') || { passo: 0, t: 0, nivel: 0, garrafas: 0 }\nconst cmd = flow.get('cmd') || { rodando: 1 }\nif (cmd.rodando) {\n    s.t++\n    if (s.passo === 0 && s.t >= 3) { s.passo = 1; s.t = 0; s.nivel = 0 }\n    else if (s.passo === 1) { s.nivel = Math.min(100, s.nivel + 20); if (s.nivel >= 100) { s.passo = 2; s.t = 0 } }\n    else if (s.passo === 2 && s.t >= 2) { s.passo = 3; s.t = 0 }\n    else if (s.passo === 3 && s.t >= 2) { s.passo = 4; s.t = 0; s.garrafas++ }\n    else if (s.passo === 4 && s.t >= 1) { s.passo = 0; s.t = 0; s.nivel = 0 }\n}\nflow.set('sim', s)\nconst trava = s.passo >= 1 && s.passo <= 3\nmsg.payload = {\n    rodando: cmd.rodando, ciclo: s.passo,\n    'E1.esteira': cmd.rodando && (s.passo === 0 || s.passo === 4) ? 1 : 0,\n    'E1.garrafa': s.passo >= 1 && s.passo <= 3 ? 1 : 0,\n    'E1.nivel': s.nivel, 'E1.tampa': s.passo === 2 ? 1 : 0, 'E1.rotulo': s.passo === 3 ? 1 : 0,\n    'E1.garrafas': s.garrafas, 'E1.falha': cmd.rodando ? 0 : 1,\n    'Y1.solenoide': trava ? 1 : 0, 'Y1.avancado': trava ? 1 : 0, 'Y1.recuado': trava ? 0 : 1\n}\nreturn msg",
+        "outputs": 1,
+        "x": 290,
+        "y": 120,
+        "wires": [
+            [
+                "env_canvas"
+            ]
+        ]
+    },
+    {
+        "id": "env_canvas",
+        "type": "ui-hmi-canvas",
+        "z": "ex_env",
+        "name": "Envase",
+        "scope": "page",
+        "page": "pg_env",
+        "order": 1,
+        "viewW": 1280,
+        "viewH": 720,
+        "theme": "isa101",
+        "fit": "screen",
+        "background": "theme",
+        "offlineAfter": 10,
+        "locale": "pt-BR",
+        "alarms": "on",
+        "alarmsOut": "no",
+        "symbols": [
+            {
+                "id": "env1",
+                "type": "text",
+                "x": 60,
+                "y": 90,
+                "w": 640,
+                "h": 24,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "Envase E1",
+                    "size": 14,
+                    "align": "middle",
+                    "bold": "yes",
+                    "tone": "normal",
+                    "unit": "",
+                    "decimals": ""
+                }
+            },
+            {
+                "id": "env2",
+                "type": "frame",
+                "x": 60,
+                "y": 120,
+                "w": 260,
+                "h": 170,
+                "rot": 0,
+                "key": "E1.nivel",
+                "props": {
+                    "shape": "filler",
+                    "tone": "equip",
+                    "label": "Enchedora",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0,
+                    "motion": "value"
+                }
+            },
+            {
+                "id": "env3",
+                "type": "frame",
+                "x": 340,
+                "y": 150,
+                "w": 150,
+                "h": 140,
+                "rot": 0,
+                "key": "E1.tampa",
+                "props": {
+                    "shape": "capper",
+                    "tone": "equip",
+                    "label": "Tampadora",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "env4",
+                "type": "frame",
+                "x": 510,
+                "y": 150,
+                "w": 180,
+                "h": 140,
+                "rot": 0,
+                "key": "E1.rotulo",
+                "props": {
+                    "shape": "labeler",
+                    "tone": "equip",
+                    "label": "Rotuladora",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "env5",
+                "type": "conveyor",
+                "x": 60,
+                "y": 320,
+                "w": 640,
+                "h": 40,
+                "rot": 0,
+                "key": "E1.esteira",
+                "props": {
+                    "label": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "dir": "fwd",
+                    "faultKey": "",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "env6",
+                "type": "frame",
+                "x": 280,
+                "y": 370,
+                "w": 160,
+                "h": 30,
+                "rot": 0,
+                "key": "E1.garrafa",
+                "props": {
+                    "shape": "photoEye",
+                    "tone": "equip",
+                    "label": "",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "env7",
+                "type": "frame",
+                "x": 660,
+                "y": 110,
+                "w": 36,
+                "h": 70,
+                "rot": 0,
+                "key": "E1.falha",
+                "props": {
+                    "shape": "beacon",
+                    "tone": "equip",
+                    "label": "",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "env8",
+                "type": "tag",
+                "x": 60,
+                "y": 420,
+                "w": 140,
+                "h": 60,
+                "rot": 0,
+                "key": "E1.nivel",
+                "props": {
+                    "title": "NÍVEL",
+                    "unit": "%",
+                    "decimals": 0,
+                    "min": "",
+                    "max": "",
+                    "lo": "",
+                    "hi": "",
+                    "priority": "2"
+                }
+            },
+            {
+                "id": "env9",
+                "type": "counter",
+                "x": 220,
+                "y": 420,
+                "w": 160,
+                "h": 60,
+                "rot": 0,
+                "key": "E1.garrafas",
+                "props": {
+                    "kind": "count",
+                    "title": "GARRAFAS",
+                    "src": "h",
+                    "decimals": 0,
+                    "unit": "",
+                    "label": ""
+                }
+            },
+            {
+                "id": "cil10",
+                "type": "text",
+                "x": 780,
+                "y": 90,
+                "w": 260,
+                "h": 24,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "Y1",
+                    "size": 14,
+                    "align": "middle",
+                    "bold": "yes",
+                    "tone": "normal",
+                    "unit": "",
+                    "decimals": ""
+                }
+            },
+            {
+                "id": "cil11",
+                "type": "frame",
+                "x": 790,
+                "y": 120,
+                "w": 50,
+                "h": 70,
+                "rot": 0,
+                "key": "Y1.recuado",
+                "props": {
+                    "shape": "limitSwitch",
+                    "tone": "equip",
+                    "label": "Recuado",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "cil12",
+                "type": "frame",
+                "x": 980,
+                "y": 120,
+                "w": 50,
+                "h": 70,
+                "rot": 0,
+                "key": "Y1.avancado",
+                "props": {
+                    "shape": "limitSwitch",
+                    "tone": "equip",
+                    "label": "Avançado",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "cil13",
+                "type": "frame",
+                "x": 780,
+                "y": 220,
+                "w": 260,
+                "h": 70,
+                "rot": 0,
+                "key": "Y1.avancado",
+                "props": {
+                    "shape": "pneuCyl",
+                    "tone": "equip",
+                    "label": "",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0,
+                    "motion": "onoff"
+                }
+            },
+            {
+                "id": "cil14",
+                "type": "frame",
+                "x": 820,
+                "y": 320,
+                "w": 180,
+                "h": 80,
+                "rot": 0,
+                "key": "Y1.solenoide",
+                "props": {
+                    "shape": "valve52",
+                    "tone": "equip",
+                    "label": "Válvula Y1",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "ui15",
+                "type": "text",
+                "x": 60,
+                "y": 30,
+                "w": 600,
+                "h": 36,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "Linha de envase (simulada)",
+                    "size": 24,
+                    "align": "start",
+                    "bold": "yes",
+                    "tone": "normal",
+                    "unit": "",
+                    "decimals": ""
+                }
+            },
+            {
+                "id": "ui16",
+                "type": "button",
+                "x": 780,
+                "y": 440,
+                "w": 130,
+                "h": 50,
+                "rot": 0,
+                "key": "rodando",
+                "props": {
+                    "text": "PARTIR",
+                    "textOn": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                },
+                "action": {
+                    "mode": "pulse",
+                    "value": "",
+                    "topic": "cmd/partir",
+                    "confirm": "no"
+                }
+            },
+            {
+                "id": "ui17",
+                "type": "button",
+                "x": 930,
+                "y": 440,
+                "w": 130,
+                "h": 50,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "PARAR",
+                    "textOn": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                },
+                "action": {
+                    "mode": "pulse",
+                    "value": "",
+                    "topic": "cmd/parar",
+                    "confirm": "no"
+                }
+            },
+            {
+                "id": "ui18",
+                "type": "tag",
+                "x": 780,
+                "y": 520,
+                "w": 130,
+                "h": 60,
+                "rot": 0,
+                "key": "ciclo",
+                "props": {
+                    "title": "PASSO",
+                    "unit": "",
+                    "decimals": 0,
+                    "min": "",
+                    "max": "",
+                    "lo": "",
+                    "hi": "",
+                    "priority": "2"
+                }
+            }
+        ],
+        "outputs": 1,
+        "x": 460,
+        "y": 120,
+        "wires": [
+            [
+                "env_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "env_cmd",
+        "type": "function",
+        "z": "ex_env",
+        "name": "aplica comando",
+        "func": "// Comandos da tela. Aqui só mudam a simulação; no seu flow ligue a saída no CLP.\nconst cmd = flow.get('cmd') || { rodando: 1 }\nconst on = Number(msg.payload) ? 1 : 0\nif (msg.topic === 'cmd/partir' && on) cmd.rodando = 1\nif (msg.topic === 'cmd/parar' && on) cmd.rodando = 0\nflow.set('cmd', cmd)\nreturn msg",
+        "outputs": 1,
+        "x": 640,
+        "y": 120,
+        "wires": [
+            [
+                "env_dbg"
+            ]
+        ]
+    },
+    {
+        "id": "env_dbg",
+        "type": "debug",
+        "z": "ex_env",
+        "name": "comandos",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "topic",
+        "statusType": "auto",
+        "x": 830,
+        "y": 120,
+        "wires": []
+    }
+]

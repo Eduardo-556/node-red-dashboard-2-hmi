@@ -334,3 +334,51 @@ test('pneumatic, sensor, handling and production parts follow the key', () => {
     cyl.props.darken = 'yes'
     assert.ok(renderSymbol(cyl, 1).includes('hmi-darken'))
 })
+
+test('machine parts follow a position value, light up and go ghost', () => {
+    const make = shape => createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === shape))
+    const cyl = make('pneuCyl')
+    const rod = out => Number(out.match(/<circle class="hmi-body" cx="([\d.]+)"/)[1])
+    const off = rod(renderSymbol(cyl, 0))
+    const full = rod(renderSymbol(cyl, 1))
+    cyl.props.motion = 'value'
+    cyl.props.min = 0
+    cyl.props.max = 200
+    assert.strictEqual(rod(renderSymbol(cyl, 0)), off)
+    assert.strictEqual(rod(renderSymbol(cyl, 200)), full)
+    const mid = rod(renderSymbol(cyl, 100))
+    assert.ok(mid > off && mid < full)
+    assert.strictEqual(rod(renderSymbol(cyl, 999)), full)
+    assert.ok(SYMBOLS.frame.fields.find(x => x.key === 'motion').when(cyl.props))
+    assert.ok(SYMBOLS.frame.fields.find(x => x.key === 'min').when(cyl.props))
+    assert.ok(!SYMBOLS.frame.fields.find(x => x.key === 'motion').when({ shape: 'bottle' }))
+    const fil = make('filler')
+    fil.props.motion = 'value'
+    assert.ok(renderSymbol(fil, 50).includes('hmi-fill') && !renderSymbol(fil, 0).includes('hmi-fill'))
+    for (const shape of ['pneuCyl', 'gantry', 'diverter', 'manometer', 'frl', 'scissorLift']) {
+        const s = make(shape)
+        s.props.motion = 'value'
+        for (const v of [undefined, 'x', 0, 37, 100]) assert.ok(!/NaN|undefined/.test(renderSymbol(s, v)), shape)
+    }
+    assert.ok(renderSymbol(make('hmiPanel'), 1).includes('hmi-screen-on'))
+    assert.ok(renderSymbol(make('operator'), 1).includes('hmi-act'))
+    const box = make('cardboard')
+    box.props.presence = 'ghost'
+    assert.ok(renderSymbol(box, 0).includes('hmi-ghost') && !renderSymbol(box, 1).includes('hmi-ghost') && !renderSymbol(box, undefined).includes('hmi-ghost'))
+})
+
+test('ready-made machine blocks', async () => {
+    const { readyBlocks } = await import('../ui/editor/readyblocks.js')
+    const { blockParams, cleanBlockSymbols, fillBlock } = await import('../ui/editor/index.js')
+    const list = readyBlocks()
+    assert.ok(list.length >= 5)
+    for (const b of list) {
+        assert.deepStrictEqual(blockParams(b), ['tag'], b.name)
+        assert.strictEqual(cleanBlockSymbols(b.symbols).length, b.symbols.length, b.name)
+        assert.strictEqual(new Set(b.symbols.map(s => s.id)).size, b.symbols.length, b.name)
+        const filled = fillBlock(b, { tag: 'Y1' })
+        assert.ok(!JSON.stringify(filled).includes('{{'), b.name)
+        for (const s of filled) assert.ok(!/NaN|undefined/.test(renderSymbol(s, 1)), b.name + ' ' + s.type)
+    }
+    assert.strictEqual(fillBlock(list[0], { tag: 'Y1' }).find(s => s.props.shape === 'pneuCyl').key, 'Y1.avancado')
+})

@@ -61,6 +61,11 @@ No **Texto** (e no subtítulo do **KPI**), `{chave}` vira o valor daquela chave 
 - **Manuseio**: servomotor, motorredutor, mesa giratória, pórtico X/Z, robô SCARA, robô delta, mesa elevatória, braço dançarino, operador, painel IHM e botoeira.
 - **Produção**: rosca transportadora, elevador de canecas, alimentador vibratório, calha, desviador, extrusora, injetora, guilhotina, serra, spindle, furadeira, prensa C, enchedora, tampadora, rotuladora, envolvedora de palete, caixa, garrafa, lata e palete.
 - Com uma **chave**, essas peças mostram o estado: a haste do cilindro sai, a garra fecha, o feixe do sensor é cortado, a lâmina desce, a mesa sobe, o pórtico desce, o molde fecha, a enchedora enche, o sinalizador acende. Encoder, mesa giratória e serra podem girar. Qualquer forma pode **escurecer quando a chave ligar**.
+- **Posição pelo valor**: cilindro, atuador, garra, pórtico, SCARA, delta, mesa elevatória, dançarino, desviador, injetora, guilhotina, furadeira, prensa, tampadora, envolvedora, boia, fim de curso, manômetro, FRL e enchedora podem seguir um número (campo "A peça se move" = "Pela posição"). O valor entre mín. e máx. vira de recuado a avançado: a haste fica na posição do encoder, o ponteiro marca a pressão, as garrafas enchem pelo nível.
+- **Quando a chave desligar** = "Ficar apagado": a peça fica clarinha e tracejada, para mostrar posto sem peça, palete vazio ou caixa ausente. O painel IHM acende a tela, o operador fica escuro quando está no posto, o silenciador solta ar e a unidade hidráulica tem luz de ligada.
+- **Montagens prontas** no menu Blocos: cilindro com válvula e fins de curso, esteira com sensor e desviador, estação de envase, prensa com cortina de luz e emergência, pórtico pega e coloca. Ao colocar, o editor pergunta o nome (ex.: `Y1`) e as chaves já vêm prontas (`Y1.avancado`, `Y1.recuado`, `Y1.solenoide`). Vários nomes separados por vírgula colocam uma cópia de cada.
+
+![Exemplo envase](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/envase.png)
 
 ![Peças para máquinas](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/pecas-maquinas.png)
 - **Formas** ganhou anel, meio círculo, quarto de círculo, pentágono, octógono, estrela, cruz e seta larga.
@@ -185,9 +190,10 @@ O editor lista os ids do desenho. Scripts, eventos e links para fora do desenho 
 | tela-basica | `/dashboard/hmi` | Slitter com bobinas, motor, tags e alarme. |
 | pintura | `/dashboard/pintura` | Linha de pintura simulada: desengraxe, cabine, robô, estufa, tintas enchendo, OEE, peças por turno, tempo parado e lista de alarmes. Faceplate no motor da esteira. |
 | esteira | `/dashboard/esteira` | Três esteiras simuladas com partir/parar, velocidade, horas por motor, boas × refugo e caixas por hora. |
+| envase | `/dashboard/envase` | Linha de envase montada com as montagens prontas: a garrafa chega, o cilindro trava, as garrafas enchem pelo nível, tampa, rotula e solta. |
 | clp-schneider | `/dashboard/clp` | Leitura de um M221 com o **node-red-contrib-schneider-modbus-tags** direto no canvas (as chaves são os nomes da lista de tags) e comandos convertidos para escrita Modbus. Tem um inject de valores de teste para ver a tela sem CLP. |
 
-Pintura e esteira funcionam sem CLP: uma função gera os valores a cada segundo e os comandos da tela mudam a simulação.
+Pintura, esteira e envase funcionam sem CLP: uma função gera os valores a cada segundo e os comandos da tela mudam a simulação.
 
 ---
 
@@ -213,6 +219,8 @@ Machine parts (gears and pulleys that turn while a key is on, belt and chain dri
 Security and operation (0.1.1): page clicks go to the node through a small Dashboard 2.0 plugin, so a page can only trigger the commands configured on the symbols (never send values or its own messages). Per-canvas user lists for **commands**, **acknowledge** and **shelve** (user from the dashboard login or `httpNodeAuth`; empty = everybody, `-` = nobody), checked in Node-RED. Password tries are rate limited. Hold-to-run pulses are released by the node when the page closes, disconnects or stops answering. **Interlocks** per command (keys that must be on, `!` for off) with a padlock mark, max step for typed setpoints, **write confirmation** (dashed border until the key reads back the value, red on timeout), **data quality** (`msg.quality`, and stale keys), alarm border on the symbol (click a row in the alarm list to highlight it), PID faceplate (PV/SP/OP, auto/manual, setpoint and manual output), on-screen numeric keypad, `msg.enabled` and `msg.ui_update`, flow acknowledgement (`msg._hmiAck`), **parameterized blocks** (`{{tag}}`, place M1, M2, M3 at once) and an **SVG with bound parts** symbol (element ids follow keys; scripts and external links are stripped).
 
 Machine parts (0.1.2): four new palette menus for the **Corpo** symbol, **Pneumática** (cylinders, 5/2 valve, FRL, gripper, vacuum cup...), **Sensores** (photo eye, proximity, light curtain, laser scanner, camera, e-stop, beacon...), **Manuseio** (servo, gearmotor, rotary table, gantry, SCARA, delta, scissor lift...) and **Produção** (screw conveyor, extruder, injection machine, guillotine, saw, filler, capper, labeler, wrapper, bottles, pallets...). With a key they show state: rod out, gripper closed, beam cut, blade down, mold closed, beacon lit.
+
+Machine parts (0.1.3): 20 moving parts can follow a **position value** (min..max) instead of on/off, a part can go **ghost** when its key is off (no part / empty pallet), and the **Blocos** menu has **ready-made assemblies** (cylinder with valve and limit switches, conveyor with sensor and diverter, filling station, press with light curtain, pick and place gantry) whose keys use the name asked on drop. New example `envase`.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

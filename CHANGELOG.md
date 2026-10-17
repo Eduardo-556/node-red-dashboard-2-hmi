@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+Novidades:
+
+- 20 peças podem seguir um **valor de posição** (mín. a máx.) em vez de liga/desliga: cilindro, atuador, garra, pórtico, SCARA, delta, mesa elevatória, dançarino, desviador, injetora, guilhotina, furadeira, prensa, tampadora, envolvedora, boia, fim de curso, manômetro, FRL e enchedora (as garrafas enchem pelo nível).
+- **Montagens prontas** no menu Blocos: cilindro com válvula e fins de curso, esteira com sensor e desviador, estação de envase, prensa com cortina de luz e emergência, pórtico pega e coloca. Perguntam o nome e montam as chaves.
+- Opção **Quando a chave desligar: ficar apagado** (posto sem peça, palete vazio).
+- Painel IHM acende a tela, operador escurece quando está no posto, silenciador solta ar, unidade hidráulica com luz de ligada.
+- Exemplo **envase** (`/dashboard/envase`).
+
 ## 0.1.2
 
 Novidades:

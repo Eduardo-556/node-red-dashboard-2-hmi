@@ -1,5 +1,6 @@
 // Drag-and-drop screen editor. Plain DOM, no framework, so the same editor
 // runs inside the Node-RED edit dialog and inside the dashboard page.
+import { readyBlocks } from './readyblocks.js'
 import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints, scaleValue, RULE_OPS, RULE_EFFECTS, cleanSvg, parseSvg } from '../symbols/index.js'
 
 const GRID = 10
@@ -202,6 +203,7 @@ const CSS = `
 .hmi-ed-menu .hmi-ed-menurow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-bottom: 4px; border-bottom: 1px solid var(--hmi-ed-border); margin-bottom: 2px; }
 .hmi-ed-menu .hmi-ed-menurow input { height: 26px; padding: 2px 6px; font: inherit; font-size: 12px; border: 1px solid var(--hmi-ed-border); border-radius: 4px; flex: 1; min-width: 120px; }
 .hmi-ed-menu .hmi-ed-empty { grid-column: 1 / -1; font-size: 12px; opacity: .7; padding: 4px; }
+.hmi-ed-menu .hmi-ed-head { font-weight: 700; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
 .hmi-ed-item { position: relative; }
 .hmi-ed-item .hmi-ed-del { position: absolute; top: 1px; right: 3px; border: 0; background: none; cursor: pointer; opacity: .5; font-size: 13px; color: inherit; }
 .hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
@@ -1157,6 +1159,21 @@ export function createEditor (root, opts) {
         row.appendChild(file)
         mini('Importar', 'Lê um arquivo .json de blocos', () => file.click())
         menu.appendChild(row)
+        // ready-made machine assemblies, always there and not deletable
+        menu.appendChild(el('div', { class: 'hmi-ed-empty hmi-ed-head' }, 'Montagens prontas'))
+        readyBlocks().forEach((b, i) => {
+            const item = el('div', { class: 'hmi-ed-item hmi-ed-ready', draggable: 'true', title: 'Arraste para a tela ou clique. Pergunta o nome ({{tag}}) usado nas chaves.' })
+            item.innerHTML = blockIcon(b)
+            item.appendChild(el('span', {}, b.name))
+            item.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', 'hmi-ready:' + i)
+                menu.style.opacity = '0'
+            })
+            item.addEventListener('dragend', closeMenu)
+            item.addEventListener('click', () => { const v = view(); insertBlock(b, v.w / 2, v.h / 2); closeMenu() })
+            menu.appendChild(item)
+        })
+        menu.appendChild(el('div', { class: 'hmi-ed-empty hmi-ed-head' }, 'Meus blocos'))
         if (!blocks.length) menu.appendChild(el('div', { class: 'hmi-ed-empty' }, 'Nenhum bloco salvo. Selecione símbolos e clique em Salvar seleção. Os blocos ficam neste navegador e servem em qualquer tela.'))
         blocks.forEach((b, i) => {
             const item = el('div', { class: 'hmi-ed-item', draggable: 'true', title: 'Arraste para a tela ou clique' })
@@ -1221,6 +1238,13 @@ export function createEditor (root, opts) {
     stage.addEventListener('dragover', e => { e.preventDefault() })
     stage.addEventListener('drop', e => {
         const data = e.dataTransfer.getData('text/plain') || ''
+        if (data.startsWith('hmi-ready:')) {
+            e.preventDefault()
+            const b = readyBlocks()[Number(data.slice(10))]
+            const p = toSvg(e)
+            if (b) insertBlock(b, p.x, p.y)
+            return
+        }
         if (data.startsWith('hmi-block:')) {
             e.preventDefault()
             const b = loadBlocks()[Number(data.slice(10))]

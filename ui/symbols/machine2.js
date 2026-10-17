@@ -70,8 +70,15 @@ export const MACHINE2_SHAPES = [
 // shapes that can turn around their centre while the key is on
 export const MACHINE2_ROUND = ['encoder', 'rotaryTable', 'saw']
 
-export function machine2Path (shape, w, h, H, on) {
+// shapes whose moving part can follow a number (0 % to 100 % of min..max) instead of on/off
+export const MACHINE2_ANALOG = ['pneuCyl', 'linActuator', 'gripper', 'frl', 'manometer', 'limitSwitch', 'floatSwitch', 'gantry', 'scara', 'delta',
+    'scissorLift', 'dancer', 'diverter', 'injection', 'guillotine', 'drill', 'punch', 'filler', 'capper', 'wrapper']
+
+// on: the key state (true/false/null); pos: 0..1 when the part follows a value
+export function machine2Path (shape, w, h, H, on, pos) {
     const { f, poly, box } = H
+    const t = typeof pos === 'number' ? pos : (on ? 1 : 0)
+    const L = (a, b) => a + (b - a) * t
     const m = Math.min(w, h)
     const cx = w / 2
     const cy = h / 2
@@ -92,14 +99,14 @@ export function machine2Path (shape, w, h, H, on) {
     const ind = (x, y, r) => circle('hmi-ind', x, y, r)
     switch (shape) {
     case 'pneuCyl': {
-        const rodEnd = on ? w * 0.97 : w * 0.8
-        const px = on ? w * 0.58 : w * 0.13
+        const rodEnd = L(w * 0.8, w * 0.97)
+        const px = L(w * 0.13, w * 0.58)
         return box(w * 0.69, h * 0.42, rodEnd - w * 0.69, h * 0.16) + circle('hmi-body', rodEnd - h * 0.04, cy, h * 0.12) +
             box(w * 0.07, h * 0.15, w * 0.57, h * 0.7) + box(0, h * 0.06, w * 0.08, h * 0.88) + box(w * 0.63, h * 0.06, w * 0.07, h * 0.88) +
             path('hmi-detail', line(px, h * 0.2, px, h * 0.8)) + box(w * 0.13, 0, w * 0.05, h * 0.07) + box(w * 0.53, 0, w * 0.05, h * 0.07)
     }
     case 'linActuator': {
-        const rodEnd = on ? w * 0.98 : w * 0.82
+        const rodEnd = L(w * 0.82, w * 0.98)
         return box(w * 0.7, h * 0.4, rodEnd - w * 0.7, h * 0.2) + box(rodEnd - w * 0.04, h * 0.3, w * 0.04, h * 0.4) +
             box(w * 0.2, h * 0.24, w * 0.52, h * 0.52) + rrect('hmi-body', 0, h * 0.08, w * 0.21, h * 0.84, 4) + fins(0, h * 0.08, w * 0.21, h * 0.84, 4) +
             path('hmi-detail', line(w * 0.24, h * 0.36, w * 0.68, h * 0.36))
@@ -129,7 +136,7 @@ export function machine2Path (shape, w, h, H, on) {
             const x = u * i + u * 0.15
             const bw = u * 0.7
             let out = box(x, h * 0.06, bw, h * 0.28)
-            if (kind === 'reg') return out + box(x + bw * 0.3, 0, bw * 0.4, h * 0.06) + circle('hmi-body', x + bw / 2, h * 0.58, bw * 0.38) + circle('hmi-detail', x + bw / 2, h * 0.58, bw * 0.28) + path('hmi-detail', line(x + bw / 2, h * 0.58, x + bw * 0.72, h * 0.5))
+            if (kind === 'reg') return out + box(x + bw * 0.3, 0, bw * 0.4, h * 0.06) + circle('hmi-body', x + bw / 2, h * 0.58, bw * 0.38) + circle('hmi-detail', x + bw / 2, h * 0.58, bw * 0.28) + path('hmi-strap hmi-thin', line(x + bw / 2, h * 0.58, x + bw / 2 + Math.cos(Math.PI * (0.75 + 1.5 * (typeof pos === 'number' ? t : 0.55))) * bw * 0.24, h * 0.58 + Math.sin(Math.PI * (0.75 + 1.5 * (typeof pos === 'number' ? t : 0.55))) * bw * 0.24))
             out += path('hmi-body', `M${f(x + bw * 0.1)} ${f(h * 0.34)}H${f(x + bw * 0.9)}V${f(h * 0.82)}Q${f(x + bw * 0.9)} ${f(h)} ${f(x + bw / 2)} ${f(h)}Q${f(x + bw * 0.1)} ${f(h)} ${f(x + bw * 0.1)} ${f(h * 0.82)}Z`)
             out += rrect('hmi-glass', x + bw * 0.25, h * 0.42, bw * 0.5, h * 0.4, bw * 0.2)
             if (kind === 'lub') out += path('hmi-detail', `M${f(x + bw / 2)} ${f(h * 0.5)}q${f(-bw * 0.12)} ${f(h * 0.1)} 0 ${f(h * 0.14)}q${f(bw * 0.12)} ${f(-h * 0.04)} 0 ${f(-h * 0.14)}`)
@@ -139,7 +146,7 @@ export function machine2Path (shape, w, h, H, on) {
     }
     case 'vacuumCup': return box(cx - w * 0.08, 0, w * 0.16, h * 0.5) + box(cx - w * 0.18, h * 0.12, w * 0.36, h * 0.1) + poly([[w * 0.28, h * 0.5], [w * 0.72, h * 0.5], [w, h * 0.92], [w, h], [0, h], [0, h * 0.92]])
     case 'gripper': {
-        const g = on ? w * 0.05 : w * 0.2
+        const g = L(w * 0.2, w * 0.05)
         return box(w * 0.08, h * 0.36, w * 0.84, h * 0.1) + rrect('hmi-body', w * 0.22, 0, w * 0.56, h * 0.38, 3) + box(cx - w * 0.08, h * 0.04, w * 0.16, h * 0.08) +
             poly([[cx - g - w * 0.16, h * 0.46], [cx - g, h * 0.46], [cx - g, h], [cx - g - w * 0.06, h], [cx - g - w * 0.16, h * 0.7]]) +
             poly([[cx + g, h * 0.46], [cx + g + w * 0.16, h * 0.46], [cx + g + w * 0.16, h * 0.7], [cx + g + w * 0.06, h], [cx + g, h]])
@@ -147,7 +154,7 @@ export function machine2Path (shape, w, h, H, on) {
     case 'hydUnit':
         return box(0, h * 0.42, w, h * 0.58) + rrect('hmi-glass', w * 0.06, h * 0.55, w * 0.06, h * 0.3, 2) + circle('hmi-body', w * 0.82, h * 0.68, m * 0.1) + circle('hmi-detail', w * 0.82, h * 0.68, m * 0.07) +
             rrect('hmi-body', w * 0.06, h * 0.1, w * 0.36, h * 0.3, 4) + fins(w * 0.06, h * 0.1, w * 0.36, h * 0.3, 5) + box(w * 0.42, h * 0.14, w * 0.08, h * 0.22) +
-            box(w * 0.5, h * 0.18, w * 0.13, h * 0.2) + rrect('hmi-body', w * 0.72, h * 0.04, w * 0.11, h * 0.36, w * 0.03) + box(w * 0.63, h * 0.24, w * 0.09, h * 0.05)
+            box(w * 0.5, h * 0.18, w * 0.13, h * 0.2) + rrect('hmi-body', w * 0.72, h * 0.04, w * 0.11, h * 0.36, w * 0.03) + box(w * 0.63, h * 0.24, w * 0.09, h * 0.05) + ind(w * 0.36, h * 0.5, m * 0.06)
     case 'accumulator':
         return rrect('hmi-body', w * 0.08, 0, w * 0.84, h * 0.86, w * 0.42) + path('hmi-detail', line(w * 0.1, h * 0.45, w * 0.9, h * 0.45)) + box(cx - w * 0.12, h * 0.86, w * 0.24, h * 0.14) + box(cx - w * 0.06, 0, w * 0.12, h * 0.04)
     case 'manometer': {
@@ -158,7 +165,7 @@ export function machine2Path (shape, w, h, H, on) {
             const a = Math.PI * (0.75 + i * 1.5 / 8)
             ticks += line(cx + Math.cos(a) * r * 0.72, gy + Math.sin(a) * r * 0.72, cx + Math.cos(a) * r * 0.86, gy + Math.sin(a) * r * 0.86)
         }
-        const na = Math.PI * (on ? 1.95 : 1.25)
+        const na = Math.PI * (typeof pos === 'number' ? 0.75 + 1.5 * t : (on ? 1.95 : 1.25))
         return box(cx - w * 0.07, gy + r * 0.9, w * 0.14, h - gy - r * 0.9) + circle('hmi-body', cx, gy, r) + circle('hmi-glass', cx, gy, r * 0.88) + path('hmi-detail', ticks) +
             path('hmi-strap', line(cx, gy, cx + Math.cos(na) * r * 0.7, gy + Math.sin(na) * r * 0.7), ' style="stroke-width:2"') + circle('hmi-body', cx, gy, r * 0.08)
     }
@@ -170,7 +177,8 @@ export function machine2Path (shape, w, h, H, on) {
     case 'muffler': {
         let dots = ''
         for (let y = h * 0.4; y < h * 0.92; y += h * 0.09) for (const x of [0.32, 0.5, 0.68]) dots += circle('hmi-detail', w * x, y, Math.max(0.8, w * 0.04))
-        return box(w * 0.3, 0, w * 0.4, h * 0.22) + path('hmi-detail', line(w * 0.3, h * 0.07, w * 0.7, h * 0.07) + line(w * 0.3, h * 0.14, w * 0.7, h * 0.14)) + box(w * 0.15, h * 0.22, w * 0.7, h * 0.08) + rrect('hmi-body', w * 0.15, h * 0.3, w * 0.7, h * 0.7, w * 0.3) + dots
+        return box(w * 0.3, 0, w * 0.4, h * 0.22) + path('hmi-detail', line(w * 0.3, h * 0.07, w * 0.7, h * 0.07) + line(w * 0.3, h * 0.14, w * 0.7, h * 0.14)) + box(w * 0.15, h * 0.22, w * 0.7, h * 0.08) + rrect('hmi-body', w * 0.15, h * 0.3, w * 0.7, h * 0.7, w * 0.3) + dots +
+            (on ? path('hmi-rays hmi-air', line(0, h * 0.5, w * 0.1, h * 0.55) + line(0, h * 0.75, w * 0.1, h * 0.75) + line(w, h * 0.5, w * 0.9, h * 0.55) + line(w, h * 0.75, w * 0.9, h * 0.75)) : '')
     }
     case 'photoEye': {
         const ew = Math.min(w * 0.14, h * 0.9)
@@ -187,7 +195,7 @@ export function machine2Path (shape, w, h, H, on) {
     case 'limitSwitch': {
         const px = cx
         const py = h * 0.3
-        const a = (on ? -25 : -65) * Math.PI / 180
+        const a = L(-65, -25) * Math.PI / 180
         const len = Math.min(h * 0.3, w * 0.5)
         const ex = px + Math.cos(a) * len
         const ey = py + Math.sin(a) * len
@@ -239,7 +247,7 @@ export function machine2Path (shape, w, h, H, on) {
             (on ? path('hmi-beam hmi-beam-cut', `M${f(cx)} ${f(h * 0.38)}L${f(bx)} ${f(h * 0.78)}H${f(bx + bw)}Z`) : path('hmi-beam', line(cx, h * 0.38, cx, h * 0.76))) + stripes
     }
     case 'floatSwitch': {
-        const fy = on ? h * 0.32 : h * 0.62
+        const fy = L(h * 0.62, h * 0.32)
         return box(cx - w * 0.3, 0, w * 0.6, h * 0.07) + box(cx - w * 0.05, h * 0.07, w * 0.1, h * 0.8) + box(cx - w * 0.15, h * 0.85, w * 0.3, h * 0.05) + ellipse('hmi-body', cx, fy, w * 0.42, h * 0.1)
     }
     case 'thermo':
@@ -277,7 +285,7 @@ export function machine2Path (shape, w, h, H, on) {
         return circle('hmi-body', cx, cy, r) + circle('hmi-detail', cx, cy, r * 0.92) + st + circle('hmi-body', cx, cy, r * 0.25) + path('hmi-detail', line(cx, cy - r * 0.25, cx, cy - r * 0.12))
     }
     case 'gantry': {
-        const zy = on ? h * 0.66 : h * 0.42
+        const zy = L(h * 0.42, h * 0.66)
         const lw = w * 0.05
         return box(0, h * 0.12, lw, h * 0.88) + box(w - lw, h * 0.12, lw, h * 0.88) + box(0, h * 0.08, w, h * 0.1) + path('hmi-detail', line(lw, h * 0.13, w - lw, h * 0.13)) +
             box(w * 0.42, h * 0.24, w * 0.05, zy - h * 0.24) + rrect('hmi-body', w * 0.38, h * 0.02, w * 0.13, h * 0.24, 3) + box(w * 0.4, zy, w * 0.09, h * 0.05) +
@@ -288,10 +296,10 @@ export function machine2Path (shape, w, h, H, on) {
         const j2 = [w * 0.62, h * 0.22]
         const j3 = [w * 0.88, h * 0.34]
         return box(w * 0.06, h * 0.82, w * 0.28, h * 0.18) + box(w * 0.12, h * 0.3, w * 0.16, h * 0.52) + bar(j1[0], j1[1], j2[0], j2[1], h * 0.12) + bar(j2[0], j2[1], j3[0], j3[1], h * 0.1) +
-            circle('hmi-body', j1[0], j1[1], h * 0.08) + circle('hmi-body', j2[0], j2[1], h * 0.07) + box(j3[0] - w * 0.025, j3[1], w * 0.05, h * (on ? 0.5 : 0.36)) + circle('hmi-body', j3[0], j3[1], h * 0.06)
+            circle('hmi-body', j1[0], j1[1], h * 0.08) + circle('hmi-body', j2[0], j2[1], h * 0.07) + box(j3[0] - w * 0.025, j3[1], w * 0.05, h * L(0.36, 0.5)) + circle('hmi-body', j3[0], j3[1], h * 0.06)
     }
     case 'delta': {
-        const ey = on ? h * 0.85 : h * 0.68
+        const ey = L(h * 0.68, h * 0.85)
         const ex = cx
         const tops = [[w * 0.18, h * 0.16], [cx, h * 0.16], [w * 0.82, h * 0.16]]
         const elb = [[w * 0.08, h * 0.42], [cx, h * 0.38], [w * 0.92, h * 0.42]]
@@ -300,14 +308,14 @@ export function machine2Path (shape, w, h, H, on) {
         return box(w * 0.05, 0, w * 0.9, h * 0.12) + tops.map(t => rrect('hmi-body', t[0] - w * 0.06, h * 0.1, w * 0.12, h * 0.1, 2)).join('') + arms + ellipse('hmi-body', ex, ey, w * 0.11, h * 0.035) + box(ex - w * 0.02, ey, w * 0.04, h * 0.08)
     }
     case 'scissorLift': {
-        const py = on ? h * 0.04 : h * 0.5
+        const py = L(h * 0.5, h * 0.04)
         const t = Math.max(4, m * 0.05)
         return box(0, h * 0.92, w, h * 0.08) + bar(w * 0.12, h * 0.92, w * 0.88, py + h * 0.08, t) + bar(w * 0.12, py + h * 0.08, w * 0.88, h * 0.92, t) +
             circle('hmi-body', cx, (h * 0.92 + py + h * 0.08) / 2, t * 0.8) + box(0, py, w, h * 0.08) + box(w * 0.86, h * 0.86, w * 0.06, h * 0.06)
     }
     case 'dancer': {
         const p = [w * 0.16, h * 0.72]
-        const ry = on ? h * 0.3 : h * 0.56
+        const ry = L(h * 0.56, h * 0.3)
         const roll = [w * 0.78, ry]
         const r = m * 0.12
         const g1 = [w * 0.08, h * 0.12]
@@ -318,11 +326,12 @@ export function machine2Path (shape, w, h, H, on) {
     }
     case 'operator': {
         const r = Math.min(w * 0.22, h * 0.09)
-        return circle('hmi-body', cx, r + 1, r) + path('hmi-body', `M${f(cx - w * 0.38)} ${f(h * 0.55)}V${f(r * 2 + h * 0.1)}Q${f(cx - w * 0.38)} ${f(r * 2 + h * 0.03)} ${f(cx - w * 0.2)} ${f(r * 2 + h * 0.03)}H${f(cx + w * 0.2)}Q${f(cx + w * 0.38)} ${f(r * 2 + h * 0.03)} ${f(cx + w * 0.38)} ${f(r * 2 + h * 0.1)}V${f(h * 0.55)}H${f(cx + w * 0.26)}V${f(h)}H${f(cx + w * 0.03)}V${f(h * 0.62)}H${f(cx - w * 0.03)}V${f(h)}H${f(cx - w * 0.26)}V${f(h * 0.55)}Z`) +
+        // on: the operator is there / logged in
+        return circle('hmi-body' + (on ? ' hmi-act' : ''), cx, r + 1, r) + path('hmi-body' + (on ? ' hmi-act' : ''), `M${f(cx - w * 0.38)} ${f(h * 0.55)}V${f(r * 2 + h * 0.1)}Q${f(cx - w * 0.38)} ${f(r * 2 + h * 0.03)} ${f(cx - w * 0.2)} ${f(r * 2 + h * 0.03)}H${f(cx + w * 0.2)}Q${f(cx + w * 0.38)} ${f(r * 2 + h * 0.03)} ${f(cx + w * 0.38)} ${f(r * 2 + h * 0.1)}V${f(h * 0.55)}H${f(cx + w * 0.26)}V${f(h)}H${f(cx + w * 0.03)}V${f(h * 0.62)}H${f(cx - w * 0.03)}V${f(h)}H${f(cx - w * 0.26)}V${f(h * 0.55)}Z`) +
             path('hmi-detail', line(cx - w * 0.26, h * 0.3, cx - w * 0.26, h * 0.55) + line(cx + w * 0.26, h * 0.3, cx + w * 0.26, h * 0.55))
     }
     case 'hmiPanel':
-        return rrect('hmi-body', 0, 0, w, h * 0.85, 5) + rrect('hmi-glass', w * 0.07, h * 0.08, w * 0.86, h * 0.6, 2) + path('hmi-detail', line(w * 0.14, h * 0.5, w * 0.3, h * 0.35) + line(w * 0.3, h * 0.35, w * 0.48, h * 0.45) + line(w * 0.48, h * 0.45, w * 0.7, h * 0.2)) +
+        return rrect('hmi-body', 0, 0, w, h * 0.85, 5) + rrect(on ? 'hmi-glass hmi-screen-on' : 'hmi-glass', w * 0.07, h * 0.08, w * 0.86, h * 0.6, 2) + path('hmi-detail', line(w * 0.14, h * 0.5, w * 0.3, h * 0.35) + line(w * 0.3, h * 0.35, w * 0.48, h * 0.45) + line(w * 0.48, h * 0.45, w * 0.7, h * 0.2)) +
             [0.25, 0.42, 0.59, 0.76].map(k => circle('hmi-detail', w * k, h * 0.76, m * 0.035)).join('') + box(cx - w * 0.1, h * 0.85, w * 0.2, h * 0.15)
     case 'pushStation':
         return rrect('hmi-body', 0, h * 0.06, w, h * 0.94, 5) + circle('hmi-red', cx, h * 0.06 + m * 0.05, m * 0.14) + circle('hmi-btn-g', cx, h * 0.45, m * 0.16) + circle('hmi-detail', cx, h * 0.45, m * 0.2) +
@@ -366,10 +375,10 @@ export function machine2Path (shape, w, h, H, on) {
         let rollers = ''
         for (let x = w * 0.04; x < w; x += Math.max(10, bh * 0.6)) rollers += line(x, by + 2, x, by + bh - 2)
         const pv = [w * 0.3, by - h * 0.04]
-        const a = on ? 0.42 : 0
         const len = w * 0.5
-        const tip = [pv[0] + Math.cos(a) * len, pv[1] + Math.sin(a) * len * (on ? 1 : 0)]
-        return box(0, by, w, bh) + path('hmi-detail', rollers) + box(w * 0.55, by + bh, w * 0.3, h - by - bh) + (on ? bar(pv[0], pv[1], tip[0], by + bh, h * 0.06) : bar(pv[0], pv[1], pv[0] + len, pv[1], h * 0.06)) +
+        // the flap swings from along the belt down onto it
+        const tip = [L(pv[0] + len, pv[0] + Math.cos(0.42) * len), L(pv[1], by + bh)]
+        return box(0, by, w, bh) + path('hmi-detail', rollers) + box(w * 0.55, by + bh, w * 0.3, h - by - bh) + bar(pv[0], pv[1], tip[0], tip[1], h * 0.06) +
             circle('hmi-body', pv[0], pv[1], h * 0.06) + box(pv[0] - w * 0.12, pv[1] - h * 0.1, w * 0.1, h * 0.12)
     }
     case 'extruder': {
@@ -381,7 +390,7 @@ export function machine2Path (shape, w, h, H, on) {
             box(w * 0.04, h * 0.84, w * 0.8, h * 0.06) + box(w * 0.06, h * 0.9, w * 0.04, h * 0.1) + box(w * 0.76, h * 0.9, w * 0.04, h * 0.1) + box(w * 0.22, h * 0.8, w * 0.04, h * 0.04)
     }
     case 'injection': {
-        const mp = on ? w * 0.24 : w * 0.15
+        const mp = L(w * 0.15, w * 0.24)
         let bands = ''
         for (let i = 0; i < 4; i++) bands += box(w * (0.46 + i * 0.07), h * 0.4, w * 0.04, h * 0.18)
         return box(0, h * 0.76, w, h * 0.24) + path('hmi-detail', line(w * 0.03, h * 0.28, w * 0.32, h * 0.28) + line(w * 0.03, h * 0.66, w * 0.32, h * 0.66)) +
@@ -391,7 +400,7 @@ export function machine2Path (shape, w, h, H, on) {
             rrect('hmi-body', w * 0.76, h * 0.3, w * 0.2, h * 0.4, 4) + fins(w * 0.76, h * 0.3, w * 0.2, h * 0.4, 4)
     }
     case 'guillotine': {
-        const by = on ? h * 0.46 : h * 0.18
+        const by = L(h * 0.18, h * 0.46)
         return box(0, 0, w * 0.1, h * 0.95) + box(w * 0.9, 0, w * 0.1, h * 0.95) + box(0, 0, w, h * 0.13) + box(w * 0.1, by, w * 0.8, h * 0.12) +
             poly([[w * 0.1, by + h * 0.12], [w * 0.9, by + h * 0.12], [w * 0.9, by + h * 0.17], [w * 0.1, by + h * 0.21]]) + box(w * 0.04, h * 0.68, w * 0.92, h * 0.07) +
             box(0, h * 0.95, w * 0.2, h * 0.05) + box(w * 0.8, h * 0.95, w * 0.2, h * 0.05) + box(w * 0.4, h * 0.13, w * 0.2, by - h * 0.13)
@@ -414,13 +423,13 @@ export function machine2Path (shape, w, h, H, on) {
             box(w * 0.36, h * 0.55, w * 0.28, h * 0.12) + box(w * 0.44, h * 0.67, w * 0.12, h * 0.33) + path(on ? 'hmi-detail hmi-move-v' : 'hmi-detail', flutes)
     }
     case 'drill': {
-        const qy = on ? h * 0.4 : h * 0.3
+        const qy = L(h * 0.3, h * 0.4)
         return box(w * 0.14, h * 0.05, w * 0.1, h * 0.86) + box(0, h * 0.9, w * 0.72, h * 0.1) + rrect('hmi-body', w * 0.08, 0, w * 0.72, h * 0.25, 4) +
             box(w * 0.56, h * 0.25, w * 0.08, qy - h * 0.25 + h * 0.06) + poly([[w * 0.58, qy + h * 0.06], [w * 0.62, qy + h * 0.06], [w * 0.61, qy + h * 0.18], [w * 0.6, qy + h * 0.2], [w * 0.59, qy + h * 0.18]]) +
             box(w * 0.22, h * 0.62, w * 0.6, h * 0.05) + path('hmi-detail', line(w * 0.8, h * 0.18, w * 0.98, h * 0.3) + line(w * 0.8, h * 0.18, w * 0.96, h * 0.08)) + circle('hmi-body', w * 0.8, h * 0.18, m * 0.04)
     }
     case 'punch': {
-        const ry = on ? h * 0.42 : h * 0.3
+        const ry = L(h * 0.3, h * 0.42)
         return poly([[w * 0.1, 0], [w * 0.62, 0], [w * 0.62, h * 0.3], [w * 0.36, h * 0.3], [w * 0.36, h * 0.56], [w * 0.62, h * 0.56], [w * 0.62, h * 0.82], [w * 0.1, h * 0.82]]) +
             circle('hmi-body', w * 0.82, h * 0.16, m * 0.17) + circle('hmi-detail', w * 0.82, h * 0.16, m * 0.05) + box(w * 0.6, h * 0.12, w * 0.12, h * 0.06) +
             box(w * 0.42, h * 0.3 - 2, w * 0.14, ry - h * 0.3 + 2) + box(w * 0.46, ry, w * 0.06, h * 0.06) + box(w * 0.4, h * 0.5, w * 0.18, h * 0.06) + box(0, h * 0.82, w * 0.72, h * 0.18)
@@ -433,11 +442,12 @@ export function machine2Path (shape, w, h, H, on) {
             out += box(x - w * 0.02, h * 0.2, w * 0.04, h * 0.18) + poly([[x - w * 0.035, h * 0.38], [x + w * 0.035, h * 0.38], [x + w * 0.012, h * 0.46], [x - w * 0.012, h * 0.46]])
             out += path('hmi-stream', line(x, h * 0.46, x, h * 0.56), ` style="stroke-width:${f(Math.max(1.5, w * 0.01))}"`)
             out += path('hmi-body', `M${f(x - w * 0.012)} ${f(h * 0.56)}H${f(x + w * 0.012)}V${f(h * 0.6)}Q${f(x + w * 0.04)} ${f(h * 0.62)} ${f(x + w * 0.04)} ${f(h * 0.66)}V${f(h * 0.82)}H${f(x - w * 0.04)}V${f(h * 0.66)}Q${f(x - w * 0.04)} ${f(h * 0.62)} ${f(x - w * 0.012)} ${f(h * 0.6)}Z`)
+            if (typeof pos === 'number' && t > 0) out += `<rect class="hmi-fill" x="${f(x - w * 0.034)}" y="${f(h * 0.815 - h * 0.15 * t)}" width="${f(w * 0.068)}" height="${f(h * 0.15 * t)}"/>`
         }
         return out + box(0, h * 0.82, w, h * 0.1) + box(w * 0.04, h * 0.92, w * 0.04, h * 0.08) + box(w * 0.92, h * 0.92, w * 0.04, h * 0.08)
     }
     case 'capper': {
-        const hy = on ? h * 0.36 : h * 0.26
+        const hy = L(h * 0.26, h * 0.36)
         return box(w * 0.08, 0, w * 0.12, h * 0.82) + box(w * 0.08, 0, w * 0.6, h * 0.12) + rrect('hmi-body', w * 0.36, h * 0.12, w * 0.3, hy - h * 0.12 + h * 0.06, 3) +
             box(w * 0.44, hy + h * 0.06, w * 0.14, h * 0.06) + path('hmi-body', `M${f(w * 0.46)} ${f(h * 0.5)}H${f(w * 0.56)}V${f(h * 0.54)}Q${f(w * 0.64)} ${f(h * 0.57)} ${f(w * 0.64)} ${f(h * 0.63)}V${f(h * 0.82)}H${f(w * 0.38)}V${f(h * 0.63)}Q${f(w * 0.38)} ${f(h * 0.57)} ${f(w * 0.46)} ${f(h * 0.54)}Z`) +
             box(0, h * 0.82, w, h * 0.08) + box(w * 0.05, h * 0.9, w * 0.05, h * 0.1) + box(w * 0.9, h * 0.9, w * 0.05, h * 0.1)
@@ -448,7 +458,7 @@ export function machine2Path (shape, w, h, H, on) {
             path('hmi-body', `M${f(w * 0.66)} ${f(h * 0.4)}H${f(w * 0.74)}V${f(h * 0.46)}Q${f(w * 0.82)} ${f(h * 0.5)} ${f(w * 0.82)} ${f(h * 0.56)}V${f(h * 0.82)}H${f(w * 0.58)}V${f(h * 0.56)}Q${f(w * 0.58)} ${f(h * 0.5)} ${f(w * 0.66)} ${f(h * 0.46)}Z`) +
             rrect(on ? 'hmi-label-on' : 'hmi-detail', w * 0.59, h * 0.6, w * 0.22, h * 0.12, 1) + box(0, h * 0.82, w, h * 0.08) + box(w * 0.08, h * 0.65, w * 0.08, h * 0.17)
     case 'wrapper': {
-        const cy2 = on ? h * 0.32 : h * 0.6
+        const cy2 = L(h * 0.6, h * 0.32)
         return ellipse('hmi-body', w * 0.38, h * 0.9, w * 0.36, h * 0.07) + box(w * 0.1, h * 0.76, w * 0.56, h * 0.08) + box(w * 0.14, h * 0.3, w * 0.48, h * 0.46) +
             path('hmi-detail', line(w * 0.14, h * 0.45, w * 0.62, h * 0.45) + line(w * 0.14, h * 0.6, w * 0.62, h * 0.6) + line(w * 0.38, h * 0.3, w * 0.38, h * 0.76)) +
             box(w * 0.86, 0, w * 0.08, h * 0.95) + box(w * 0.8, h * 0.94, w * 0.2, h * 0.06) + rrect('hmi-body', w * 0.72, cy2, w * 0.14, h * 0.16, 3) + rrect('hmi-body', w * 0.68, cy2 + h * 0.02, w * 0.04, h * 0.12, 2) +
@@ -498,5 +508,10 @@ export const MACHINE2_CSS = `
 .hmi-root .hmi-frame.hmi-on .hmi-move-v { stroke-dasharray: 3 3; animation: hmi-belt .3s linear infinite; }
 .hmi-root .hmi-frame.hmi-on .hmi-vib { animation: hmi-vib .12s linear infinite alternate; }
 .hmi-root .hmi-frame.hmi-on.hmi-darken .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-frame .hmi-fill { fill: var(--hmi-level); opacity: .85; }
+.hmi-root .hmi-frame .hmi-screen-on { fill: var(--hmi-info); fill-opacity: .35; }
+.hmi-root .hmi-frame .hmi-air { stroke: var(--hmi-info); stroke-width: 2; stroke-dasharray: 3 3; }
+.hmi-root .hmi-frame.hmi-ghost { opacity: .18; }
+.hmi-root .hmi-frame.hmi-ghost .hmi-body { stroke-dasharray: 5 4; }
 @keyframes hmi-vib { from { transform: translate(-1px, 0); } to { transform: translate(1px, .5px); } }
 `

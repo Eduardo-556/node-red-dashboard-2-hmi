@@ -3790,8 +3790,32 @@ ${[
 		"rotaryTable",
 		"saw"
 	];
-	function machine2Path(shape, w, h, H, on) {
+	var MACHINE2_ANALOG = [
+		"pneuCyl",
+		"linActuator",
+		"gripper",
+		"frl",
+		"manometer",
+		"limitSwitch",
+		"floatSwitch",
+		"gantry",
+		"scara",
+		"delta",
+		"scissorLift",
+		"dancer",
+		"diverter",
+		"injection",
+		"guillotine",
+		"drill",
+		"punch",
+		"filler",
+		"capper",
+		"wrapper"
+	];
+	function machine2Path(shape, w, h, H, on, pos) {
 		const { f, poly, box } = H;
+		const t = typeof pos === "number" ? pos : on ? 1 : 0;
+		const L = (a, b) => a + (b - a) * t;
 		const m = Math.min(w, h);
 		const cx = w / 2;
 		const cy = h / 2;
@@ -3815,12 +3839,12 @@ ${[
 		const ind = (x, y, r) => circle("hmi-ind", x, y, r);
 		switch (shape) {
 			case "pneuCyl": {
-				const rodEnd = on ? w * .97 : w * .8;
-				const px = on ? w * .58 : w * .13;
+				const rodEnd = L(w * .8, w * .97);
+				const px = L(w * .13, w * .58);
 				return box(w * .69, h * .42, rodEnd - w * .69, h * .16) + circle("hmi-body", rodEnd - h * .04, cy, h * .12) + box(w * .07, h * .15, w * .57, h * .7) + box(0, h * .06, w * .08, h * .88) + box(w * .63, h * .06, w * .07, h * .88) + path("hmi-detail", line(px, h * .2, px, h * .8)) + box(w * .13, 0, w * .05, h * .07) + box(w * .53, 0, w * .05, h * .07);
 			}
 			case "linActuator": {
-				const rodEnd = on ? w * .98 : w * .82;
+				const rodEnd = L(w * .82, w * .98);
 				return box(w * .7, h * .4, rodEnd - w * .7, h * .2) + box(rodEnd - w * .04, h * .3, w * .04, h * .4) + box(w * .2, h * .24, w * .52, h * .52) + rrect("hmi-body", 0, h * .08, w * .21, h * .84, 4) + fins(0, h * .08, w * .21, h * .84, 4) + path("hmi-detail", line(w * .24, h * .36, w * .68, h * .36));
 			}
 			case "valve52": {
@@ -3846,7 +3870,7 @@ ${[
 					const x = u * i + u * .15;
 					const bw = u * .7;
 					let out = box(x, h * .06, bw, h * .28);
-					if (kind === "reg") return out + box(x + bw * .3, 0, bw * .4, h * .06) + circle("hmi-body", x + bw / 2, h * .58, bw * .38) + circle("hmi-detail", x + bw / 2, h * .58, bw * .28) + path("hmi-detail", line(x + bw / 2, h * .58, x + bw * .72, h * .5));
+					if (kind === "reg") return out + box(x + bw * .3, 0, bw * .4, h * .06) + circle("hmi-body", x + bw / 2, h * .58, bw * .38) + circle("hmi-detail", x + bw / 2, h * .58, bw * .28) + path("hmi-strap hmi-thin", line(x + bw / 2, h * .58, x + bw / 2 + Math.cos(Math.PI * (.75 + 1.5 * (typeof pos === "number" ? t : .55))) * bw * .24, h * .58 + Math.sin(Math.PI * (.75 + 1.5 * (typeof pos === "number" ? t : .55))) * bw * .24));
 					out += path("hmi-body", `M${f(x + bw * .1)} ${f(h * .34)}H${f(x + bw * .9)}V${f(h * .82)}Q${f(x + bw * .9)} ${f(h)} ${f(x + bw / 2)} ${f(h)}Q${f(x + bw * .1)} ${f(h)} ${f(x + bw * .1)} ${f(h * .82)}Z`);
 					out += rrect("hmi-glass", x + bw * .25, h * .42, bw * .5, h * .4, bw * .2);
 					if (kind === "lub") out += path("hmi-detail", `M${f(x + bw / 2)} ${f(h * .5)}q${f(-bw * .12)} ${f(h * .1)} 0 ${f(h * .14)}q${f(bw * .12)} ${f(-h * .04)} 0 ${f(-h * .14)}`);
@@ -3863,7 +3887,7 @@ ${[
 				[0, h * .92]
 			]);
 			case "gripper": {
-				const g = on ? w * .05 : w * .2;
+				const g = L(w * .2, w * .05);
 				return box(w * .08, h * .36, w * .84, h * .1) + rrect("hmi-body", w * .22, 0, w * .56, h * .38, 3) + box(cx - w * .08, h * .04, w * .16, h * .08) + poly([
 					[cx - g - w * .16, h * .46],
 					[cx - g, h * .46],
@@ -3878,7 +3902,7 @@ ${[
 					[cx + g, h]
 				]);
 			}
-			case "hydUnit": return box(0, h * .42, w, h * .58) + rrect("hmi-glass", w * .06, h * .55, w * .06, h * .3, 2) + circle("hmi-body", w * .82, h * .68, m * .1) + circle("hmi-detail", w * .82, h * .68, m * .07) + rrect("hmi-body", w * .06, h * .1, w * .36, h * .3, 4) + fins(w * .06, h * .1, w * .36, h * .3, 5) + box(w * .42, h * .14, w * .08, h * .22) + box(w * .5, h * .18, w * .13, h * .2) + rrect("hmi-body", w * .72, h * .04, w * .11, h * .36, w * .03) + box(w * .63, h * .24, w * .09, h * .05);
+			case "hydUnit": return box(0, h * .42, w, h * .58) + rrect("hmi-glass", w * .06, h * .55, w * .06, h * .3, 2) + circle("hmi-body", w * .82, h * .68, m * .1) + circle("hmi-detail", w * .82, h * .68, m * .07) + rrect("hmi-body", w * .06, h * .1, w * .36, h * .3, 4) + fins(w * .06, h * .1, w * .36, h * .3, 5) + box(w * .42, h * .14, w * .08, h * .22) + box(w * .5, h * .18, w * .13, h * .2) + rrect("hmi-body", w * .72, h * .04, w * .11, h * .36, w * .03) + box(w * .63, h * .24, w * .09, h * .05) + ind(w * .36, h * .5, m * .06);
 			case "accumulator": return rrect("hmi-body", w * .08, 0, w * .84, h * .86, w * .42) + path("hmi-detail", line(w * .1, h * .45, w * .9, h * .45)) + box(cx - w * .12, h * .86, w * .24, h * .14) + box(cx - w * .06, 0, w * .12, h * .04);
 			case "manometer": {
 				const r = Math.min(w, h * .82) * .47;
@@ -3888,7 +3912,7 @@ ${[
 					const a = Math.PI * (.75 + i * 1.5 / 8);
 					ticks += line(cx + Math.cos(a) * r * .72, gy + Math.sin(a) * r * .72, cx + Math.cos(a) * r * .86, gy + Math.sin(a) * r * .86);
 				}
-				const na = Math.PI * (on ? 1.95 : 1.25);
+				const na = Math.PI * (typeof pos === "number" ? .75 + 1.5 * t : on ? 1.95 : 1.25);
 				return box(cx - w * .07, gy + r * .9, w * .14, h - gy - r * .9) + circle("hmi-body", cx, gy, r) + circle("hmi-glass", cx, gy, r * .88) + path("hmi-detail", ticks) + path("hmi-strap", line(cx, gy, cx + Math.cos(na) * r * .7, gy + Math.sin(na) * r * .7), " style=\"stroke-width:2\"") + circle("hmi-body", cx, gy, r * .08);
 			}
 			case "solenoid": {
@@ -3903,7 +3927,7 @@ ${[
 					.5,
 					.68
 				]) dots += circle("hmi-detail", w * x, y, Math.max(.8, w * .04));
-				return box(w * .3, 0, w * .4, h * .22) + path("hmi-detail", line(w * .3, h * .07, w * .7, h * .07) + line(w * .3, h * .14, w * .7, h * .14)) + box(w * .15, h * .22, w * .7, h * .08) + rrect("hmi-body", w * .15, h * .3, w * .7, h * .7, w * .3) + dots;
+				return box(w * .3, 0, w * .4, h * .22) + path("hmi-detail", line(w * .3, h * .07, w * .7, h * .07) + line(w * .3, h * .14, w * .7, h * .14)) + box(w * .15, h * .22, w * .7, h * .08) + rrect("hmi-body", w * .15, h * .3, w * .7, h * .7, w * .3) + dots + (on ? path("hmi-rays hmi-air", line(0, h * .5, w * .1, h * .55) + line(0, h * .75, w * .1, h * .75) + line(w, h * .5, w * .9, h * .55) + line(w, h * .75, w * .9, h * .75)) : "");
 			}
 			case "photoEye": {
 				const ew = Math.min(w * .14, h * .9);
@@ -3917,7 +3941,7 @@ ${[
 			case "limitSwitch": {
 				const px = cx;
 				const py = h * .3;
-				const a = (on ? -25 : -65) * Math.PI / 180;
+				const a = L(-65, -25) * Math.PI / 180;
 				const len = Math.min(h * .3, w * .5);
 				const ex = px + Math.cos(a) * len;
 				const ey = py + Math.sin(a) * len;
@@ -3979,7 +4003,7 @@ ${[
 				return rrect("hmi-body", w * .1, 0, w * .8, h * .42, 5) + rrect("hmi-glass", w * .2, h * .3, w * .6, h * .08, 2) + ind(w * .8, h * .12, m * .05) + (on ? path("hmi-beam hmi-beam-cut", `M${f(cx)} ${f(h * .38)}L${f(bx)} ${f(h * .78)}H${f(bx + bw)}Z`) : path("hmi-beam", line(cx, h * .38, cx, h * .76))) + stripes;
 			}
 			case "floatSwitch": {
-				const fy = on ? h * .32 : h * .62;
+				const fy = L(h * .62, h * .32);
 				return box(cx - w * .3, 0, w * .6, h * .07) + box(cx - w * .05, h * .07, w * .1, h * .8) + box(cx - w * .15, h * .85, w * .3, h * .05) + ellipse("hmi-body", cx, fy, w * .42, h * .1);
 			}
 			case "thermo": return rrect("hmi-body", 0, 0, w, h * .18, 4) + box(w * .28, h * .18, w * .44, h * .1) + path("hmi-detail", line(w * .28, h * .22, w * .72, h * .22)) + path("hmi-body", `M${f(w * .38)} ${f(h * .28)}H${f(w * .62)}V${f(h * .96)}Q${f(cx)} ${f(h)} ${f(w * .38)} ${f(h * .96)}Z`) + box(w * .1, h * .04, w * .12, h * .06);
@@ -4008,7 +4032,7 @@ ${[
 				return circle("hmi-body", cx, cy, r) + circle("hmi-detail", cx, cy, r * .92) + st + circle("hmi-body", cx, cy, r * .25) + path("hmi-detail", line(cx, cy - r * .25, cx, cy - r * .12));
 			}
 			case "gantry": {
-				const zy = on ? h * .66 : h * .42;
+				const zy = L(h * .42, h * .66);
 				const lw = w * .05;
 				return box(0, h * .12, lw, h * .88) + box(w - lw, h * .12, lw, h * .88) + box(0, h * .08, w, h * .1) + path("hmi-detail", line(lw, h * .13, w - lw, h * .13)) + box(w * .42, h * .24, w * .05, zy - h * .24) + rrect("hmi-body", w * .38, h * .02, w * .13, h * .24, 3) + box(w * .4, zy, w * .09, h * .05) + box(w * .4, zy + h * .05, w * .025, h * .08) + box(w * .465, zy + h * .05, w * .025, h * .08) + box(0, h * .95, w, h * .05);
 			}
@@ -4016,10 +4040,10 @@ ${[
 				const j1 = [w * .2, h * .32];
 				const j2 = [w * .62, h * .22];
 				const j3 = [w * .88, h * .34];
-				return box(w * .06, h * .82, w * .28, h * .18) + box(w * .12, h * .3, w * .16, h * .52) + bar(j1[0], j1[1], j2[0], j2[1], h * .12) + bar(j2[0], j2[1], j3[0], j3[1], h * .1) + circle("hmi-body", j1[0], j1[1], h * .08) + circle("hmi-body", j2[0], j2[1], h * .07) + box(j3[0] - w * .025, j3[1], w * .05, h * (on ? .5 : .36)) + circle("hmi-body", j3[0], j3[1], h * .06);
+				return box(w * .06, h * .82, w * .28, h * .18) + box(w * .12, h * .3, w * .16, h * .52) + bar(j1[0], j1[1], j2[0], j2[1], h * .12) + bar(j2[0], j2[1], j3[0], j3[1], h * .1) + circle("hmi-body", j1[0], j1[1], h * .08) + circle("hmi-body", j2[0], j2[1], h * .07) + box(j3[0] - w * .025, j3[1], w * .05, h * L(.36, .5)) + circle("hmi-body", j3[0], j3[1], h * .06);
 			}
 			case "delta": {
-				const ey = on ? h * .85 : h * .68;
+				const ey = L(h * .68, h * .85);
 				const ex = cx;
 				const tops = [
 					[w * .18, h * .16],
@@ -4038,13 +4062,13 @@ ${[
 				return box(w * .05, 0, w * .9, h * .12) + tops.map((t) => rrect("hmi-body", t[0] - w * .06, h * .1, w * .12, h * .1, 2)).join("") + arms + ellipse("hmi-body", ex, ey, w * .11, h * .035) + box(ex - w * .02, ey, w * .04, h * .08);
 			}
 			case "scissorLift": {
-				const py = on ? h * .04 : h * .5;
+				const py = L(h * .5, h * .04);
 				const t = Math.max(4, m * .05);
 				return box(0, h * .92, w, h * .08) + bar(w * .12, h * .92, w * .88, py + h * .08, t) + bar(w * .12, py + h * .08, w * .88, h * .92, t) + circle("hmi-body", cx, (h * .92 + py + h * .08) / 2, t * .8) + box(0, py, w, h * .08) + box(w * .86, h * .86, w * .06, h * .06);
 			}
 			case "dancer": {
 				const p = [w * .16, h * .72];
-				const ry = on ? h * .3 : h * .56;
+				const ry = L(h * .56, h * .3);
 				const roll = [w * .78, ry];
 				const r = m * .12;
 				const g1 = [w * .08, h * .12];
@@ -4053,9 +4077,9 @@ ${[
 			}
 			case "operator": {
 				const r = Math.min(w * .22, h * .09);
-				return circle("hmi-body", cx, r + 1, r) + path("hmi-body", `M${f(cx - w * .38)} ${f(h * .55)}V${f(r * 2 + h * .1)}Q${f(cx - w * .38)} ${f(r * 2 + h * .03)} ${f(cx - w * .2)} ${f(r * 2 + h * .03)}H${f(cx + w * .2)}Q${f(cx + w * .38)} ${f(r * 2 + h * .03)} ${f(cx + w * .38)} ${f(r * 2 + h * .1)}V${f(h * .55)}H${f(cx + w * .26)}V${f(h)}H${f(cx + w * .03)}V${f(h * .62)}H${f(cx - w * .03)}V${f(h)}H${f(cx - w * .26)}V${f(h * .55)}Z`) + path("hmi-detail", line(cx - w * .26, h * .3, cx - w * .26, h * .55) + line(cx + w * .26, h * .3, cx + w * .26, h * .55));
+				return circle("hmi-body" + (on ? " hmi-act" : ""), cx, r + 1, r) + path("hmi-body" + (on ? " hmi-act" : ""), `M${f(cx - w * .38)} ${f(h * .55)}V${f(r * 2 + h * .1)}Q${f(cx - w * .38)} ${f(r * 2 + h * .03)} ${f(cx - w * .2)} ${f(r * 2 + h * .03)}H${f(cx + w * .2)}Q${f(cx + w * .38)} ${f(r * 2 + h * .03)} ${f(cx + w * .38)} ${f(r * 2 + h * .1)}V${f(h * .55)}H${f(cx + w * .26)}V${f(h)}H${f(cx + w * .03)}V${f(h * .62)}H${f(cx - w * .03)}V${f(h)}H${f(cx - w * .26)}V${f(h * .55)}Z`) + path("hmi-detail", line(cx - w * .26, h * .3, cx - w * .26, h * .55) + line(cx + w * .26, h * .3, cx + w * .26, h * .55));
 			}
-			case "hmiPanel": return rrect("hmi-body", 0, 0, w, h * .85, 5) + rrect("hmi-glass", w * .07, h * .08, w * .86, h * .6, 2) + path("hmi-detail", line(w * .14, h * .5, w * .3, h * .35) + line(w * .3, h * .35, w * .48, h * .45) + line(w * .48, h * .45, w * .7, h * .2)) + [
+			case "hmiPanel": return rrect("hmi-body", 0, 0, w, h * .85, 5) + rrect(on ? "hmi-glass hmi-screen-on" : "hmi-glass", w * .07, h * .08, w * .86, h * .6, 2) + path("hmi-detail", line(w * .14, h * .5, w * .3, h * .35) + line(w * .3, h * .35, w * .48, h * .45) + line(w * .48, h * .45, w * .7, h * .2)) + [
 				.25,
 				.42,
 				.59,
@@ -4106,10 +4130,9 @@ ${[
 				let rollers = "";
 				for (let x = w * .04; x < w; x += Math.max(10, bh * .6)) rollers += line(x, by + 2, x, by + bh - 2);
 				const pv = [w * .3, by - h * .04];
-				const a = on ? .42 : 0;
 				const len = w * .5;
-				const tip = [pv[0] + Math.cos(a) * len, pv[1] + Math.sin(a) * len * (on ? 1 : 0)];
-				return box(0, by, w, bh) + path("hmi-detail", rollers) + box(w * .55, by + bh, w * .3, h - by - bh) + (on ? bar(pv[0], pv[1], tip[0], by + bh, h * .06) : bar(pv[0], pv[1], pv[0] + len, pv[1], h * .06)) + circle("hmi-body", pv[0], pv[1], h * .06) + box(pv[0] - w * .12, pv[1] - h * .1, w * .1, h * .12);
+				const tip = [L(pv[0] + len, pv[0] + Math.cos(.42) * len), L(pv[1], by + bh)];
+				return box(0, by, w, bh) + path("hmi-detail", rollers) + box(w * .55, by + bh, w * .3, h - by - bh) + bar(pv[0], pv[1], tip[0], tip[1], h * .06) + circle("hmi-body", pv[0], pv[1], h * .06) + box(pv[0] - w * .12, pv[1] - h * .1, w * .1, h * .12);
 			}
 			case "extruder": {
 				let bands = "";
@@ -4127,7 +4150,7 @@ ${[
 				]) + (on ? box(w * .86, h * .48, w * .14, h * .1) : "") + box(w * .04, h * .84, w * .8, h * .06) + box(w * .06, h * .9, w * .04, h * .1) + box(w * .76, h * .9, w * .04, h * .1) + box(w * .22, h * .8, w * .04, h * .04);
 			}
 			case "injection": {
-				const mp = on ? w * .24 : w * .15;
+				const mp = L(w * .15, w * .24);
 				let bands = "";
 				for (let i = 0; i < 4; i++) bands += box(w * (.46 + i * .07), h * .4, w * .04, h * .18);
 				return box(0, h * .76, w, h * .24) + path("hmi-detail", line(w * .03, h * .28, w * .32, h * .28) + line(w * .03, h * .66, w * .32, h * .66)) + box(w * .02, h * .18, w * .04, h * .58) + box(mp, h * .22, w * .04, h * .5) + box(mp + w * .04, h * .32, w * .04, h * .3) + box(w * .28, h * .32, w * .03, h * .3) + box(w * .31, h * .18, w * .05, h * .58) + box(w * .06, h * .44, mp - w * .06, h * .06) + box(w * .36, h * .44, w * .08, h * .1) + box(w * .44, h * .42, w * .32, h * .14) + bands + poly([
@@ -4138,7 +4161,7 @@ ${[
 				]) + rrect("hmi-body", w * .76, h * .3, w * .2, h * .4, 4) + fins(w * .76, h * .3, w * .2, h * .4, 4);
 			}
 			case "guillotine": {
-				const by = on ? h * .46 : h * .18;
+				const by = L(h * .18, h * .46);
 				return box(0, 0, w * .1, h * .95) + box(w * .9, 0, w * .1, h * .95) + box(0, 0, w, h * .13) + box(w * .1, by, w * .8, h * .12) + poly([
 					[w * .1, by + h * .12],
 					[w * .9, by + h * .12],
@@ -4168,7 +4191,7 @@ ${[
 				]) + box(w * .36, h * .55, w * .28, h * .12) + box(w * .44, h * .67, w * .12, h * .33) + path(on ? "hmi-detail hmi-move-v" : "hmi-detail", flutes);
 			}
 			case "drill": {
-				const qy = on ? h * .4 : h * .3;
+				const qy = L(h * .3, h * .4);
 				return box(w * .14, h * .05, w * .1, h * .86) + box(0, h * .9, w * .72, h * .1) + rrect("hmi-body", w * .08, 0, w * .72, h * .25, 4) + box(w * .56, h * .25, w * .08, qy - h * .25 + h * .06) + poly([
 					[w * .58, qy + h * .06],
 					[w * .62, qy + h * .06],
@@ -4178,7 +4201,7 @@ ${[
 				]) + box(w * .22, h * .62, w * .6, h * .05) + path("hmi-detail", line(w * .8, h * .18, w * .98, h * .3) + line(w * .8, h * .18, w * .96, h * .08)) + circle("hmi-body", w * .8, h * .18, m * .04);
 			}
 			case "punch": {
-				const ry = on ? h * .42 : h * .3;
+				const ry = L(h * .3, h * .42);
 				return poly([
 					[w * .1, 0],
 					[w * .62, 0],
@@ -4203,11 +4226,12 @@ ${[
 					]);
 					out += path("hmi-stream", line(x, h * .46, x, h * .56), ` style="stroke-width:${f(Math.max(1.5, w * .01))}"`);
 					out += path("hmi-body", `M${f(x - w * .012)} ${f(h * .56)}H${f(x + w * .012)}V${f(h * .6)}Q${f(x + w * .04)} ${f(h * .62)} ${f(x + w * .04)} ${f(h * .66)}V${f(h * .82)}H${f(x - w * .04)}V${f(h * .66)}Q${f(x - w * .04)} ${f(h * .62)} ${f(x - w * .012)} ${f(h * .6)}Z`);
+					if (typeof pos === "number" && t > 0) out += `<rect class="hmi-fill" x="${f(x - w * .034)}" y="${f(h * .815 - h * .15 * t)}" width="${f(w * .068)}" height="${f(h * .15 * t)}"/>`;
 				}
 				return out + box(0, h * .82, w, h * .1) + box(w * .04, h * .92, w * .04, h * .08) + box(w * .92, h * .92, w * .04, h * .08);
 			}
 			case "capper": {
-				const hy = on ? h * .36 : h * .26;
+				const hy = L(h * .26, h * .36);
 				return box(w * .08, 0, w * .12, h * .82) + box(w * .08, 0, w * .6, h * .12) + rrect("hmi-body", w * .36, h * .12, w * .3, hy - h * .12 + h * .06, 3) + box(w * .44, hy + h * .06, w * .14, h * .06) + path("hmi-body", `M${f(w * .46)} ${f(h * .5)}H${f(w * .56)}V${f(h * .54)}Q${f(w * .64)} ${f(h * .57)} ${f(w * .64)} ${f(h * .63)}V${f(h * .82)}H${f(w * .38)}V${f(h * .63)}Q${f(w * .38)} ${f(h * .57)} ${f(w * .46)} ${f(h * .54)}Z`) + box(0, h * .82, w, h * .08) + box(w * .05, h * .9, w * .05, h * .1) + box(w * .9, h * .9, w * .05, h * .1);
 			}
 			case "labeler": return box(w * .04, h * .05, w * .42, h * .6) + circle("hmi-body", w * .17, h * .24, m * .13) + circle("hmi-detail", w * .17, h * .24, m * .04) + circle("hmi-body", w * .33, h * .46, m * .09) + path("hmi-strap hmi-thin", line(w * .17, h * .24 + m * .13, w * .46, h * .58) + line(w * .33, h * .46 - m * .09, w * .46, h * .58)) + poly([
@@ -4216,7 +4240,7 @@ ${[
 				[w * .46, h * .62]
 			]) + path("hmi-body", `M${f(w * .66)} ${f(h * .4)}H${f(w * .74)}V${f(h * .46)}Q${f(w * .82)} ${f(h * .5)} ${f(w * .82)} ${f(h * .56)}V${f(h * .82)}H${f(w * .58)}V${f(h * .56)}Q${f(w * .58)} ${f(h * .5)} ${f(w * .66)} ${f(h * .46)}Z`) + rrect(on ? "hmi-label-on" : "hmi-detail", w * .59, h * .6, w * .22, h * .12, 1) + box(0, h * .82, w, h * .08) + box(w * .08, h * .65, w * .08, h * .17);
 			case "wrapper": {
-				const cy2 = on ? h * .32 : h * .6;
+				const cy2 = L(h * .6, h * .32);
 				return ellipse("hmi-body", w * .38, h * .9, w * .36, h * .07) + box(w * .1, h * .76, w * .56, h * .08) + box(w * .14, h * .3, w * .48, h * .46) + path("hmi-detail", line(w * .14, h * .45, w * .62, h * .45) + line(w * .14, h * .6, w * .62, h * .6) + line(w * .38, h * .3, w * .38, h * .76)) + box(w * .86, 0, w * .08, h * .95) + box(w * .8, h * .94, w * .2, h * .06) + rrect("hmi-body", w * .72, cy2, w * .14, h * .16, 3) + rrect("hmi-body", w * .68, cy2 + h * .02, w * .04, h * .12, 2) + path("hmi-strap hmi-thin", line(w * .68, cy2 + h * .08, w * .62, cy2 + h * .05));
 			}
 			case "cardboard": return poly([
@@ -4275,6 +4299,11 @@ ${[
 .hmi-root .hmi-frame.hmi-on .hmi-move-v { stroke-dasharray: 3 3; animation: hmi-belt .3s linear infinite; }
 .hmi-root .hmi-frame.hmi-on .hmi-vib { animation: hmi-vib .12s linear infinite alternate; }
 .hmi-root .hmi-frame.hmi-on.hmi-darken .hmi-body { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-frame .hmi-fill { fill: var(--hmi-level); opacity: .85; }
+.hmi-root .hmi-frame .hmi-screen-on { fill: var(--hmi-info); fill-opacity: .35; }
+.hmi-root .hmi-frame .hmi-air { stroke: var(--hmi-info); stroke-width: 2; stroke-dasharray: 3 3; }
+.hmi-root .hmi-frame.hmi-ghost { opacity: .18; }
+.hmi-root .hmi-frame.hmi-ghost .hmi-body { stroke-dasharray: 5 4; }
 @keyframes hmi-vib { from { transform: translate(-1px, 0); } to { transform: translate(1px, .5px); } }
 `;
 	//#endregion
@@ -4607,6 +4636,7 @@ ${[
 		...MACHINE2_SHAPES
 	];
 	var SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND];
+	var isMotion = (p) => p.motion === "value" && MACHINE2_ANALOG.includes(p.shape);
 	var TONES = [
 		["equip", "Equipamento (tema)"],
 		["dark", "Escuro (tema)"],
@@ -4931,10 +4961,24 @@ ${[
 					when: (p) => SPIN_SHAPES.includes(p.shape)
 				},
 				{
+					key: "motion",
+					label: "A peça se move",
+					type: "select",
+					options: [["onoff", "Liga/desliga pela chave"], ["value", "Pela posição: valor entre mín. e máx."]],
+					when: (p) => MACHINE2_ANALOG.includes(p.shape),
+					refresh: true
+				},
+				{
 					key: "darken",
 					label: "Escurecer quando a chave ligar",
 					type: "select",
 					options: [["no", "Não"], ["yes", "Sim"]]
+				},
+				{
+					key: "presence",
+					label: "Quando a chave desligar",
+					type: "select",
+					options: [["show", "Continuar igual"], ["ghost", "Ficar apagado (sem peça / sem produto)"]]
 				},
 				{
 					key: "level",
@@ -4951,15 +4995,15 @@ ${[
 				},
 				{
 					key: "min",
-					label: "Vazio (mín.)",
+					label: "Vazio / recuado (mín.)",
 					type: "number",
-					when: (p) => p.level && p.level !== "no"
+					when: (p) => p.level && p.level !== "no" || isMotion(p)
 				},
 				{
 					key: "max",
-					label: "Cheio (máx.)",
+					label: "Cheio / avançado (máx.)",
 					type: "number",
-					when: (p) => p.level && p.level !== "no"
+					when: (p) => p.level && p.level !== "no" || isMotion(p)
 				},
 				{
 					key: "levelColor",
@@ -6488,7 +6532,7 @@ ${[
 		const px = w - 18;
 		return `<g class="hmi-setpoint${unknown}"><rect class="hmi-setpoint-box" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="4"/><text class="hmi-tag-title" x="${f(w / 2)}" y="${f(h * .28)}" font-size="${f(Math.max(9, Math.min(13, h * .2)))}">${escapeXml(p.title || sym.key || "")}</text><text class="hmi-tag-value" x="${f(w / 2)}" y="${f(h * .72)}" font-size="${f(Math.max(11, Math.min(26, h * .34)))}">${escapeXml(text)}</text><path class="hmi-pencil" d="M${px} 19l2 -5 7 -7 3 3 -7 7z"/></g>`;
 	}
-	function framePath(shape, w, h, on) {
+	function framePath(shape, w, h, on, pos) {
 		const st = structurePath(shape, w, h);
 		if (st) return st;
 		const m = Math.min(w, h);
@@ -6607,7 +6651,7 @@ ${[
 				f,
 				poly,
 				box
-			}, on) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`;
+			}, on, pos) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`;
 		}
 	}
 	function frameLevel(sym, value, opts, body) {
@@ -6700,7 +6744,16 @@ ${[
 		}
 		const free = sym.type === "shape";
 		const on = onState(value, p);
-		let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, on);
+		let pos = null;
+		if (!free && isMotion(p)) {
+			const v = num(value);
+			let min = num(p.min);
+			let max = num(p.max);
+			if (min === null) min = 0;
+			if (max === null || max <= min) max = min + 100;
+			if (v !== null) pos = Math.max(0, Math.min(1, (v - min) / (max - min)));
+		}
+		let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, on, pos);
 		const level = frameLevel(sym, value, opts, body);
 		let turning = "";
 		if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === "cw" || p.spin === "ccw")) {
@@ -6709,7 +6762,7 @@ ${[
 			body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`;
 			if (on === true) turning = " hmi-turning" + (p.spin === "ccw" ? " hmi-ccw" : "");
 		}
-		return `<g class="hmi-frame${free ? " hmi-shape" : ""} hmi-tone-${fixed ? "fixed" : tone}${turning}${on === true ? " hmi-on" : ""}${p.darken === "yes" ? " hmi-darken" : ""}"${style}>${defs}${body}${level}${label}</g>`;
+		return `<g class="hmi-frame${free ? " hmi-shape" : ""} hmi-tone-${fixed ? "fixed" : tone}${turning}${on === true ? " hmi-on" : ""}${p.darken === "yes" ? " hmi-darken" : ""}${p.presence === "ghost" && on === false ? " hmi-ghost" : ""}"${style}>${defs}${body}${level}${label}</g>`;
 	}
 	function linePoints(sym) {
 		return (sym.props && Array.isArray(sym.props.points) ? sym.props.points : []).filter((pt) => Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])).map((pt) => [Number(pt[0]), Number(pt[1])]);
@@ -7103,6 +7156,122 @@ ${[
 		d.head.appendChild(el);
 	}
 	//#endregion
+	//#region ui/editor/readyblocks.js
+	var n = 0;
+	function sym(type, x, y, key, props, size) {
+		const s = createSymbol(type, x, y);
+		s.id = "rb" + ++n;
+		s.key = key || "";
+		Object.assign(s.props, props || {});
+		if (size) {
+			s.w = size[0];
+			s.h = size[1];
+		}
+		return s;
+	}
+	function part(shape, x, y, key, props, size) {
+		const s = createSymbol("frame", x, y, SYMBOLS.frame.variants.findIndex((v) => v.props.shape === shape));
+		s.id = "rb" + ++n;
+		s.key = key || "";
+		Object.assign(s.props, props || {});
+		if (size) {
+			s.w = size[0];
+			s.h = size[1];
+		}
+		return s;
+	}
+	var text = (x, y, t, w) => sym("text", x, y, "", {
+		text: t,
+		size: 14,
+		bold: "yes"
+	}, [w || 200, 24]);
+	function readyBlocks() {
+		n = 0;
+		return [
+			{
+				name: "Cilindro com válvula e fins de curso",
+				symbols: [
+					text(0, 0, "{{tag}}", 260),
+					part("limitSwitch", 10, 30, "{{tag}}.recuado", { label: "Recuado" }, [50, 70]),
+					part("limitSwitch", 200, 30, "{{tag}}.avancado", { label: "Avançado" }, [50, 70]),
+					part("pneuCyl", 0, 130, "{{tag}}.avancado", { motion: "onoff" }, [260, 70]),
+					part("valve52", 40, 230, "{{tag}}.solenoide", { label: "Válvula {{tag}}" }, [180, 80])
+				]
+			},
+			{
+				name: "Esteira com sensor e desviador",
+				symbols: [
+					text(0, 0, "{{tag}}", 420),
+					part("photoEye", 60, 40, "{{tag}}.sensor", {}, [200, 40]),
+					sym("conveyor", 0, 90, "{{tag}}.motor", { label: "" }, [300, 50]),
+					part("diverter", 290, 60, "{{tag}}.desvia", { label: "Desvio" }, [140, 110]),
+					sym("motor", 20, 160, "{{tag}}.motor", { label: "Motor" }, [60, 60]),
+					sym("counter", 120, 160, "{{tag}}.contagem", {
+						kind: "count",
+						title: "PEÇAS"
+					}, [150, 60])
+				]
+			},
+			{
+				name: "Estação de envase",
+				symbols: [
+					text(0, 0, "Envase {{tag}}", 640),
+					part("filler", 0, 30, "{{tag}}.nivel", {
+						motion: "value",
+						min: 0,
+						max: 100,
+						label: "Enchedora"
+					}, [260, 170]),
+					part("capper", 280, 60, "{{tag}}.tampa", { label: "Tampadora" }, [150, 140]),
+					part("labeler", 450, 60, "{{tag}}.rotulo", { label: "Rotuladora" }, [180, 140]),
+					sym("conveyor", 0, 230, "{{tag}}.esteira", { label: "" }, [640, 40]),
+					part("photoEye", 220, 280, "{{tag}}.garrafa", {}, [160, 30]),
+					part("beacon", 600, 20, "{{tag}}.falha", {}, [36, 70]),
+					sym("tag", 0, 330, "{{tag}}.nivel", {
+						title: "NÍVEL",
+						unit: "%",
+						decimals: 0
+					}, [140, 60]),
+					sym("counter", 160, 330, "{{tag}}.garrafas", {
+						kind: "count",
+						title: "GARRAFAS"
+					}, [160, 60])
+				]
+			},
+			{
+				name: "Prensa com cortina de luz e emergência",
+				symbols: [
+					text(0, 0, "Prensa {{tag}}", 340),
+					part("punch", 60, 30, "{{tag}}.desce", { label: "Prensa" }, [200, 220]),
+					part("lightCurtain", 0, 60, "{{tag}}.cortina", {}, [40, 160]),
+					part("lightCurtain", 280, 60, "{{tag}}.cortina", {}, [40, 160]),
+					part("estop", 0, 290, "{{tag}}.emergencia", { label: "Emergência" }, [60, 60]),
+					part("pushStation", 100, 280, "{{tag}}.ciclo", { label: "Bimanual" }, [60, 80]),
+					part("beacon", 220, 280, "{{tag}}.falha", {}, [36, 70])
+				]
+			},
+			{
+				name: "Pórtico pega e coloca",
+				symbols: [
+					text(0, 0, "Pórtico {{tag}}", 340),
+					part("gantry", 0, 30, "{{tag}}.z", {
+						motion: "value",
+						min: 0,
+						max: 100,
+						label: "Eixo Z"
+					}, [340, 220]),
+					part("gripper", 110, 280, "{{tag}}.garra", { label: "Garra" }, [80, 80]),
+					sym("tag", 220, 280, "{{tag}}.z", {
+						title: "Z",
+						unit: "mm",
+						decimals: 0
+					}, [120, 60]),
+					part("servo", 0, 280, "{{tag}}.servo", { label: "Servo" }, [100, 50])
+				]
+			}
+		];
+	}
+	//#endregion
 	//#region ui/editor/index.js
 	var GRID = 10;
 	var HANDLES = [
@@ -7375,6 +7544,7 @@ ${[
 .hmi-ed-menu .hmi-ed-menurow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-bottom: 4px; border-bottom: 1px solid var(--hmi-ed-border); margin-bottom: 2px; }
 .hmi-ed-menu .hmi-ed-menurow input { height: 26px; padding: 2px 6px; font: inherit; font-size: 12px; border: 1px solid var(--hmi-ed-border); border-radius: 4px; flex: 1; min-width: 120px; }
 .hmi-ed-menu .hmi-ed-empty { grid-column: 1 / -1; font-size: 12px; opacity: .7; padding: 4px; }
+.hmi-ed-menu .hmi-ed-head { font-weight: 700; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
 .hmi-ed-item { position: relative; }
 .hmi-ed-item .hmi-ed-del { position: absolute; top: 1px; right: 3px; border: 0; background: none; cursor: pointer; opacity: .5; font-size: 13px; color: inherit; }
 .hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
@@ -8692,6 +8862,28 @@ ${[
 			row.appendChild(file);
 			mini("Importar", "Lê um arquivo .json de blocos", () => file.click());
 			menu.appendChild(row);
+			menu.appendChild(el("div", { class: "hmi-ed-empty hmi-ed-head" }, "Montagens prontas"));
+			readyBlocks().forEach((b, i) => {
+				const item = el("div", {
+					class: "hmi-ed-item hmi-ed-ready",
+					draggable: "true",
+					title: "Arraste para a tela ou clique. Pergunta o nome ({{tag}}) usado nas chaves."
+				});
+				item.innerHTML = blockIcon(b);
+				item.appendChild(el("span", {}, b.name));
+				item.addEventListener("dragstart", (e) => {
+					e.dataTransfer.setData("text/plain", "hmi-ready:" + i);
+					menu.style.opacity = "0";
+				});
+				item.addEventListener("dragend", closeMenu);
+				item.addEventListener("click", () => {
+					const v = view();
+					insertBlock(b, v.w / 2, v.h / 2);
+					closeMenu();
+				});
+				menu.appendChild(item);
+			});
+			menu.appendChild(el("div", { class: "hmi-ed-empty hmi-ed-head" }, "Meus blocos"));
 			if (!blocks.length) menu.appendChild(el("div", { class: "hmi-ed-empty" }, "Nenhum bloco salvo. Selecione símbolos e clique em Salvar seleção. Os blocos ficam neste navegador e servem em qualquer tela."));
 			blocks.forEach((b, i) => {
 				const item = el("div", {
@@ -8792,6 +8984,13 @@ ${[
 		});
 		stage.addEventListener("drop", (e) => {
 			const data = e.dataTransfer.getData("text/plain") || "";
+			if (data.startsWith("hmi-ready:")) {
+				e.preventDefault();
+				const b = readyBlocks()[Number(data.slice(10))];
+				const p = toSvg(e);
+				if (b) insertBlock(b, p.x, p.y);
+				return;
+			}
 			if (data.startsWith("hmi-block:")) {
 				e.preventDefault();
 				const b = loadBlocks()[Number(data.slice(10))];
