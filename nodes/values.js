@@ -32,15 +32,25 @@ const truthy = v => v === true || (v !== false && v !== null && v !== undefined 
 // symbol and which phase (click, down, up); what is sent comes from the node's
 // own config, so a page cannot make the node send arbitrary values.
 // Returns null when nothing should be sent.
-function actionMessage (symbols, values, msg) {
+// pin: the canvas password (node credential); actions marked "pedir senha" need it.
+function actionMessage (symbols, values, msg, pin) {
     const a = (msg && msg._hmiAction) || {}
     const sym = (Array.isArray(symbols) ? symbols : []).find(s => s && s.id === a.id)
     const act = sym && sym.action
     if (!act) return null
+    if (act.pin === 'yes' && (!pin || String(a.pin || '') !== String(pin))) return { denied: true }
     const cur = sym.key ? values[sym.key] : undefined
     const asBool = typeof cur === 'boolean'
     let payload
-    if (act.mode === 'value' && a.phase === 'click') {
+    let topic = act.topic || sym.key || ''
+    if (act.mode === 'faceplate' && ['fp-on', 'fp-off', 'fp-reset'].includes(a.phase)) {
+        // faceplate buttons: topic and value come from the symbol's config
+        const k = a.phase.slice(3)
+        if (!act[k + 'Topic']) return null
+        topic = act[k + 'Topic']
+        payload = parseValue(act[k + 'Value'])
+        if (payload === undefined) payload = true
+    } else if (act.mode === 'value' && a.phase === 'click') {
         payload = parseValue(act.value)
         if (payload === undefined) payload = true
     } else if (act.mode === 'toggle' && a.phase === 'click') {
@@ -63,9 +73,24 @@ function actionMessage (symbols, values, msg) {
     } else {
         return null
     }
-    const out = { topic: act.topic || sym.key || '', payload, symbol: { id: sym.id, type: sym.type, key: sym.key || '' } }
+    const p = sym.props || {}
+    const name = String(p.label || p.title || p.text || sym.key || sym.type)
+    const user = userOf(msg)
+    // who sent what and when, for a command log (database, file...)
+    const audit = { ts: new Date().toISOString(), symbol: name, action: a.phase === 'click' || a.phase === 'input' ? act.mode : a.phase, topic, value: payload }
+    if (user) audit.user = user
+    if (msg._client && msg._client.socketId) audit.socketId = msg._client.socketId
+    const out = { topic, payload, symbol: { id: sym.id, type: sym.type, key: sym.key || '' }, audit }
     if (msg._client) out._client = msg._client
     return out
 }
 
-module.exports = { mergeValues, parseValue, actionMessage }
+// user name from the dashboard connection (FlowFuse / multi-user plugins), if any
+function userOf (msg) {
+    const u = msg && msg._client && msg._client.user
+    if (!u) return ''
+    if (typeof u === 'string') return u
+    return String(u.name || u.username || u.email || u.userId || u.id || '')
+}
+
+module.exports = { mergeValues, parseValue, actionMessage, userOf }

@@ -9,6 +9,8 @@ const editKeys = new Map()
 
 const RULE_OPS = ['on', 'off', 'eq', 'ne', 'gt', 'lt']
 const RULE_EFFECTS = ['alarm', 'warn', 'info', 'ok', 'dim', 'blink', 'hide']
+const ACTIONS = ['value', 'toggle', 'pulse', 'input', 'page', 'faceplate']
+const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueKey', 'valueUnit', 'onTopic', 'onValue', 'offTopic', 'offValue', 'resetTopic', 'resetValue']
 
 function cleanSymbols (list) {
     if (!Array.isArray(list)) return null
@@ -40,9 +42,10 @@ function cleanSymbols (list) {
                 effect: RULE_EFFECTS.includes(r.effect) ? r.effect : 'alarm'
             }))
         }
-        if (a && typeof a === 'object' && ['value', 'toggle', 'pulse', 'input', 'page'].includes(a.mode)) {
-            clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no' }
+        if (a && typeof a === 'object' && ACTIONS.includes(a.mode)) {
+            clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no', pin: a.pin === 'yes' ? 'yes' : 'no' }
             if (a.mode === 'input') Object.assign(clean.action, { min: String(a.min ?? ''), max: String(a.max ?? '') })
+            if (a.mode === 'faceplate') for (const k of FACEPLATE_KEYS) clean.action[k] = String(a[k] ?? '').slice(0, 200)
         }
         out.push(clean)
     }

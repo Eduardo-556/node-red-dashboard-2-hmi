@@ -714,7 +714,168 @@ var HmiEditor = (function(exports) {
 			]);
 			return `<g class="hmi-arrow hmi-c-${color} ${stateClass(on)}">${shape}${labelBelow(p, w, h)}</g>`;
 		}
+		const EVENT_TEXT = {
+			ATIVO: "ATIVO",
+			NORMAL: "NORMAL",
+			RECONHECIDO: "RECONHECIDO"
+		};
+		const when = (ts, locale) => {
+			try {
+				return new Date(ts).toLocaleString(locale || "pt-BR", {
+					day: "2-digit",
+					month: "2-digit",
+					hour: "2-digit",
+					minute: "2-digit",
+					second: "2-digit"
+				});
+			} catch (e) {
+				return new Date(ts).toISOString().slice(5, 19).replace("T", " ");
+			}
+		};
+		const clip = (t, px, size) => {
+			const max = Math.max(3, Math.floor(px / (size * .56)));
+			t = String(t || "");
+			return t.length > max ? t.slice(0, max - 1) + "…" : t;
+		};
+		const SAMPLE = {
+			active: [
+				{
+					id: "ex1",
+					text: "Motor M1 em falha (exemplo)",
+					priority: "1",
+					active: true,
+					acked: false,
+					since: Date.UTC(2026, 9, 17, 11, 2, 5)
+				},
+				{
+					id: "ex2",
+					text: "Temperatura estufa alto (exemplo)",
+					priority: "2",
+					active: true,
+					acked: true,
+					since: Date.UTC(2026, 9, 17, 10, 41, 30)
+				},
+				{
+					id: "ex3",
+					text: "Nível tanque baixo (exemplo)",
+					priority: "3",
+					active: false,
+					acked: false,
+					since: Date.UTC(2026, 9, 17, 9, 15, 0)
+				}
+			],
+			history: [{
+				ts: Date.UTC(2026, 9, 17, 11, 2, 5),
+				text: "Motor M1 em falha (exemplo)",
+				priority: "1",
+				event: "ATIVO"
+			}, {
+				ts: Date.UTC(2026, 9, 17, 10, 50, 0),
+				text: "Temperatura estufa alto (exemplo)",
+				priority: "2",
+				event: "RECONHECIDO",
+				user: "operador"
+			}]
+		};
+		function renderAlarmList(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const data = opts.alarms || (opts.editor ? SAMPLE : {
+				active: [],
+				history: []
+			});
+			const tab = opts.ui && opts.ui.tab || p.tab || "active";
+			const rowH = Math.max(18, Number(p.rowHeight) || 26);
+			const fs = Math.max(10, Math.min(14, rowH * .5));
+			const head = 34;
+			const rows = Math.max(1, Math.floor((h - head - 4) / rowH));
+			const active = Array.isArray(data.active) ? data.active : [];
+			const unacked = active.filter((a) => !a.acked).length;
+			const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? " " + cls : ""}" data-hmi="${escapeXml(action)}">${rect("hmi-al-btn-box", x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`;
+			let out = `<g class="hmi-alarmlist">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || "ALARMES") + " (" + active.length + ")")}</text>` + btn(w * .32, 6, 78, 22, "Ativos", "tab:active", tab === "active" ? "hmi-al-sel" : "") + btn(w * .32 + 84, 6, 84, 22, "Histórico", "tab:history", tab === "history" ? "hmi-al-sel" : "") + (unacked ? btn(w - 152, 6, 144, 22, "Reconhecer todos", "ack:all", "hmi-al-ackall") : "") + path("hmi-al-line", `M1 ${head}H${f(w - 1)}`);
+			const tx = 48;
+			const tw = w - tx - 10;
+			const timeW = Math.min(150, tw * .3);
+			const list = tab === "history" ? Array.isArray(data.history) ? data.history : [] : active;
+			if (!list.length) out += `<text class="hmi-al-empty" x="${f(w / 2)}" y="${f(head + rowH)}" font-size="${f(fs)}">${tab === "history" ? "Sem eventos" : "Nenhum alarme"}</text>`;
+			list.slice(0, rows).forEach((a, i) => {
+				const y = 36 + i * rowH;
+				const cy = y + rowH / 2;
+				const pr = [
+					"1",
+					"2",
+					"3"
+				].includes(String(a.priority)) ? String(a.priority) : "2";
+				let state;
+				let cls;
+				if (tab === "history") {
+					state = (EVENT_TEXT[a.event] || a.event || "") + (a.user ? " · " + a.user : "");
+					cls = "hmi-al-hist";
+				} else {
+					state = a.active ? a.acked ? "RECONHECIDO" : "ATIVO" : "NORMAL";
+					cls = a.active ? a.acked ? "hmi-al-acked" : "hmi-al-unacked" : "hmi-al-rtn";
+				}
+				const stateW = tab === "history" ? Math.min(200, tw * .3) : 118;
+				const ackW = tab !== "history" && !a.acked ? 34 : 0;
+				const textW = tw - timeW - stateW - ackW - 16;
+				out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect("hmi-al-stripe", 1, y, w - 2, rowH) : "") + `<g class="${cls === "hmi-al-unacked" ? "hmi-blink" : ""}">${alarmIndicator(24, cy, pr)}</g><text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * .92)}">${escapeXml(when(a.since || a.ts, opts.locale))}</text><text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text><text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - stateW)}" y="${f(cy)}" font-size="${f(fs * .85)}">${escapeXml(clip(state, stateW, fs * .85))}</text>` + (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, "✓", "ack:" + a.id, "hmi-al-ack") : "") + "</g>";
+			});
+			if (list.length > rows) out += `<text class="hmi-al-more hmi-right" x="${f(w - 10)}" y="${f(h - 4)}" font-size="10">+${list.length - rows}</text>`;
+			return out + "</g>";
+		}
+		function renderAlarmSummary(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const data = opts.alarms || (opts.editor ? SAMPLE : { active: [] });
+			const active = Array.isArray(data.active) ? data.active : [];
+			const unacked = active.filter((a) => !a.acked);
+			const top = (unacked.length ? unacked : active).reduce((m, a) => Math.min(m, Number(a.priority) || 3), 9);
+			const s = Math.min(h * .7, 28);
+			const bx = 8 + s / 2;
+			const bell = `M${f(bx - s * .36)} ${f(h / 2 + s * .22)}c0 -${f(s * .1)} ${f(s * .08)} -${f(s * .1)} ${f(s * .08)} -${f(s * .3)}v-${f(s * .16)}a${f(s * .28)} ${f(s * .28)} 0 0 1 ${f(s * .56)} 0v${f(s * .16)}c0 ${f(s * .2)} ${f(s * .08)} ${f(s * .2)} ${f(s * .08)} ${f(s * .3)}z`;
+			const txt = active.length ? active.length + (active.length === 1 ? " ALARME" : " ALARMES") : "SEM ALARMES";
+			return `<g class="hmi-alsum ${active.length ? "hmi-p" + top : "hmi-al-none"}${unacked.length ? " hmi-al-new" : ""}">` + rect("hmi-alsum-box", 1, 1, w - 2, h - 2, 6) + `<g class="${unacked.length ? "hmi-blink" : ""}">${path("hmi-bell", bell)}${circle("hmi-bell", bx, h / 2 + s * .32, s * .08)}</g><text class="hmi-alsum-text hmi-left" x="${f(bx + s * .6)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(h * .4, 16)))}">${escapeXml(txt)}${unacked.length ? escapeXml(" · " + unacked.length + " novo" + (unacked.length === 1 ? "" : "s")) : ""}</text>` + labelBelow(p, w, h) + "</g>";
+		}
 		return {
+			alarmList: {
+				label: "Lista de alarmes",
+				group: "Estados",
+				w: 640,
+				h: 220,
+				preview: void 0,
+				alarms: true,
+				defaults: {
+					title: "ALARMES",
+					rowHeight: 26,
+					tab: "active"
+				},
+				fields: [
+					TITLE,
+					{
+						key: "rowHeight",
+						label: "Altura da linha",
+						type: "number"
+					},
+					{
+						key: "tab",
+						label: "Abre em",
+						type: "select",
+						options: [["active", "Ativos"], ["history", "Histórico"]]
+					}
+				],
+				render: renderAlarmList
+			},
+			alarmSummary: {
+				label: "Resumo de alarmes",
+				group: "Estados",
+				w: 220,
+				h: 40,
+				preview: void 0,
+				alarms: true,
+				defaults: { label: "" },
+				fields: [LABEL],
+				render: renderAlarmSummary
+			},
 			vfd: {
 				label: "Inversor de frequência",
 				group: "Elétrica",
@@ -1902,6 +2063,54 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-arrow.hmi-c-warn .hmi-arrow-body { fill: var(--hmi-warn); }
 .hmi-root .hmi-arrow.hmi-c-alarm .hmi-arrow-body { fill: var(--hmi-alarm); }
 .hmi-root .hmi-arrow.hmi-off .hmi-arrow-body { opacity: .25; }
+.hmi-root .hmi-alarmlist text { dominant-baseline: central; }
+.hmi-root .hmi-al-line { stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-al-stripe { fill: var(--hmi-bg); opacity: .5; }
+.hmi-root .hmi-al-time { fill: var(--hmi-text-dim); font-family: Consolas, "Roboto Mono", monospace; }
+.hmi-root .hmi-al-text { fill: var(--hmi-text); font-weight: 600; }
+.hmi-root .hmi-al-state { fill: var(--hmi-text-dim); font-weight: 700; letter-spacing: .3px; }
+.hmi-root .hmi-al-unacked .hmi-al-text, .hmi-root .hmi-al-unacked .hmi-al-state { font-weight: 800; fill: var(--hmi-text); }
+.hmi-root .hmi-al-rtn .hmi-al-text { fill: var(--hmi-text-dim); font-weight: 500; }
+.hmi-root .hmi-al-empty, .hmi-root .hmi-al-more { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-al-btn { cursor: pointer; }
+.hmi-root .hmi-al-btn-box { fill: var(--hmi-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-al-btn text { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-al-sel .hmi-al-btn-box { fill: var(--hmi-equip-on); }
+.hmi-root .hmi-al-sel text { fill: var(--hmi-tag-bg); }
+.hmi-root.hmi-theme-classic .hmi-al-sel text { fill: var(--hmi-text); }
+.hmi-root .hmi-al-ackall .hmi-al-btn-box, .hmi-root .hmi-al-ack .hmi-al-btn-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-al-btn:hover .hmi-al-btn-box { filter: brightness(.9); }
+.hmi-root .hmi-alsum-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-alsum-text { fill: var(--hmi-text); font-weight: 800; dominant-baseline: central; }
+.hmi-root .hmi-bell { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-alsum.hmi-p1 .hmi-alsum-box { fill: var(--hmi-alarm); stroke: #000; }
+.hmi-root .hmi-alsum.hmi-p1 .hmi-alsum-text, .hmi-root .hmi-alsum.hmi-p1 .hmi-bell { fill: #fff; }
+.hmi-root .hmi-alsum.hmi-p2 .hmi-alsum-box { fill: var(--hmi-warn); stroke: #000; }
+.hmi-root .hmi-alsum.hmi-p2 .hmi-alsum-text, .hmi-root .hmi-alsum.hmi-p2 .hmi-bell { fill: #000; }
+.hmi-root .hmi-alsum.hmi-p3 .hmi-alsum-box { fill: var(--hmi-low); stroke: #000; }
+.hmi-fp-back { position: fixed; inset: 0; z-index: 3000; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+.hmi-fp { --fp-bg: #e6e7e8; --fp-text: #1f2328; --fp-dim: #55595e; --fp-line: #a9acaf; --fp-btn: #d9dadb; min-width: 300px; max-width: min(440px, calc(100vw - 32px)); background: var(--fp-bg); color: var(--fp-text); border: 1px solid var(--fp-line); border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); padding: 0 0 14px; }
+.hmi-fp-classic .hmi-fp { --fp-bg: #1c2025; --fp-text: #e8edf1; --fp-dim: #9aa4ae; --fp-line: #3a4148; --fp-btn: #2a2f36; }
+.hmi-fp-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--fp-line); font-weight: 800; font-size: 16px; letter-spacing: .3px; }
+.hmi-fp-x { background: none; border: 0; color: var(--fp-dim); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.hmi-fp-rows { padding: 8px 14px; }
+.hmi-fp-row { display: flex; justify-content: space-between; gap: 16px; padding: 5px 0; border-bottom: 1px dashed var(--fp-line); font-size: 14px; }
+.hmi-fp-row span { color: var(--fp-dim); }
+.hmi-fp-row b { font-family: Consolas, "Roboto Mono", monospace; }
+.hmi-fp-st-fault { color: #d71920; }
+.hmi-fp-sub { color: var(--fp-dim); font-size: 12px; font-weight: 700; letter-spacing: .5px; margin: 6px 0 4px; }
+.hmi-fp-alarms { padding: 0 14px 6px; }
+.hmi-fp-alarm { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; margin-bottom: 4px; border-left: 6px solid #f2b705; background: var(--fp-btn); font-size: 13px; }
+.hmi-fp-alarm.hmi-fp-p1 { border-left-color: #d71920; }
+.hmi-fp-alarm.hmi-fp-p3 { border-left-color: #c46ad1; }
+.hmi-fp-unacked { font-weight: 800; }
+.hmi-fp-cmds { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 14px 0; justify-content: flex-end; }
+.hmi-fp-btn { min-width: 92px; padding: 9px 14px; font-size: 14px; font-weight: 700; border-radius: 6px; border: 1px solid var(--fp-line); background: var(--fp-btn); color: var(--fp-text); cursor: pointer; }
+.hmi-fp-btn:hover { filter: brightness(.94); }
+.hmi-fp-on { background: #4d5156; color: #fff; }
+.hmi-pin-label { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 4px; font-size: 13px; color: var(--fp-dim); }
+.hmi-pin-label input { font-size: 18px; padding: 8px; border-radius: 4px; border: 1px solid var(--fp-line); background: #fff; color: #111; }
+.hmi-notice { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3100; background: #d71920; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 @keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
 @keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
 `;
@@ -4539,7 +4748,8 @@ var HmiEditor = (function(exports) {
 		["toggle", "Inverter (liga / desliga)"],
 		["pulse", "Pulso (1 ao apertar, 0 ao soltar)"],
 		["input", "Digitar um valor (ajuste)"],
-		["page", "Ir para outra página"]
+		["page", "Ir para outra página"],
+		["faceplate", "Abrir faceplate (detalhes e comandos)"]
 	];
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
 	var clipboard = null;
@@ -5063,13 +5273,16 @@ var HmiEditor = (function(exports) {
 					if (fd.refresh) setTimeout(showProps);
 				}, fd.options));
 			}
+			if (def.defaults && "priority" in def.defaults) props.appendChild(field("Na lista de alarmes", s.props.alarmList === "no" ? "no" : "yes", "select", (v) => {
+				s.props.alarmList = v;
+			}, [["yes", "Sim"], ["no", "Não"]]));
 			props.appendChild(field("Valor de teste (só no editor)", s.preview === void 0 ? "" : String(s.preview), "text", (v) => {
 				const p = parsePreview(v);
 				if (p === void 0) delete s.preview;
 				else s.preview = p;
 			}));
 			if (def.image) imageFields(s, smallBtn);
-			if (!def.line && !def.image && !["frame", "stack"].includes(s.type)) {
+			if (!def.line && !def.image && !def.alarms && !["frame", "stack"].includes(s.type)) {
 				props.appendChild(el("h5", {}, "Escala do valor"));
 				const sc = s.scale || {};
 				const setSc = (k, v) => {
@@ -5088,7 +5301,7 @@ var HmiEditor = (function(exports) {
 				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Mostra valor × multiplicar ÷ dividir + somar. Ex.: dividir por 10 para um CLP que manda 1450 e a tela mostra 145,0."));
 			}
 			ruleFields(s, smallBtn);
-			if (def.line || s.type === "frame") return;
+			if (def.line || s.type === "frame" || def.alarms) return;
 			props.appendChild(el("h5", {}, "Ao clicar no dashboard"));
 			const act = s.action || { mode: "none" };
 			const setAct = (k, v) => {
@@ -5111,11 +5324,22 @@ var HmiEditor = (function(exports) {
 			if (act.mode && act.mode !== "none") {
 				if (act.mode === "value") props.appendChild(field("Valor enviado", act.value, "text", (v) => setAct("value", v)));
 				if (act.mode === "input") props.appendChild(pair(field("Mínimo", act.min, "number", (v) => setAct("min", v)), field("Máximo", act.max, "number", (v) => setAct("max", v))));
-				if (act.mode === "page") {
+				if (act.mode === "faceplate") {
+					props.appendChild(el("div", { class: "hmi-ed-hint" }, "Abre uma janela com estado, alarmes deste símbolo e os campos abaixo. Deixe vazio o que não usa."));
+					props.appendChild(pair(field("Chave de um valor", act.valueKey || "", "text", (v) => setAct("valueKey", v.trim())), field("Unidade", act.valueUnit || "", "text", (v) => setAct("valueUnit", v))));
+					props.appendChild(pair(field("Chave do modo", act.modeKey || "", "text", (v) => setAct("modeKey", v.trim())), field("Textos do modo", act.modeTexts || "0=MANUAL,1=AUTO", "text", (v) => setAct("modeTexts", v))));
+					props.appendChild(pair(field("Chave das horas", act.hoursKey || "", "text", (v) => setAct("hoursKey", v.trim())), field("Chave das partidas", act.startsKey || "", "text", (v) => setAct("startsKey", v.trim()))));
+					for (const [k, label] of [
+						["on", "Ligar"],
+						["off", "Desligar"],
+						["reset", "Reset"]
+					]) props.appendChild(pair(field("Botão " + label + ": tópico", act[k + "Topic"] || "", "text", (v) => setAct(k + "Topic", v.trim())), field("valor", act[k + "Value"] ?? "", "text", (v) => setAct(k + "Value", v))));
+				} else if (act.mode === "page") {
 					const pages = o.getPages && o.getPages() || [];
 					const pf = pages.length ? field("Página", act.value, "select", (v) => setAct("value", v), [["", "(escolha)"], ...pages]) : field("Página (caminho, ex. /linha2)", act.value, "text", (v) => setAct("value", v.trim()));
 					props.appendChild(pf);
-				} else {
+				}
+				if (!["page", "faceplate"].includes(act.mode)) {
 					const t = field("Tópico (vazio = chave do payload)", act.topic, "text", (v) => setAct("topic", v));
 					t.querySelector("input").placeholder = s.key || "";
 					props.appendChild(t);
@@ -5123,8 +5347,10 @@ var HmiEditor = (function(exports) {
 				if ([
 					"value",
 					"toggle",
-					"page"
+					"page",
+					"faceplate"
 				].includes(act.mode)) props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
+				if (act.mode !== "page") props.appendChild(field("Pedir senha", act.pin || "no", "select", (v) => setAct("pin", v), [["no", "Não"], ["yes", "Sim (a senha do nó)"]]));
 				if (act.mode !== "page") props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
 			}
 		}

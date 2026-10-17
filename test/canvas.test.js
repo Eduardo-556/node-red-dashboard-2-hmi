@@ -40,7 +40,8 @@ test('click actions build the output from the node config', () => {
         { id: 'v', type: 'text', key: 'sp', action: { mode: 'value', value: '42,5', confirm: 'yes' } },
         { id: 'n', type: 'led', key: 'x' }
     ]
-    const act = (id, phase, values = {}) => actionMessage(syms, values, { _hmiAction: { id, phase }, _client: { socketId: 'a' } })
+    const noAudit = o => { if (o) delete o.audit; return o }
+    const act = (id, phase, values = {}) => noAudit(actionMessage(syms, values, { _hmiAction: { id, phase }, _client: { socketId: 'a' } }))
     assert.deepStrictEqual(act('b', 'down'), { topic: 'start', payload: 1, symbol: { id: 'b', type: 'button', key: 'start' }, _client: { socketId: 'a' } })
     assert.strictEqual(act('b', 'up').payload, 0)
     assert.strictEqual(act('b', 'up', { start: true }).payload, false)
@@ -57,7 +58,7 @@ test('click actions build the output from the node config', () => {
 test('click actions survive saving from the dashboard', () => {
     const { cleanSymbols } = require('../nodes/admin')
     const [s] = cleanSymbols([{ id: 'b', type: 'button', action: { mode: 'pulse', value: 3, topic: 't', confirm: 'yes', extra: 1 } }])
-    assert.deepStrictEqual(s.action, { mode: 'pulse', value: '3', topic: 't', confirm: 'yes' })
+    assert.deepStrictEqual(s.action, { mode: 'pulse', value: '3', topic: 't', confirm: 'yes', pin: 'no' })
     const [n] = cleanSymbols([{ id: 'b', type: 'button', action: { mode: 'rm -rf' } }])
     assert.strictEqual(n.action, undefined)
 })
@@ -65,7 +66,7 @@ test('click actions survive saving from the dashboard', () => {
 test('typed setpoints are checked against the configured range', () => {
     const { actionMessage } = require('../nodes/values')
     const syms = [{ id: 's', type: 'setpoint', key: 'vel', action: { mode: 'input', topic: 'velAlvo', min: '0', max: '200' } }]
-    const act = value => actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'input', value } })
+    const act = value => { const o = actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'input', value } }); if (o) delete o.audit; return o }
     assert.deepStrictEqual(act('150,5'), { topic: 'velAlvo', payload: 150.5, symbol: { id: 's', type: 'setpoint', key: 'vel' } })
     assert.strictEqual(act('250'), null)
     assert.strictEqual(act('-1'), null)
@@ -98,4 +99,49 @@ test('groups survive saving from the dashboard', () => {
     const [a, b] = cleanSymbols([{ id: 'a', type: 'reel', group: 'g1' }, { id: 'b', type: 'reel', group: 5 }])
     assert.strictEqual(a.group, 'g1')
     assert.strictEqual(b.group, undefined)
+})
+
+test('alarm list: activation, return to normal and acknowledgement (ISA-18.2)', () => {
+    const { createAlarms } = require('../nodes/alarms')
+    const syms = [
+        { id: 'm', type: 'motor', key: 'run', props: { label: 'M1', faultKey: 'falha', priority: '1' } },
+        { id: 't', type: 'tank', key: 'nivel', scale: { divisor: '10' }, props: { label: 'Tanque', lo: 20, hi: 90, priority: '2' } },
+        { id: 'a', type: 'alarm', key: 'emerg', props: { text: 'EMERGÊNCIA', onWhen: 'nonzero', priority: '1' } },
+        { id: 'b', type: 'isaBar', key: 'temp', props: { title: 'Temp', lolo: 10, lo: 20, hi: 80, hihi: 90, priority: '2' } }
+    ]
+    const al = createAlarms(syms)
+    assert.strictEqual(al.evaluate({ falha: 0, nivel: 500, emerg: 0, temp: 50 }, 1).length, 0)
+    const ev = al.evaluate({ falha: 1, nivel: 150, emerg: 1, temp: 95 }, 2)
+    assert.deepStrictEqual(ev.map(e => e.text).sort(), ['EMERGÊNCIA', 'M1 em falha', 'Tanque baixo', 'Temp muito alto'])
+    assert.strictEqual(al.snapshot().unacked, 4)
+    // back to normal but not acknowledged: stays in the list
+    al.evaluate({ falha: 0, nivel: 500, emerg: 1, temp: 85 }, 3)
+    let snap = al.snapshot()
+    assert.ok(snap.active.find(a => a.id === 'm:fault' && !a.active && !a.acked))
+    assert.ok(snap.active.find(a => a.id === 'b:hi' && a.active))
+    al.ack('m:fault', 4, 'ana')
+    snap = al.snapshot()
+    assert.ok(!snap.active.find(a => a.id === 'm:fault'))
+    assert.strictEqual(snap.history[0].event, 'RECONHECIDO')
+    assert.strictEqual(snap.history[0].user, 'ana')
+    al.ack('all', 5)
+    assert.strictEqual(al.snapshot().unacked, 0)
+    assert.ok(al.snapshot().active.length > 0)
+    // survives a restart through save()
+    const again = createAlarms(syms, JSON.parse(JSON.stringify(al.save())))
+    assert.strictEqual(again.snapshot().active.length, al.snapshot().active.length)
+})
+
+test('faceplate buttons and password-protected commands', () => {
+    const { actionMessage } = require('../nodes/values')
+    const syms = [{ id: 'm', type: 'motor', key: 'run', props: { label: 'M1' }, action: { mode: 'faceplate', onTopic: 'cmd/m1', onValue: '1', offTopic: 'cmd/m1', offValue: '0', pin: 'yes' } }]
+    assert.deepStrictEqual(actionMessage(syms, {}, { _hmiAction: { id: 'm', phase: 'fp-on', pin: 'x' } }, '1234'), { denied: true })
+    const out = actionMessage(syms, {}, { _hmiAction: { id: 'm', phase: 'fp-off', pin: '1234' }, _client: { socketId: 's1', user: { name: 'Ana' } } }, '1234')
+    assert.strictEqual(out.topic, 'cmd/m1')
+    assert.strictEqual(out.payload, 0)
+    assert.strictEqual(out.audit.user, 'Ana')
+    assert.strictEqual(out.audit.symbol, 'M1')
+    assert.strictEqual(actionMessage(syms, {}, { _hmiAction: { id: 'm', phase: 'fp-reset', pin: '1234' } }, '1234'), null)
+    // no password configured on the node: protected commands are refused
+    assert.deepStrictEqual(actionMessage(syms, {}, { _hmiAction: { id: 'm', phase: 'fp-on', pin: '' } }, ''), { denied: true })
 })

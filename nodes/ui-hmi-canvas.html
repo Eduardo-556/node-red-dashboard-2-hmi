@@ -122,7 +122,12 @@
             background: { value: 'theme' },
             offlineAfter: { value: 10, validate: RED.validators.number(true) },
             locale: { value: 'pt-BR' },
+            alarms: { value: 'on' },
+            alarmsOut: { value: 'no' },
             symbols: { value: [] }
+        },
+        credentials: {
+            pin: { type: 'password' }
         },
         inputs: 1,
         outputs: 1,
@@ -220,6 +225,24 @@
         <input type="text" id="node-input-locale" style="width: 90px" placeholder="pt-BR">
     </div>
     <div class="form-row">
+        <label for="node-input-alarms"><i class="fa fa-bell"></i> Alarmes</label>
+        <select id="node-input-alarms" style="width: 260px">
+            <option value="on">Lista de alarmes ligada</option>
+            <option value="off">Desligada</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-alarmsOut"><i class="fa fa-sign-out"></i> Eventos</label>
+        <select id="node-input-alarmsOut" style="width: 260px">
+            <option value="no">Saída só com comandos</option>
+            <option value="yes">Saída também com eventos de alarme</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-pin"><i class="fa fa-key"></i> Senha</label>
+        <input type="password" id="node-input-pin" style="width: 260px" placeholder="dos comandos com &quot;Pedir senha&quot;" autocomplete="new-password">
+    </div>
+    <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
@@ -248,7 +271,14 @@
         <dd>The action's topic, or the symbol's payload key when empty.</dd>
         <dt>symbol <span class="property-type">object</span></dt>
         <dd><code>{ id, type, key }</code> of the clicked symbol.</dd>
+        <dt>audit <span class="property-type">object</span></dt>
+        <dd>Command log: <code>{ ts, symbol, action, topic, value, user, socketId }</code>. <code>user</code> is filled when the dashboard has a login (FlowFuse or a multi-user plugin). Save it to a database to know who sent each command.</dd>
     </dl>
+    <h3>Alarms</h3>
+    <p>With <b>Alarmes</b> on, the node tracks every alarm its symbols can show: fault keys, limits (below/above, LL/HH on the ISA-101 bar), alarm banners and tripped breakers. Add the <b>Lista de alarmes</b> symbol to see them; operators acknowledge one alarm or all. An alarm leaves the list when it is back to normal and acknowledged (ISA-18.2). The list is kept in the node context, so a persistent context store keeps it across restarts.</p>
+    <p>With <b>Eventos</b> set to output, each change also leaves the node as <code>msg.topic = "alarme"</code> and <code>msg.payload = { event, id, text, priority, ts, user }</code>, with event <code>ATIVO</code>, <code>NORMAL</code> or <code>RECONHECIDO</code>.</p>
+    <h3>Password</h3>
+    <p>Commands with <b>Pedir senha</b> ask for the canvas <b>Senha</b>. It is checked by Node-RED, not by the browser.</p>
     <h3>Themes</h3>
     <p><b>Background</b>: <i>Transparente</i> removes the canvas fill so the dashboard page shows through.</p>
     <p><b>ISA-101</b>: grey, flat symbols; colour only for abnormal states and alarms. <b>Clássico</b>: dark theme with animated reels.</p>

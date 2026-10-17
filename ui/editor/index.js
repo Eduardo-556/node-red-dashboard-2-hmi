@@ -26,7 +26,7 @@ const ICONS = {
     group: '<rect x="1" y="1" width="14" height="14" stroke-dasharray="2 2"/><rect x="3.5" y="3.5" width="5" height="5"/><rect x="7.5" y="7.5" width="5" height="5"/>',
     ungroup: '<rect x="1" y="1" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>'
 }
-const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página']]
+const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página'], ['faceplate', 'Abrir faceplate (detalhes e comandos)']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
 // copied rules; kept in localStorage too, so they reach the dashboard tab from the Node-RED editor
@@ -447,13 +447,16 @@ export function createEditor (root, opts) {
                 if (fd.refresh) setTimeout(showProps)
             }, fd.options))
         }
+        if (def.defaults && 'priority' in def.defaults) {
+            props.appendChild(field('Na lista de alarmes', s.props.alarmList === 'no' ? 'no' : 'yes', 'select', v => { s.props.alarmList = v }, [['yes', 'Sim'], ['no', 'Não']]))
+        }
         props.appendChild(field('Valor de teste (só no editor)', s.preview === undefined ? '' : String(s.preview), 'text', v => {
             const p = parsePreview(v)
             if (p === undefined) delete s.preview
             else s.preview = p
         }))
         if (def.image) imageFields(s, smallBtn)
-        if (!def.line && !def.image && !['frame', 'stack'].includes(s.type)) {
+        if (!def.line && !def.image && !def.alarms && !['frame', 'stack'].includes(s.type)) {
             props.appendChild(el('h5', {}, 'Escala do valor'))
             const sc = s.scale || {}
             const setSc = (k, v) => {
@@ -466,7 +469,7 @@ export function createEditor (root, opts) {
             props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Mostra valor × multiplicar ÷ dividir + somar. Ex.: dividir por 10 para um CLP que manda 1450 e a tela mostra 145,0.'))
         }
         ruleFields(s, smallBtn)
-        if (def.line || s.type === 'frame') return
+        if (def.line || s.type === 'frame' || def.alarms) return
         props.appendChild(el('h5', {}, 'Ao clicar no dashboard'))
         const act = s.action || { mode: 'none' }
         const setAct = (k, v) => {
@@ -477,18 +480,28 @@ export function createEditor (root, opts) {
         if (act.mode && act.mode !== 'none') {
             if (act.mode === 'value') props.appendChild(field('Valor enviado', act.value, 'text', v => setAct('value', v)))
             if (act.mode === 'input') props.appendChild(pair(field('Mínimo', act.min, 'number', v => setAct('min', v)), field('Máximo', act.max, 'number', v => setAct('max', v))))
-            if (act.mode === 'page') {
+            if (act.mode === 'faceplate') {
+                props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Abre uma janela com estado, alarmes deste símbolo e os campos abaixo. Deixe vazio o que não usa.'))
+                props.appendChild(pair(field('Chave de um valor', act.valueKey || '', 'text', v => setAct('valueKey', v.trim())), field('Unidade', act.valueUnit || '', 'text', v => setAct('valueUnit', v))))
+                props.appendChild(pair(field('Chave do modo', act.modeKey || '', 'text', v => setAct('modeKey', v.trim())), field('Textos do modo', act.modeTexts || '0=MANUAL,1=AUTO', 'text', v => setAct('modeTexts', v))))
+                props.appendChild(pair(field('Chave das horas', act.hoursKey || '', 'text', v => setAct('hoursKey', v.trim())), field('Chave das partidas', act.startsKey || '', 'text', v => setAct('startsKey', v.trim()))))
+                for (const [k, label] of [['on', 'Ligar'], ['off', 'Desligar'], ['reset', 'Reset']]) {
+                    props.appendChild(pair(field('Botão ' + label + ': tópico', act[k + 'Topic'] || '', 'text', v => setAct(k + 'Topic', v.trim())), field('valor', act[k + 'Value'] ?? '', 'text', v => setAct(k + 'Value', v))))
+                }
+            } else if (act.mode === 'page') {
                 const pages = (o.getPages && o.getPages()) || []
                 const pf = pages.length
                     ? field('Página', act.value, 'select', v => setAct('value', v), [['', '(escolha)'], ...pages])
                     : field('Página (caminho, ex. /linha2)', act.value, 'text', v => setAct('value', v.trim()))
                 props.appendChild(pf)
-            } else {
+            }
+            if (!['page', 'faceplate'].includes(act.mode)) {
                 const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
                 t.querySelector('input').placeholder = s.key || ''
                 props.appendChild(t)
             }
-            if (['value', 'toggle', 'page'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            if (['value', 'toggle', 'page', 'faceplate'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            if (act.mode !== 'page') props.appendChild(field('Pedir senha', act.pin || 'no', 'select', v => setAct('pin', v), [['no', 'Não'], ['yes', 'Sim (a senha do nó)']]))
             if (act.mode !== 'page') props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
         }
     }

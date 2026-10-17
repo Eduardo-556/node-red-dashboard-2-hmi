@@ -12,7 +12,7 @@
                 v-for="s in symbols"
                 :key="s.id"
                 :class="{ 'hmi-clickable': clickable(s), 'hmi-pressed': pressed === s.id }"
-                @click="click(s)"
+                @click="click(s, $event)"
                 @pointerdown="press(s, $event)"
                 @pointerup="release(s)"
                 @pointerleave="release(s)"
@@ -25,12 +25,45 @@
             </g>
         </svg>
         <div v-if="editing" ref="editor" class="hmi-ed-full" />
+        <div v-if="faceplate" :class="['hmi-fp-back', 'hmi-fp-' + theme]" @click.self="faceplate = null">
+            <div class="hmi-fp" role="dialog">
+                <div class="hmi-fp-head">
+                    <span>{{ fp.name }}</span>
+                    <button type="button" class="hmi-fp-x" title="Fechar" @click="faceplate = null">×</button>
+                </div>
+                <div class="hmi-fp-rows">
+                    <div class="hmi-fp-row"><span>Estado</span><b :class="'hmi-fp-st-' + fp.stateCls">{{ fp.state }}</b></div>
+                    <div v-for="r in fp.rows" :key="r[0]" class="hmi-fp-row"><span>{{ r[0] }}</span><b>{{ r[1] }}</b></div>
+                </div>
+                <div v-if="fp.alarms.length" class="hmi-fp-alarms">
+                    <div class="hmi-fp-sub">Alarmes</div>
+                    <div v-for="a in fp.alarms" :key="a.id" :class="['hmi-fp-alarm', 'hmi-fp-p' + a.priority, { 'hmi-fp-unacked': !a.acked }]">
+                        <span>{{ a.text }}</span><small>{{ a.active ? (a.acked ? 'RECONHECIDO' : 'ATIVO') : 'NORMAL' }}</small>
+                    </div>
+                    <button v-if="fp.unacked" type="button" class="hmi-fp-btn" @click="ack('symbol:' + faceplate.id)">Reconhecer</button>
+                </div>
+                <div v-if="fp.buttons.length" class="hmi-fp-cmds">
+                    <button v-for="b in fp.buttons" :key="b[0]" type="button" :class="['hmi-fp-btn', 'hmi-fp-' + b[0]]" @click="fpCommand(faceplate, b[0], b[1])">{{ b[1] }}</button>
+                </div>
+            </div>
+        </div>
+        <div v-if="pinAsk" :class="['hmi-fp-back', 'hmi-fp-' + theme]" @click.self="pinDone(null)">
+            <form class="hmi-fp hmi-pin" @submit.prevent="pinDone(pinText)">
+                <div class="hmi-fp-head"><span>{{ pinAsk.title }}</span></div>
+                <label class="hmi-pin-label">Senha<input ref="pin" v-model="pinText" type="password" autocomplete="off"></label>
+                <div class="hmi-fp-cmds">
+                    <button type="button" class="hmi-fp-btn" @click="pinDone(null)">Cancelar</button>
+                    <button type="submit" class="hmi-fp-btn hmi-fp-on">OK</button>
+                </div>
+            </form>
+        </div>
+        <div v-if="notice" class="hmi-notice">{{ notice }}</div>
     </div>
 </template>
 
 <script>
 import { createEditor } from '../editor/index.js'
-import { injectStyles, renderSymbol, valueFor } from '../symbols/index.js'
+import { injectStyles, renderSymbol, valueFor, onState, formatValue, isOn } from '../symbols/index.js'
 
 function authHeaders () {
     const headers = {}
@@ -51,7 +84,7 @@ export default {
         state: { type: Object, default: () => ({ enabled: false, visible: false }) }
     },
     data () {
-        return { values: {}, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null, history: {} }
+        return { values: {}, alarms: null, ui: {}, faceplate: null, pinAsk: null, pinText: '', notice: '', noticeTimer: null, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null, history: {} }
     },
     computed: {
         symbols () { return Array.isArray(this.props.symbols) ? this.props.symbols : [] },
@@ -71,6 +104,41 @@ export default {
         offline () {
             const s = Number(this.props.offlineAfter) || 0
             return s > 0 && this.lastUpdate > 0 && (this.now - this.lastUpdate) > s * 1000
+        },
+        // what the faceplate window shows for the symbol it was opened on
+        fp () {
+            const s = this.faceplate
+            if (!s) return null
+            const p = s.props || {}
+            const a = s.action || {}
+            const v = this.values
+            const raw = s.key ? valueFor(s, v) : undefined
+            const on = s.key ? onState(raw, p) : null
+            const fault = p.faultKey ? isOn(v[p.faultKey], 'nonzero') === true : false
+            const fmt = (x, unit) => formatValue(x, undefined, this.props.locale) + (unit ? ' ' + unit : '')
+            const rows = []
+            if (s.key && on === null && raw !== undefined) rows.push(['Valor', fmt(raw, p.unit)])
+            if (a.valueKey) rows.push(['Valor', fmt(v[a.valueKey], a.valueUnit)])
+            if (a.modeKey) {
+                const texts = {}
+                for (const part of String(a.modeTexts || '0=MANUAL,1=AUTO').split(',')) { const i = part.indexOf('='); if (i > 0) texts[part.slice(0, i).trim()] = part.slice(i + 1).trim() }
+                const m = v[a.modeKey]
+                const k = typeof m === 'boolean' ? (m ? '1' : '0') : String(m)
+                rows.push(['Modo', m === undefined ? '—' : (texts[k] !== undefined ? texts[k] : k)])
+            }
+            if (a.hoursKey) rows.push(['Horas', fmt(v[a.hoursKey], 'h')])
+            if (a.startsKey) rows.push(['Partidas', fmt(v[a.startsKey])])
+            const alarms = ((this.alarms && this.alarms.active) || []).filter(x => x.symbolId === s.id)
+            const buttons = [['on', 'Ligar'], ['off', 'Desligar'], ['reset', 'Reset']].filter(b => a[b[0] + 'Topic'])
+            return {
+                name: p.label || p.title || p.text || s.key || s.type,
+                state: fault ? 'FALHA' : (on === null ? '—' : (on ? 'LIGADO' : 'DESLIGADO')),
+                stateCls: fault ? 'fault' : (on ? 'on' : 'off'),
+                rows,
+                alarms,
+                unacked: alarms.some(x => !x.acked),
+                buttons
+            }
         },
         svgStyle () {
             return this.props.fit === 'screen' && this.fitHeight > 0 ? { height: this.fitHeight + 'px' } : {}
@@ -104,6 +172,8 @@ export default {
         apply (msg) {
             if (msg && msg.payload && typeof msg.payload === 'object') {
                 this.values = { ...msg.payload }
+                if (msg.alarms) this.alarms = msg.alarms
+                if (msg.notice && msg.notice.socketId && this.$socket && msg.notice.socketId === this.$socket.id && Date.now() - (msg.notice.ts || 0) < 10000) this.showNotice(msg.notice.text)
                 this.lastUpdate = Date.now()
                 this.record(this.lastUpdate)
                 if (this.editor) this.editor.redraw()
@@ -123,23 +193,63 @@ export default {
         onInput (msg) { this.apply(msg) },
         onLoad (msg) { this.apply(msg) },
         draw (s) {
-            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0 })
+            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0, alarms: this.alarms || { active: [], history: [] }, ui: this.ui[s.id] })
         },
         clickable (s) {
-            return !this.editing && !!(s.action && ['value', 'toggle', 'pulse', 'input', 'page'].includes(s.action.mode))
+            if (this.editing) return false
+            if (s.type === 'alarmList') return true
+            return !!(s.action && ['value', 'toggle', 'pulse', 'input', 'page', 'faceplate'].includes(s.action.mode))
         },
-        sendAction (s, phase, value) {
+        async sendAction (s, phase, value) {
             const a = { id: s.id, phase }
             if (value !== undefined) a.value = value
+            if (s.action && s.action.pin === 'yes') {
+                const pin = await this.askPin((s.props && (s.props.label || s.props.text || s.props.title)) || s.key || 'Comando')
+                if (pin === null) return
+                a.pin = pin
+            }
             this.$socket.emit('widget-action', this.id, { _hmiAction: a })
         },
-        click (s) {
-            if (!this.clickable(s) || s.action.mode === 'pulse') return
+        ack (which) {
+            this.$socket.emit('widget-action', this.id, { _hmiAck: which })
+        },
+        click (s, e) {
+            if (s.type === 'alarmList') {
+                const t = e && e.target && e.target.closest ? e.target.closest('[data-hmi]') : null
+                const cmd = t ? t.getAttribute('data-hmi') : ''
+                if (cmd.startsWith('tab:')) this.ui = { ...this.ui, [s.id]: { tab: cmd.slice(4) } }
+                else if (cmd.startsWith('ack:')) this.ack(cmd.slice(4))
+                return
+            }
+            if (!this.clickable(s) || !s.action || s.action.mode === 'pulse') return
             const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
+            if (s.action.mode === 'faceplate') { this.faceplate = s; return }
             if (s.action.mode === 'input') return this.askValue(s, name)
             if (s.action.confirm === 'yes' && !window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
             if (s.action.mode === 'page') return this.goTo(s.action.value)
             this.sendAction(s, 'click')
+        },
+        fpCommand (s, k, label) {
+            if (s.action.confirm === 'yes' && !window.confirm(label + ': ' + this.fp.name + '?')) return
+            this.sendAction(s, 'fp-' + k)
+        },
+        askPin (title) {
+            return new Promise(resolve => {
+                this.pinText = ''
+                this.pinAsk = { title, resolve }
+                this.$nextTick(() => this.$refs.pin && this.$refs.pin.focus())
+            })
+        },
+        pinDone (value) {
+            const ask = this.pinAsk
+            this.pinAsk = null
+            this.pinText = ''
+            if (ask) ask.resolve(value === null ? null : String(value))
+        },
+        showNotice (text) {
+            this.notice = text
+            clearTimeout(this.noticeTimer)
+            this.noticeTimer = setTimeout(() => { this.notice = '' }, 4000)
         },
         // another dashboard page (its path, e.g. /linha2) or a full address
         goTo (target) {
@@ -166,7 +276,7 @@ export default {
         },
         // pulse: 1 while pressed, 0 on release (also when the pointer leaves)
         press (s, e) {
-            if (!this.clickable(s) || s.action.mode !== 'pulse') return
+            if (!this.clickable(s) || !s.action || s.action.mode !== 'pulse') return
             e.preventDefault()
             this.pressed = s.id
             this.sendAction(s, 'down')

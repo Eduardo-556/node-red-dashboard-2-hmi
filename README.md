@@ -56,8 +56,22 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 | Pulso | 1 ao apertar e 0 ao soltar (ou `true`/`false`). Bom para botões de partida do CLP. |
 | Digitar um valor | Abre um campo para digitar um número; fora do mínimo/máximo configurado não é enviado. |
 | Ir para outra página | Abre outra página do dashboard (escolhida na lista) ou um endereço. Não sai mensagem pelo nó. |
+| Abrir faceplate | Abre uma janela com estado, valor, modo, horas, partidas, alarmes do equipamento e os botões **Ligar**, **Desligar** e **Reset** (cada um com seu tópico e valor). Botão sem tópico não aparece. |
 
 **Pedir confirmação** abre um "Confirmar?" antes de enviar. O valor enviado é sempre o que está configurado no nó; o navegador só avisa qual símbolo foi clicado.
+
+**Pedir senha** exige a senha do canvas (campo **Senha** no nó, guardada nas credenciais do Node-RED, fora do flow). Senha errada não envia nada e mostra "Senha incorreta" só para quem tentou. Sem senha configurada, ações com senha ficam bloqueadas.
+
+Todo comando sai com `msg.audit = { ts, symbol, action, topic, value, user, socketId }`: quando, qual símbolo, o que foi enviado e quem (o usuário vem do login do dashboard, quando existe, como no FlowFuse). Ligue num nó de arquivo ou banco de dados para ter o registro de comandos.
+
+### Alarmes
+
+O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos já sabem: chave de falha, limites baixo/alto (e muito baixo/muito alto na barra ISA-101), banners de alarme e disjuntor disparado. Cada alarme guarda a hora em que entrou, e sai da lista só quando voltou ao normal **e** foi reconhecido. A lista e o histórico (últimos 500 eventos) sobrevivem a deploy e reinício se o contexto do Node-RED for persistente.
+
+- **Lista de alarmes** (categoria Estados): abas Ativos e Histórico, prioridade com cor, botão ✓ por alarme e **Reconhecer todos**. Alarme não reconhecido pisca.
+- **Resumo de alarmes**: sino com "N ALARMES · M novos", na cor da prioridade mais alta. Bom para o cabeçalho de todas as telas.
+- Num símbolo, **Na lista de alarmes: não** tira ele da lista; **Prioridade** muda de 1 a 3.
+- Com **Eventos: enviar** no nó, cada mudança sai como `{ topic: 'alarme', payload: { event: 'ATIVO' | 'NORMAL' | 'RECONHECIDO', text, priority, ts, user } }`.
 
 ### Editor
 
@@ -101,7 +115,9 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 
 Palette (dropdown per category): 22 shapes; process (compressor, blower, bag filter, control valve, 3-way valve, damper, mixer, heat exchanger, boiler, cooling tower, chiller, cyclone, flowmeter, ISA instrument bubble); factory (overhead crane and hoist, robot, welder, oven, paint booth, 3-roll bending machine, press brake, scale, transfer cart, AGV, forklift, roller table); electrical (VFD, breaker, contactor, transformer, generator, energy meter); ISA-101 analog bar (L/H, LL/HH, setpoint), run-hours and start counters, mode and interlock/permissive indicators, pipe fittings and arrows; structures (beam side view, I-beam, U-channel, angle, truss, tube, column, pedestal, bearing pedestal, bracket, A-frame, stand, base plate); reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), shape tones from the slitter screen plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
 
-Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, or navigation to another dashboard page, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
+Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, navigation to another dashboard page, or a **faceplate** popup (state, value, mode, hours, starts, the equipment's alarms and Start/Stop/Reset buttons), with optional confirmation and optional **password** (stored in the node credentials). Every command carries `msg.audit` (`ts, symbol, action, topic, value, user, socketId`) for a command log.
+
+Alarms (ISA-18.2 style): the canvas tracks every fault key, lo/hi limit, alarm banner and tripped breaker with activation time and acknowledgement; an alarm leaves the list once it is back to normal and acknowledged. **Alarm list** symbol (active and history tabs, ack one or all) and **alarm summary** symbol; optional alarm events on the node output. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
 Per symbol: **scale** (`raw × factor ÷ divisor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 

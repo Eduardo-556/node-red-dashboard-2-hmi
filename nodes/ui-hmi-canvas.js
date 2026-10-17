@@ -1,6 +1,7 @@
 'use strict'
 
-const { mergeValues, actionMessage } = require('./values')
+const { mergeValues, actionMessage, userOf } = require('./values')
+const { createAlarms } = require('./alarms')
 const setupAdmin = require('./admin')
 
 module.exports = function (RED) {
@@ -23,21 +24,59 @@ module.exports = function (RED) {
         const last = base.stores.data.get(node.id)
         if (last && last.payload && typeof last.payload === 'object') Object.assign(values, last.payload)
 
+        // alarm list: kept in the node context, so a persistent context store survives restarts
+        const ctx = node.context()
+        const alarms = config.alarms === 'off' ? null : createAlarms(config.symbols, ctx.get('hmiAlarms'))
+        const alarmsOut = config.alarmsOut === 'yes'
+        const alarmEvents = events => {
+            if (!events.length) return
+            ctx.set('hmiAlarms', alarms.save())
+            if (alarmsOut) for (const ev of events) node.send({ topic: 'alarme', payload: ev })
+        }
+        if (alarms) alarmEvents(alarms.evaluate(values, Date.now()))
+        // pushes the current values and alarms to every open dashboard
+        const refresh = () => setImmediate(() => node.receive({ _hmiRefresh: true }))
+
         const evts = {
             onAction: true,
             beforeSend: function (msg) {
                 // a click on the dashboard: goes out of the node, not into the screen
-                if (msg && msg._hmiAction) return actionMessage(config.symbols, values, msg)
-                if (!mergeValues(values, msg)) {
+                if (msg && msg._hmiAck !== undefined) {
+                    if (!alarms) return null
+                    const ev = alarms.ack(String(msg._hmiAck), Date.now(), userOf(msg))
+                    alarmEvents(ev)
+                    if (ev.length) refresh()
+                    return null
+                }
+                if (msg && msg._hmiAction) {
+                    const out = actionMessage(config.symbols, values, msg, node.credentials && node.credentials.pin)
+                    if (out && out.denied) {
+                        node.warn('Comando recusado: senha incorreta')
+                        const socket = msg._client && msg._client.socketId
+                        setImmediate(() => node.receive({ _hmiRefresh: true, _hmiNotice: { socketId: socket, text: 'Senha incorreta', ts: Date.now() } }))
+                        return null
+                    }
+                    return out
+                }
+                if (!(msg && msg._hmiRefresh) && !mergeValues(values, msg)) {
                     node.warn('Nothing to show: send an object in msg.payload, or msg.topic with a value')
                 }
+                const out = { ...msg, payload: { ...values }, _hmiTs: Date.now() }
+                delete out._hmiRefresh
+                if (msg && msg._hmiNotice) out.notice = msg._hmiNotice
+                delete out._hmiNotice
+                if (alarms) {
+                    alarmEvents(alarms.evaluate(values, out._hmiTs))
+                    out.alarms = alarms.snapshot()
+                }
                 // the dashboard always gets the full set of values
-                return { ...msg, payload: { ...values }, _hmiTs: Date.now() }
+                return out
             },
             onInput: function (msg) {
                 base.stores.data.save(base, node, msg)
                 const n = Object.keys(values).length
-                node.status({ fill: 'green', shape: 'dot', text: n + (n === 1 ? ' value' : ' values') })
+                const act = alarms ? alarms.snapshot(0).active.length : 0
+                node.status({ fill: act ? 'red' : 'green', shape: 'dot', text: n + (n === 1 ? ' value' : ' values') + (act ? ' · ' + act + (act === 1 ? ' alarm' : ' alarms') : '') })
             }
         }
 
@@ -45,6 +84,6 @@ module.exports = function (RED) {
         else page.register(null, node, { ...config, group: '' }, evts)
     }
 
-    RED.nodes.registerType('ui-hmi-canvas', UIHmiCanvasNode)
+    RED.nodes.registerType('ui-hmi-canvas', UIHmiCanvasNode, { credentials: { pin: { type: 'password' } } })
     setupAdmin(RED)
 }
