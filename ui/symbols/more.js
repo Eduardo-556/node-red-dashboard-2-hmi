@@ -856,7 +856,7 @@ export function moreSymbols (H) {
             const shW = (tab === 'active' && canShelve) || (tab === 'shelved' && perm.shelve !== false) ? 34 : 0
             const textW = tw - timeW - stateW - ackW - shW - 16
             // a click on the row shows the symbol on the screen
-            out += `<g class="hmi-al-row ${cls}"${a.symbolId ? ` data-hmi="goto:${escapeXml(a.symbolId)}"` : ''}>` + (i % 2 ? rect('hmi-al-stripe', 1, y, w - 2, rowH) : '') +
+            out += `<g class="hmi-al-row ${cls}"${a.symbolId ? ` data-hmi="goto:${escapeXml(a.symbolId)}"` : ''}>` + rect('hmi-al-hit', 1, y, w - 2, rowH) + (i % 2 ? rect('hmi-al-stripe', 1, y, w - 2, rowH) : '') +
                 `<g class="${cls === 'hmi-al-unacked' ? 'hmi-blink' : ''}">${alarmIndicator(24, cy, pr)}</g>` +
                 `<text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * 0.92)}">${escapeXml(tab === 'shelved' ? 'suprimido' : when(a.since || a.ts, opts.locale))}</text>` +
                 `<text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text>` +
@@ -1412,6 +1412,7 @@ export const MORE_CSS = `
 .hmi-root .hmi-alsum.hmi-p2 .hmi-alsum-box { fill: var(--hmi-warn); stroke: #000; }
 .hmi-root .hmi-alsum.hmi-p2 .hmi-alsum-text, .hmi-root .hmi-alsum.hmi-p2 .hmi-bell { fill: #000; }
 .hmi-root .hmi-alsum.hmi-p3 .hmi-alsum-box { fill: var(--hmi-low); stroke: #000; }
+.hmi-root .hmi-al-hit { fill: transparent; }
 .hmi-fp-back { position: fixed; inset: 0; z-index: 3000; background: rgba(0, 0, 0, .35); display: flex; align-items: center; justify-content: center; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 .hmi-fp { --fp-bg: #e6e7e8; --fp-text: #1f2328; --fp-dim: #55595e; --fp-line: #a9acaf; --fp-btn: #d9dadb; min-width: 300px; max-width: min(440px, calc(100vw - 32px)); background: var(--fp-bg); color: var(--fp-text); border: 1px solid var(--fp-line); border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); padding: 0 0 14px; }
 .hmi-fp-classic .hmi-fp { --fp-bg: #1c2025; --fp-text: #e8edf1; --fp-dim: #9aa4ae; --fp-line: #3a4148; --fp-btn: #2a2f36; }
