@@ -497,7 +497,8 @@ function scaleOf2 (sym) {
     if (!sc) return null
     const k = num(sc.factor)
     const o = num(sc.offset)
-    const factor = k === null ? 1 : k
+    const d = num(sc.divisor)
+    const factor = (k === null ? 1 : k) / (d === null || d === 0 ? 1 : d)
     const offset = o === null ? 0 : o
     return factor === 1 && offset === 0 ? null : { factor, offset }
 }

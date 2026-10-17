@@ -3347,7 +3347,8 @@ var HmiEditor = (function(exports) {
 		if (!sc) return null;
 		const k = num(sc.factor);
 		const o = num(sc.offset);
-		const factor = k === null ? 1 : k;
+		const d = num(sc.divisor);
+		const factor = (k === null ? 1 : k) / (d === null || d === 0 ? 1 : d);
 		const offset = o === null ? 0 : o;
 		return factor === 1 && offset === 0 ? null : {
 			factor,
@@ -5074,14 +5075,17 @@ var HmiEditor = (function(exports) {
 				const setSc = (k, v) => {
 					s.scale = {
 						factor: "",
+						divisor: "",
 						offset: "",
 						...s.scale,
 						[k]: v
 					};
-					if (s.scale.factor === "" && s.scale.offset === "") delete s.scale;
+					if (s.scale.factor === "" && !s.scale.divisor && s.scale.offset === "") delete s.scale;
 				};
-				props.appendChild(pair(field("Multiplicar por", sc.factor ?? "", "text", (v) => setSc("factor", v.replace(",", ".").trim())), field("Somar", sc.offset ?? "", "text", (v) => setSc("offset", v.replace(",", ".").trim()))));
-				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Mostra valor × multiplicar + somar. Ex.: 0,1 para um CLP que manda 1450 e a tela mostra 145,0."));
+				const scField = (label, k) => field(label, sc[k] ?? "", "text", (v) => setSc(k, v.replace(",", ".").trim()));
+				props.appendChild(pair(scField("Multiplicar por", "factor"), scField("Dividir por", "divisor")));
+				props.appendChild(scField("Somar", "offset"));
+				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Mostra valor × multiplicar ÷ dividir + somar. Ex.: dividir por 10 para um CLP que manda 1450 e a tela mostra 145,0."));
 			}
 			ruleFields(s, smallBtn);
 			if (def.line || s.type === "frame") return;

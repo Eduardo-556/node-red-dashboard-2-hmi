@@ -31,7 +31,7 @@ function cleanSymbols (list) {
         const a = s.action
         if (typeof s.group === 'string' && s.group) clean.group = s.group.slice(0, 64)
         const sc = s.scale
-        if (sc && typeof sc === 'object') clean.scale = { factor: String(sc.factor ?? ''), offset: String(sc.offset ?? '') }
+        if (sc && typeof sc === 'object') clean.scale = { factor: String(sc.factor ?? ''), divisor: String(sc.divisor ?? ''), offset: String(sc.offset ?? '') }
         if (Array.isArray(s.rules)) {
             clean.rules = s.rules.slice(0, 20).filter(r => r && typeof r === 'object').map(r => ({
                 key: String(r.key ?? '').slice(0, 200),

@@ -39,7 +39,7 @@ Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item p
 
 ### Escala
 
-Em **Escala do valor**, o símbolo mostra `valor × multiplicar + somar`. Ex.: o CLP manda `1450` e com multiplicar `0,1` a tela mostra `145,0`. Num setpoint com escala, o valor digitado volta para o CLP já convertido.
+Em **Escala do valor**, o símbolo mostra `valor × multiplicar ÷ dividir + somar`. Ex.: o CLP manda `1450` e com dividir por `10` a tela mostra `145,0`. Num setpoint com escala, o valor digitado volta para o CLP já convertido.
 
 ### Regras
 
@@ -103,7 +103,7 @@ Palette (dropdown per category): 22 shapes; process (compressor, blower, bag fil
 
 Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, or navigation to another dashboard page, with optional confirmation. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
-Per symbol: **scale** (`raw × factor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
+Per symbol: **scale** (`raw × factor ÷ divisor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

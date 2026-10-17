@@ -114,6 +114,11 @@ test('scale turns raw PLC values into screen units', () => {
     assert.strictEqual(valueFor(s, { rpm: 1450 }), 145)
     assert.strictEqual(scaleValue(s, true), true)
     assert.strictEqual(unscaleValue(s, 145), 1450)
+    s.scale = { factor: '', divisor: '10', offset: '2' }
+    assert.strictEqual(scaleValue(s, 1450), 147)
+    assert.strictEqual(unscaleValue(s, 147), 1450)
+    s.scale = { factor: '3', divisor: '0', offset: '' }
+    assert.strictEqual(scaleValue(s, 2), 6)
     s.scale = { factor: '', offset: '' }
     assert.strictEqual(valueFor(s, { rpm: 1450 }), 1450)
 })
