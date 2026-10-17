@@ -589,7 +589,9 @@
                 "props": {
                     "title": "ALARMES",
                     "rowHeight": 26,
-                    "tab": "active"
+                    "tab": "active",
+                    "shelve": "yes",
+                    "shelveMinutes": 30
                 }
             }
         ],

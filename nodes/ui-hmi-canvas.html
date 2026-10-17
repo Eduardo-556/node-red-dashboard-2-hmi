@@ -124,6 +124,7 @@
             locale: { value: 'pt-BR' },
             alarms: { value: 'on' },
             alarmsOut: { value: 'no' },
+            alarmSound: { value: 'off' },
             symbols: { value: [] }
         },
         credentials: {
@@ -229,6 +230,14 @@
         <select id="node-input-alarms" style="width: 260px">
             <option value="on">Lista de alarmes ligada</option>
             <option value="off">Desligada</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-alarmSound"><i class="fa fa-volume-up"></i> Som</label>
+        <select id="node-input-alarmSound" style="width: 260px">
+            <option value="off">Sem som</option>
+            <option value="new">Bipe quando entra alarme novo</option>
+            <option value="repeat">Bipe a cada 10 s até reconhecer</option>
         </select>
     </div>
     <div class="form-row">

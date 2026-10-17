@@ -717,7 +717,9 @@ var HmiEditor = (function(exports) {
 		const EVENT_TEXT = {
 			ATIVO: "ATIVO",
 			NORMAL: "NORMAL",
-			RECONHECIDO: "RECONHECIDO"
+			RECONHECIDO: "RECONHECIDO",
+			SUPRIMIDO: "SUPRIMIDO",
+			LIBERADO: "LIBERADO"
 		};
 		const when = (ts, locale) => {
 			try {
@@ -791,13 +793,16 @@ var HmiEditor = (function(exports) {
 			const rows = Math.max(1, Math.floor((h - head - 4) / rowH));
 			const active = Array.isArray(data.active) ? data.active : [];
 			const unacked = active.filter((a) => !a.acked).length;
+			const shelvedList = Array.isArray(data.shelved) ? data.shelved : [];
+			const canShelve = p.shelve !== "no";
+			const tx0 = Math.max(150, Math.min(w * .32, w - 152 - 340));
 			const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? " " + cls : ""}" data-hmi="${escapeXml(action)}">${rect("hmi-al-btn-box", x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`;
-			let out = `<g class="hmi-alarmlist">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || "ALARMES") + " (" + active.length + ")")}</text>` + btn(w * .32, 6, 78, 22, "Ativos", "tab:active", tab === "active" ? "hmi-al-sel" : "") + btn(w * .32 + 84, 6, 84, 22, "Histórico", "tab:history", tab === "history" ? "hmi-al-sel" : "") + (unacked ? btn(w - 152, 6, 144, 22, "Reconhecer todos", "ack:all", "hmi-al-ackall") : "") + path("hmi-al-line", `M1 ${head}H${f(w - 1)}`);
+			let out = `<g class="hmi-alarmlist">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || "ALARMES") + " (" + active.length + ")")}</text>` + btn(tx0, 6, 78, 22, "Ativos", "tab:active", tab === "active" ? "hmi-al-sel" : "") + btn(tx0 + 84, 6, 84, 22, "Histórico", "tab:history", tab === "history" ? "hmi-al-sel" : "") + (p.shelve !== "no" ? btn(tx0 + 174, 6, 112, 22, "Suprimidos (" + shelvedList.length + ")", "tab:shelved", tab === "shelved" ? "hmi-al-sel" : "") : "") + (unacked ? btn(w - 152, 6, 144, 22, "Reconhecer todos", "ack:all", "hmi-al-ackall") : "") + (opts.sound && opts.sound !== "off" ? btn(w - 190, 6, 32, 22, opts.muted ? "🔕" : "🔔", "mute", "hmi-al-shelve") : "") + path("hmi-al-line", `M1 ${head}H${f(w - 1)}`);
 			const tx = 48;
 			const tw = w - tx - 10;
 			const timeW = Math.min(150, tw * .3);
-			const list = tab === "history" ? Array.isArray(data.history) ? data.history : [] : active;
-			if (!list.length) out += `<text class="hmi-al-empty" x="${f(w / 2)}" y="${f(head + rowH)}" font-size="${f(fs)}">${tab === "history" ? "Sem eventos" : "Nenhum alarme"}</text>`;
+			const list = tab === "history" ? Array.isArray(data.history) ? data.history : [] : tab === "shelved" ? shelvedList : active;
+			if (!list.length) out += `<text class="hmi-al-empty" x="${f(w / 2)}" y="${f(head + rowH)}" font-size="${f(fs)}">${tab === "history" ? "Sem eventos" : tab === "shelved" ? "Nenhum alarme suprimido" : "Nenhum alarme"}</text>`;
 			list.slice(0, rows).forEach((a, i) => {
 				const y = 36 + i * rowH;
 				const cy = y + rowH / 2;
@@ -811,14 +816,18 @@ var HmiEditor = (function(exports) {
 				if (tab === "history") {
 					state = (EVENT_TEXT[a.event] || a.event || "") + (a.user ? " · " + a.user : "");
 					cls = "hmi-al-hist";
+				} else if (tab === "shelved") {
+					state = "ATÉ " + when(a.until, opts.locale).slice(-8, -3) + (a.by ? " · " + a.by : "");
+					cls = "hmi-al-hist";
 				} else {
 					state = a.active ? a.acked ? "RECONHECIDO" : "ATIVO" : "NORMAL";
 					cls = a.active ? a.acked ? "hmi-al-acked" : "hmi-al-unacked" : "hmi-al-rtn";
 				}
-				const stateW = tab === "history" ? Math.min(200, tw * .3) : 118;
-				const ackW = tab !== "history" && !a.acked ? 34 : 0;
-				const textW = tw - timeW - stateW - ackW - 16;
-				out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect("hmi-al-stripe", 1, y, w - 2, rowH) : "") + `<g class="${cls === "hmi-al-unacked" ? "hmi-blink" : ""}">${alarmIndicator(24, cy, pr)}</g><text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * .92)}">${escapeXml(when(a.since || a.ts, opts.locale))}</text><text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text><text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - stateW)}" y="${f(cy)}" font-size="${f(fs * .85)}">${escapeXml(clip(state, stateW, fs * .85))}</text>` + (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, "✓", "ack:" + a.id, "hmi-al-ack") : "") + "</g>";
+				const stateW = tab === "active" ? 118 : Math.min(200, tw * .3);
+				const ackW = tab === "active" && !a.acked ? 34 : 0;
+				const shW = tab === "active" && canShelve || tab === "shelved" ? 34 : 0;
+				const textW = tw - timeW - stateW - ackW - shW - 16;
+				out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect("hmi-al-stripe", 1, y, w - 2, rowH) : "") + `<g class="${cls === "hmi-al-unacked" ? "hmi-blink" : ""}">${alarmIndicator(24, cy, pr)}</g><text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * .92)}">${escapeXml(tab === "shelved" ? "suprimido" : when(a.since || a.ts, opts.locale))}</text><text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text><text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - shW - stateW)}" y="${f(cy)}" font-size="${f(fs * .85)}">${escapeXml(clip(state, stateW, fs * .85))}</text>` + (shW ? btn(w - 10 - ackW - shW + 4, cy - 10, shW - 4, 20, tab === "shelved" ? "▶" : "II", (tab === "shelved" ? "unshelve:" : "shelve:") + a.id, "hmi-al-shelve") : "") + (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, "✓", "ack:" + a.id, "hmi-al-ack") : "") + "</g>";
 			});
 			if (list.length > rows) out += `<text class="hmi-al-more hmi-right" x="${f(w - 10)}" y="${f(h - 4)}" font-size="10">+${list.length - rows}</text>`;
 			return out + "</g>";
@@ -847,7 +856,9 @@ var HmiEditor = (function(exports) {
 				defaults: {
 					title: "ALARMES",
 					rowHeight: 26,
-					tab: "active"
+					tab: "active",
+					shelve: "yes",
+					shelveMinutes: 30
 				},
 				fields: [
 					TITLE,
@@ -860,7 +871,24 @@ var HmiEditor = (function(exports) {
 						key: "tab",
 						label: "Abre em",
 						type: "select",
-						options: [["active", "Ativos"], ["history", "Histórico"]]
+						options: [
+							["active", "Ativos"],
+							["history", "Histórico"],
+							["shelved", "Suprimidos"]
+						]
+					},
+					{
+						key: "shelve",
+						label: "Permitir suprimir (II)",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]],
+						refresh: true
+					},
+					{
+						key: "shelveMinutes",
+						label: "Suprimir por (minutos)",
+						type: "number",
+						when: (p) => p.shelve !== "no"
 					}
 				],
 				render: renderAlarmList
@@ -2078,7 +2106,7 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-al-sel .hmi-al-btn-box { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-al-sel text { fill: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-al-sel text { fill: var(--hmi-text); }
-.hmi-root .hmi-al-ackall .hmi-al-btn-box, .hmi-root .hmi-al-ack .hmi-al-btn-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-al-ackall .hmi-al-btn-box, .hmi-root .hmi-al-ack .hmi-al-btn-box, .hmi-root .hmi-al-shelve .hmi-al-btn-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-al-btn:hover .hmi-al-btn-box { filter: brightness(.9); }
 .hmi-root .hmi-alsum-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-alsum-text { fill: var(--hmi-text); font-weight: 800; dominant-baseline: central; }
@@ -6299,6 +6327,12 @@ ${[
 			if (s && SYMBOLS[s.type] && SYMBOLS[s.type].line) {
 				const pts = linePoints(s);
 				out += "<g transform=\"translate(" + s.x + "," + s.y + ")\">";
+				if (s.w > 10 && s.h > 10 && !s.locked) {
+					const hs = Math.max(8, Math.min(12, view().w / 120)) / ed.zoom;
+					const pad = 12 / ed.zoom;
+					out += "<rect class=\"hmi-ed-sel\" x=\"" + -pad + "\" y=\"" + -pad + "\" width=\"" + (s.w + pad * 2) + "\" height=\"" + (s.h + pad * 2) + "\"/>";
+					for (const [dir, hx, hy] of HANDLES) out += "<rect class=\"hmi-ed-handle\" data-handle=\"" + dir + "\" style=\"cursor:" + handleCursor(dir, 0) + "\" x=\"" + (hx * (s.w + pad * 2) - pad - hs / 2) + "\" y=\"" + (hy * (s.h + pad * 2) - pad - hs / 2) + "\" width=\"" + hs + "\" height=\"" + hs + "\"/>";
+				}
 				for (let i = 0; i < pts.length - 1; i++) out += "<circle class=\"hmi-ed-mid\" data-mid=\"" + i + "\" cx=\"" + (pts[i][0] + pts[i + 1][0]) / 2 + "\" cy=\"" + (pts[i][1] + pts[i + 1][1]) / 2 + "\" r=\"5\"/>";
 				pts.forEach((pt, i) => {
 					out += "<circle class=\"hmi-ed-point\" data-point=\"" + i + "\" cx=\"" + pt[0] + "\" cy=\"" + pt[1] + "\" r=\"6\"/>";
@@ -6507,7 +6541,7 @@ ${[
 			}), field("Y", s.y, "number", (v) => {
 				s.y = Number(v) || 0;
 			})));
-			if (def.line && s.type === "shape") {
+			if (def.line) {
 				const scalePts = (w, h) => {
 					const k = [w / Math.max(1, s.w), h / Math.max(1, s.h)];
 					s.props.points = linePoints(s).map((pt) => [Math.round(pt[0] * k[0]), Math.round(pt[1] * k[1])]);
@@ -6515,8 +6549,37 @@ ${[
 				};
 				props.appendChild(pair(field("Largura", s.w, "number", (v) => scalePts(Math.max(10, Number(v) || 10), s.h)), field("Altura", s.h, "number", (v) => scalePts(s.w, Math.max(10, Number(v) || 10)))));
 			}
-			if (def.line) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga."));
-			else {
+			if (def.line) {
+				const tr = el("div", { class: "hmi-ed-btnrow" });
+				for (const [label, title, fn] of [
+					[
+						"↻ 90°",
+						"Girar 90° no sentido horário",
+						([x, y], w, h) => [h - y, x]
+					],
+					[
+						"↺ 90°",
+						"Girar 90° no sentido anti-horário",
+						([x, y], w, h) => [y, w - x]
+					],
+					[
+						"↔",
+						"Espelhar na horizontal",
+						([x, y], w, h) => [w - x, y]
+					],
+					[
+						"↕",
+						"Espelhar na vertical",
+						([x, y], w, h) => [x, h - y]
+					]
+				]) smallBtn(tr, label, title, () => {
+					turnPoints(s, fn);
+					refresh();
+					changed();
+				});
+				props.appendChild(tr);
+				props.appendChild(el("div", { class: "hmi-ed-hint" }, "Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga."));
+			} else {
 				props.appendChild(pair(field("Largura", s.w, "number", (v) => {
 					s.w = Math.max(10, Number(v) || 10);
 				}), field("Altura", s.h, "number", (v) => {
@@ -7030,6 +7093,14 @@ ${[
 				h: Math.abs(d.cur.y - d.start.y)
 			};
 		}
+		function turnPoints(s, fn) {
+			const cx = s.x + s.w / 2;
+			const cy = s.y + s.h / 2;
+			s.props.points = linePoints(s).map((q) => fn(q, s.w, s.h));
+			normalizeLine(s);
+			s.x = Math.round(cx - s.w / 2);
+			s.y = Math.round(cy - s.h / 2);
+		}
 		function normalizeLine(s) {
 			const pts = linePoints(s);
 			if (!pts.length) return;
@@ -7364,7 +7435,8 @@ ${[
 					x: s.x,
 					y: s.y,
 					w: s.w,
-					h: s.h
+					h: s.h,
+					pts: SYMBOLS[s.type].line ? linePoints(s) : null
 				};
 			} else {
 				let g = e.target.closest(".hmi-symbol");
@@ -7476,7 +7548,10 @@ ${[
 				s.props.points = pts;
 				s.w = Math.max(1, ...pts.map((q) => q[0]));
 				s.h = Math.max(1, ...pts.map((q) => q[1]));
-			} else resize(s, d, p, e.shiftKey);
+			} else {
+				resize(s, d, p, e.shiftKey);
+				if (d.pts) s.props.points = d.pts.map((q) => [Math.round(q[0] * s.w / Math.max(1, d.w)), Math.round(q[1] * s.h / Math.max(1, d.h))]);
+			}
 			d.moved = true;
 			draw();
 		});
@@ -7537,7 +7612,7 @@ ${[
 			const moved = ed.drag.moved;
 			if (ed.drag.mode === "move" && !moved && ed.drag.narrow) select(ed.drag.narrow, ed.drag.id);
 			const s = selected();
-			if (ed.drag.mode === "point" && s) normalizeLine(s);
+			if ((ed.drag.mode === "point" || ed.drag.mode === "size" && ed.drag.pts) && s) normalizeLine(s);
 			ed.drag = null;
 			ed.guides = [];
 			draw();

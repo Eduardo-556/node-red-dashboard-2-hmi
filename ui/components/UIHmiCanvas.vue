@@ -84,7 +84,7 @@ export default {
         state: { type: Object, default: () => ({ enabled: false, visible: false }) }
     },
     data () {
-        return { values: {}, alarms: null, ui: {}, faceplate: null, pinAsk: null, pinText: '', notice: '', noticeTimer: null, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null, history: {} }
+        return { values: {}, alarms: null, ui: {}, faceplate: null, pinAsk: null, pinText: '', muted: false, audio: null, seenAlarms: null, lastBeep: 0, notice: '', noticeTimer: null, lastUpdate: 0, now: Date.now(), timer: null, fitHeight: 0, edit: null, editor: null, pressed: null, history: {} }
     },
     computed: {
         symbols () { return Array.isArray(this.props.symbols) ? this.props.symbols : [] },
@@ -153,7 +153,21 @@ export default {
         }
     },
     mounted () {
-        this.timer = setInterval(() => { this.now = Date.now() }, 1000)
+        try { this.muted = localStorage.getItem('hmi-alarm-mute') === '1' } catch (e) {}
+        this.timer = setInterval(() => {
+            this.now = Date.now()
+            if (this.props.alarmSound === 'repeat' && this.alarms && this.alarms.unacked > 0 && this.now - this.lastBeep >= 10000) this.beep()
+        }, 1000)
+        // browsers only play sound after the page was touched once
+        this.unlockAudio = () => {
+            if (!this.props.alarmSound || this.props.alarmSound === 'off') return
+            try {
+                const C = window.AudioContext || window.webkitAudioContext
+                this.audio = this.audio || new C()
+                if (this.audio.state === 'suspended') this.audio.resume()
+            } catch (e) {}
+        }
+        window.addEventListener('pointerdown', this.unlockAudio)
         window.addEventListener('resize', this.fit)
         this.$nextTick(this.fit)
         if (this.editing) this.$nextTick(this.openEditor)
@@ -161,6 +175,7 @@ export default {
     unmounted () {
         clearInterval(this.timer)
         window.removeEventListener('resize', this.fit)
+        window.removeEventListener('pointerdown', this.unlockAudio)
         if (this.editor) this.editor.destroy()
     },
     methods: {
@@ -172,12 +187,50 @@ export default {
         apply (msg) {
             if (msg && msg.payload && typeof msg.payload === 'object') {
                 this.values = { ...msg.payload }
-                if (msg.alarms) this.alarms = msg.alarms
+                if (msg.alarms) { this.alarms = msg.alarms; this.alarmSound() }
+                if (msg.trendHist && typeof msg.trendHist === 'object') this.mergeHistory(msg.trendHist)
                 if (msg.notice && msg.notice.socketId && this.$socket && msg.notice.socketId === this.$socket.id && Date.now() - (msg.notice.ts || 0) < 10000) this.showNotice(msg.notice.text)
                 this.lastUpdate = Date.now()
                 this.record(this.lastUpdate)
                 if (this.editor) this.editor.redraw()
             }
+        },
+        // history kept by the node (page opened late): server samples, then what this page saw after them
+        mergeHistory (server) {
+            const next = { ...this.history }
+            for (const k of Object.keys(server)) {
+                if (!Array.isArray(server[k])) continue
+                const list = server[k].filter(q => Array.isArray(q) && isFinite(q[0]) && isFinite(q[1]))
+                const end = list.length ? list[list.length - 1][0] : 0
+                next[k] = list.concat((this.history[k] || []).filter(q => q[0] > end))
+            }
+            this.history = next
+        },
+        // beep for alarms that were not there before (or every 10 s while unacknowledged)
+        alarmSound () {
+            const ids = (this.alarms.active || []).filter(a => !a.acked).map(a => a.id)
+            const fresh = this.seenAlarms !== null && ids.some(id => !this.seenAlarms.includes(id))
+            this.seenAlarms = ids
+            if (fresh) this.beep()
+        },
+        beep () {
+            if (!this.props.alarmSound || this.props.alarmSound === 'off' || this.muted || this.editing) return
+            this.lastBeep = Date.now()
+            try {
+                const ctx = this.audio
+                if (!ctx) return // no click on the page yet: the browser would block the sound
+                if (ctx.state === 'suspended') ctx.resume()
+                for (const t of [0, 0.25]) {
+                    const o = ctx.createOscillator()
+                    const g = ctx.createGain()
+                    o.frequency.value = 880
+                    g.gain.value = 0.15
+                    o.connect(g)
+                    g.connect(ctx.destination)
+                    o.start(ctx.currentTime + t)
+                    o.stop(ctx.currentTime + t + 0.15)
+                }
+            } catch (e) {}
         },
         record (t) {
             const keys = this.trendKeys
@@ -193,7 +246,7 @@ export default {
         onInput (msg) { this.apply(msg) },
         onLoad (msg) { this.apply(msg) },
         draw (s) {
-            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0, alarms: this.alarms || { active: [], history: [] }, ui: this.ui[s.id] })
+            return renderSymbol(s, valueFor(s, this.values), { locale: this.props.locale, values: this.values, history: this.history, now: s.type === 'trend' ? this.now : 0, alarms: this.alarms || { active: [], history: [] }, ui: this.ui[s.id], sound: this.props.alarmSound, muted: this.muted })
         },
         clickable (s) {
             if (this.editing) return false
@@ -217,8 +270,15 @@ export default {
             if (s.type === 'alarmList') {
                 const t = e && e.target && e.target.closest ? e.target.closest('[data-hmi]') : null
                 const cmd = t ? t.getAttribute('data-hmi') : ''
-                if (cmd.startsWith('tab:')) this.ui = { ...this.ui, [s.id]: { tab: cmd.slice(4) } }
+                if (cmd === 'mute') {
+                    this.muted = !this.muted
+                    try { localStorage.setItem('hmi-alarm-mute', this.muted ? '1' : '') } catch (err) {}
+                } else if (cmd.startsWith('tab:')) this.ui = { ...this.ui, [s.id]: { tab: cmd.slice(4) } }
                 else if (cmd.startsWith('ack:')) this.ack(cmd.slice(4))
+                else if (cmd.startsWith('shelve:')) {
+                    const min = Math.max(1, Number(s.props && s.props.shelveMinutes) || 30)
+                    if (window.confirm('Suprimir este alarme por ' + min + ' min?')) this.$socket.emit('widget-action', this.id, { _hmiShelve: { id: cmd.slice(7), minutes: min } })
+                } else if (cmd.startsWith('unshelve:')) this.$socket.emit('widget-action', this.id, { _hmiShelve: { id: cmd.slice(9), off: true } })
                 return
             }
             if (!this.clickable(s) || !s.action || s.action.mode === 'pulse') return

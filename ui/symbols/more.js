@@ -780,7 +780,7 @@ export function moreSymbols (H) {
 
     // ---------- Alarmes ----------
 
-    const EVENT_TEXT = { ATIVO: 'ATIVO', NORMAL: 'NORMAL', RECONHECIDO: 'RECONHECIDO' }
+    const EVENT_TEXT = { ATIVO: 'ATIVO', NORMAL: 'NORMAL', RECONHECIDO: 'RECONHECIDO', SUPRIMIDO: 'SUPRIMIDO', LIBERADO: 'LIBERADO' }
     const when = (ts, locale) => {
         try {
             return new Date(ts).toLocaleString(locale || 'pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -815,18 +815,23 @@ export function moreSymbols (H) {
         const rows = Math.max(1, Math.floor((h - head - 4) / rowH))
         const active = Array.isArray(data.active) ? data.active : []
         const unacked = active.filter(a => !a.acked).length
+        const shelvedList = Array.isArray(data.shelved) ? data.shelved : []
+        const canShelve = p.shelve !== 'no'
+        const tx0 = Math.max(150, Math.min(w * 0.32, w - 152 - 340))
         const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? ' ' + cls : ''}" data-hmi="${escapeXml(action)}">${rect('hmi-al-btn-box', x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`
         let out = `<g class="hmi-alarmlist">` + rect('hmi-tag-box', 0.5, 0.5, w - 1, h - 1, 4) +
             `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || 'ALARMES') + ' (' + active.length + ')')}</text>` +
-            btn(w * 0.32, 6, 78, 22, 'Ativos', 'tab:active', tab === 'active' ? 'hmi-al-sel' : '') +
-            btn(w * 0.32 + 84, 6, 84, 22, 'Histórico', 'tab:history', tab === 'history' ? 'hmi-al-sel' : '') +
+            btn(tx0, 6, 78, 22, 'Ativos', 'tab:active', tab === 'active' ? 'hmi-al-sel' : '') +
+            btn(tx0 + 84, 6, 84, 22, 'Histórico', 'tab:history', tab === 'history' ? 'hmi-al-sel' : '') +
+            (p.shelve !== 'no' ? btn(tx0 + 174, 6, 112, 22, 'Suprimidos (' + shelvedList.length + ')', 'tab:shelved', tab === 'shelved' ? 'hmi-al-sel' : '') : '') +
             (unacked ? btn(w - 152, 6, 144, 22, 'Reconhecer todos', 'ack:all', 'hmi-al-ackall') : '') +
+            (opts.sound && opts.sound !== 'off' ? btn(w - 190, 6, 32, 22, opts.muted ? '🔕' : '🔔', 'mute', 'hmi-al-shelve') : '') +
             path('hmi-al-line', `M1 ${head}H${f(w - 1)}`)
         const tx = 48
         const tw = w - tx - 10
         const timeW = Math.min(150, tw * 0.3)
-        const list = tab === 'history' ? (Array.isArray(data.history) ? data.history : []) : active
-        if (!list.length) out += `<text class="hmi-al-empty" x="${f(w / 2)}" y="${f(head + rowH)}" font-size="${f(fs)}">${tab === 'history' ? 'Sem eventos' : 'Nenhum alarme'}</text>`
+        const list = tab === 'history' ? (Array.isArray(data.history) ? data.history : []) : (tab === 'shelved' ? shelvedList : active)
+        if (!list.length) out += `<text class="hmi-al-empty" x="${f(w / 2)}" y="${f(head + rowH)}" font-size="${f(fs)}">${tab === 'history' ? 'Sem eventos' : (tab === 'shelved' ? 'Nenhum alarme suprimido' : 'Nenhum alarme')}</text>`
         list.slice(0, rows).forEach((a, i) => {
             const y = head + 2 + i * rowH
             const cy = y + rowH / 2
@@ -836,18 +841,23 @@ export function moreSymbols (H) {
             if (tab === 'history') {
                 state = (EVENT_TEXT[a.event] || a.event || '') + (a.user ? ' · ' + a.user : '')
                 cls = 'hmi-al-hist'
+            } else if (tab === 'shelved') {
+                state = 'ATÉ ' + when(a.until, opts.locale).slice(-8, -3) + (a.by ? ' · ' + a.by : '')
+                cls = 'hmi-al-hist'
             } else {
                 state = a.active ? (a.acked ? 'RECONHECIDO' : 'ATIVO') : 'NORMAL'
                 cls = a.active ? (a.acked ? 'hmi-al-acked' : 'hmi-al-unacked') : 'hmi-al-rtn'
             }
-            const stateW = tab === 'history' ? Math.min(200, tw * 0.3) : 118
-            const ackW = tab !== 'history' && !a.acked ? 34 : 0
-            const textW = tw - timeW - stateW - ackW - 16
+            const stateW = tab === 'active' ? 118 : Math.min(200, tw * 0.3)
+            const ackW = tab === 'active' && !a.acked ? 34 : 0
+            const shW = (tab === 'active' && canShelve) || tab === 'shelved' ? 34 : 0
+            const textW = tw - timeW - stateW - ackW - shW - 16
             out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect('hmi-al-stripe', 1, y, w - 2, rowH) : '') +
                 `<g class="${cls === 'hmi-al-unacked' ? 'hmi-blink' : ''}">${alarmIndicator(24, cy, pr)}</g>` +
-                `<text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * 0.92)}">${escapeXml(when(a.since || a.ts, opts.locale))}</text>` +
+                `<text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * 0.92)}">${escapeXml(tab === 'shelved' ? 'suprimido' : when(a.since || a.ts, opts.locale))}</text>` +
                 `<text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text>` +
-                `<text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - stateW)}" y="${f(cy)}" font-size="${f(fs * 0.85)}">${escapeXml(clip(state, stateW, fs * 0.85))}</text>` +
+                `<text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - shW - stateW)}" y="${f(cy)}" font-size="${f(fs * 0.85)}">${escapeXml(clip(state, stateW, fs * 0.85))}</text>` +
+                (shW ? btn(w - 10 - ackW - shW + 4, cy - 10, shW - 4, 20, tab === 'shelved' ? '▶' : 'II', (tab === 'shelved' ? 'unshelve:' : 'shelve:') + a.id, 'hmi-al-shelve') : '') +
                 (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, '✓', 'ack:' + a.id, 'hmi-al-ack') : '') + '</g>'
         })
         if (list.length > rows) out += `<text class="hmi-al-more hmi-right" x="${f(w - 10)}" y="${f(h - 4)}" font-size="10">+${list.length - rows}</text>`
@@ -880,8 +890,10 @@ export function moreSymbols (H) {
             h: 220,
             preview: undefined,
             alarms: true,
-            defaults: { title: 'ALARMES', rowHeight: 26, tab: 'active' },
-            fields: [TITLE, { key: 'rowHeight', label: 'Altura da linha', type: 'number' }, { key: 'tab', label: 'Abre em', type: 'select', options: [['active', 'Ativos'], ['history', 'Histórico']] }],
+            defaults: { title: 'ALARMES', rowHeight: 26, tab: 'active', shelve: 'yes', shelveMinutes: 30 },
+            fields: [TITLE, { key: 'rowHeight', label: 'Altura da linha', type: 'number' }, { key: 'tab', label: 'Abre em', type: 'select', options: [['active', 'Ativos'], ['history', 'Histórico'], ['shelved', 'Suprimidos']] },
+                { key: 'shelve', label: 'Permitir suprimir (II)', type: 'select', options: [['yes', 'Sim'], ['no', 'Não']], refresh: true },
+                { key: 'shelveMinutes', label: 'Suprimir por (minutos)', type: 'number', when: p => p.shelve !== 'no' }],
             render: renderAlarmList
         },
         alarmSummary: {
@@ -1386,7 +1398,7 @@ export const MORE_CSS = `
 .hmi-root .hmi-al-sel .hmi-al-btn-box { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-al-sel text { fill: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-al-sel text { fill: var(--hmi-text); }
-.hmi-root .hmi-al-ackall .hmi-al-btn-box, .hmi-root .hmi-al-ack .hmi-al-btn-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
+.hmi-root .hmi-al-ackall .hmi-al-btn-box, .hmi-root .hmi-al-ack .hmi-al-btn-box, .hmi-root .hmi-al-shelve .hmi-al-btn-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-al-btn:hover .hmi-al-btn-box { filter: brightness(.9); }
 .hmi-root .hmi-alsum-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-alsum-text { fill: var(--hmi-text); font-weight: 800; dominant-baseline: central; }

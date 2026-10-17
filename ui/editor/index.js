@@ -392,6 +392,14 @@ export function createEditor (root, opts) {
         if (s && SYMBOLS[s.type] && SYMBOLS[s.type].line) {
             const pts = linePoints(s)
             out += '<g transform="translate(' + s.x + ',' + s.y + ')">'
+            // a box with resize handles around lines and free shapes that have some width and height
+            if (s.w > 10 && s.h > 10 && !s.locked) {
+                const hs = Math.max(8, Math.min(12, view().w / 120)) / ed.zoom
+                // the box sits a little outside, so its handles don't cover the points
+                const pad = 12 / ed.zoom
+                out += '<rect class="hmi-ed-sel" x="' + -pad + '" y="' + -pad + '" width="' + (s.w + pad * 2) + '" height="' + (s.h + pad * 2) + '"/>'
+                for (const [dir, hx, hy] of HANDLES) out += '<rect class="hmi-ed-handle" data-handle="' + dir + '" style="cursor:' + handleCursor(dir, 0) + '" x="' + (hx * (s.w + pad * 2) - pad - hs / 2) + '" y="' + (hy * (s.h + pad * 2) - pad - hs / 2) + '" width="' + hs + '" height="' + hs + '"/>'
+            }
             for (let i = 0; i < pts.length - 1; i++) {
                 out += '<circle class="hmi-ed-mid" data-mid="' + i + '" cx="' + (pts[i][0] + pts[i + 1][0]) / 2 + '" cy="' + (pts[i][1] + pts[i + 1][1]) / 2 + '" r="5"/>'
             }
@@ -531,7 +539,7 @@ export function createEditor (root, opts) {
         props.appendChild(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
         props.appendChild(field('Nome (em Camadas)', s.name || '', 'text', v => { if (v.trim()) s.name = v.trim(); else delete s.name }))
         props.appendChild(pair(field('X', s.x, 'number', v => { s.x = Number(v) || 0 }), field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })))
-        if (def.line && s.type === 'shape') {
+        if (def.line) {
             // the free shape is resized by scaling its points
             const scalePts = (w, h) => {
                 const k = [w / Math.max(1, s.w), h / Math.max(1, s.h)]
@@ -541,6 +549,14 @@ export function createEditor (root, opts) {
             props.appendChild(pair(field('Largura', s.w, 'number', v => scalePts(Math.max(10, Number(v) || 10), s.h)), field('Altura', s.h, 'number', v => scalePts(s.w, Math.max(10, Number(v) || 10)))))
         }
         if (def.line) {
+            const tr = el('div', { class: 'hmi-ed-btnrow' })
+            for (const [label, title, fn] of [
+                ['↻ 90°', 'Girar 90° no sentido horário', ([x, y], w, h) => [h - y, x]],
+                ['↺ 90°', 'Girar 90° no sentido anti-horário', ([x, y], w, h) => [y, w - x]],
+                ['↔', 'Espelhar na horizontal', ([x, y], w, h) => [w - x, y]],
+                ['↕', 'Espelhar na vertical', ([x, y], w, h) => [x, h - y]]
+            ]) smallBtn(tr, label, title, () => { turnPoints(s, fn); refresh(); changed() })
+            props.appendChild(tr)
             props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga.'))
         } else {
             props.appendChild(pair(field('Largura', s.w, 'number', v => { s.w = Math.max(10, Number(v) || 10) }), field('Altura', s.h, 'number', v => { s.h = Math.max(10, Number(v) || 10) })))
@@ -900,6 +916,15 @@ export function createEditor (root, opts) {
     function marquee (d) {
         return { x: Math.min(d.start.x, d.cur.x), y: Math.min(d.start.y, d.cur.y), w: Math.abs(d.cur.x - d.start.x), h: Math.abs(d.cur.y - d.start.y) }
     }
+    // turns or mirrors the points of a line / free shape, keeping its centre in place
+    function turnPoints (s, fn) {
+        const cx = s.x + s.w / 2
+        const cy = s.y + s.h / 2
+        s.props.points = linePoints(s).map(q => fn(q, s.w, s.h))
+        normalizeLine(s)
+        s.x = Math.round(cx - s.w / 2)
+        s.y = Math.round(cy - s.h / 2)
+    }
     function normalizeLine (s) {
         const pts = linePoints(s)
         if (!pts.length) return
@@ -1138,7 +1163,7 @@ export function createEditor (root, opts) {
             ed.drag = { mode: 'point', i, start: p, moved: pointEl.hasAttribute('data-mid') }
         } else if (e.target.closest('[data-handle]')) {
             const s = selected()
-            ed.drag = { mode: 'size', dir: e.target.closest('[data-handle]').getAttribute('data-handle'), start: p, x: s.x, y: s.y, w: s.w, h: s.h }
+            ed.drag = { mode: 'size', dir: e.target.closest('[data-handle]').getAttribute('data-handle'), start: p, x: s.x, y: s.y, w: s.w, h: s.h, pts: SYMBOLS[s.type].line ? linePoints(s) : null }
         } else {
             let g = e.target.closest('.hmi-symbol')
             // locked symbols are not picked on the screen (only in Camadas)
@@ -1228,6 +1253,8 @@ export function createEditor (root, opts) {
             s.h = Math.max(1, ...pts.map(q => q[1]))
         } else {
             resize(s, d, p, e.shiftKey)
+            // lines and free shapes: scale the points into the new box
+            if (d.pts) s.props.points = d.pts.map(q => [Math.round(q[0] * s.w / Math.max(1, d.w)), Math.round(q[1] * s.h / Math.max(1, d.h))])
         }
         d.moved = true
         draw()
@@ -1285,7 +1312,7 @@ export function createEditor (root, opts) {
         const moved = ed.drag.moved
         if (ed.drag.mode === 'move' && !moved && ed.drag.narrow) select(ed.drag.narrow, ed.drag.id)
         const s = selected()
-        if (ed.drag.mode === 'point' && s) normalizeLine(s)
+        if ((ed.drag.mode === 'point' || (ed.drag.mode === 'size' && ed.drag.pts)) && s) normalizeLine(s)
         ed.drag = null
         ed.guides = []
         draw()

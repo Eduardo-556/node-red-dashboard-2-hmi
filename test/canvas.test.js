@@ -149,3 +149,41 @@ test('faceplate buttons and password-protected commands', () => {
     // no password configured on the node: protected commands are refused
     assert.deepStrictEqual(actionMessage(syms, {}, { _hmiAction: { id: 'm', phase: 'fp-on', pin: '' } }, ''), { denied: true })
 })
+
+test('alarm shelving hides an alarm for some minutes', () => {
+    const { createAlarms } = require('../nodes/alarms')
+    const syms = [{ id: 'm', type: 'motor', key: 'run', props: { label: 'M1', faultKey: 'f' } }]
+    const a = createAlarms(syms)
+    a.evaluate({ f: 1 }, 1000)
+    assert.strictEqual(a.snapshot().unacked, 1)
+    assert.strictEqual(a.shelve('nope', 10, 2000).length, 0)
+    const ev = a.shelve('m:fault', 10, 2000, 'ana')
+    assert.strictEqual(ev[0].event, 'SUPRIMIDO')
+    let snap = a.snapshot()
+    assert.strictEqual(snap.active.length, 0)
+    assert.strictEqual(snap.unacked, 0)
+    assert.strictEqual(snap.shelved[0].until, 2000 + 600000)
+    assert.strictEqual(snap.shelved[0].by, 'ana')
+    // survives a restart
+    const b = createAlarms(syms, a.save())
+    assert.strictEqual(b.snapshot().shelved.length, 1)
+    assert.strictEqual(b.expire(5000).length, 0)
+    assert.strictEqual(b.expire(2000 + 600000)[0].event, 'LIBERADO')
+    snap = b.snapshot()
+    assert.strictEqual(snap.shelved.length, 0)
+    assert.strictEqual(snap.unacked, 1)
+    assert.strictEqual(a.unshelve('m:fault', 3000, 'ana')[0].event, 'LIBERADO')
+})
+
+test('trend history is kept per trend key and window', () => {
+    const { createTrendHistory } = require('../nodes/trend')
+    const t = createTrendHistory([{ id: 't', type: 'trend', key: 'rpm', props: { window: 10 } }, { id: 'x', type: 'tag', key: 'temp' }])
+    assert.strictEqual(t.size, 1)
+    t.record({ rpm: 100, temp: 5 }, 1000)
+    t.record({ rpm: 'x' }, 2000)
+    t.record({ rpm: 120 }, 9000)
+    assert.deepStrictEqual(t.snapshot(), { rpm: [[1000, 100], [9000, 120]] })
+    t.record({ rpm: 130 }, 12000)
+    assert.deepStrictEqual(t.snapshot().rpm, [[9000, 120], [12000, 130]])
+    assert.strictEqual(createTrendHistory([]).size, 0)
+})

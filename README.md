@@ -2,7 +2,15 @@
 
 Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols onto a canvas. Wire one object (for example the output of `node-red-contrib-schneider-modbus-tags`) into the canvas and every symbol shows its own key. No SVG or Vue to write.
 
-> **Status: prototype (0.0.x).** 50+ palette items (shapes, equipment, lines, values, states, commands), click commands and the drag-and-drop editor. Not published to npm yet.
+![Linha de pintura](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/pintura.png)
+
+| Editor | Faceplate |
+|---|---|
+| ![Editor](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/editor.png) | ![Faceplate](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/faceplate.png) |
+| **Peças mecânicas** | **CLP Schneider M221** |
+| ![Mecânica](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/mecanica.png) | ![CLP](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/clp-schneider.png) |
+
+**Requer** Node-RED 3+ e `@flowfuse/node-red-dashboard` (Dashboard 2.0) 1.x. Instale pelo **Gerenciar paleta** procurando `node-red-dashboard-2-hmi`, ou `npm install node-red-dashboard-2-hmi` na pasta do Node-RED. Novidades em [CHANGELOG.md](CHANGELOG.md).
 
 [Português](#português) · [English](#english)
 
@@ -49,7 +57,7 @@ No **Texto** (e no subtítulo do **KPI**), `{chave}` vira o valor daquela chave 
 
 - **Mecânica** (menu próprio): engrenagem, coroa de corrente, polia, roda, transmissão por correia e por corrente, redutor, acoplamento, mola, fuso, guia linear com carro, cremalheira, braço/elo, pino, bico, tambor, cilindro em pé, cone, caixa 3D, chapa com furos, rasgo, grade de proteção, porta e visor. Engrenagem, coroa, polia e roda podem **girar quando a chave ligar** (horário ou anti-horário).
 - **Formas** ganhou anel, meio círculo, quarto de círculo, pentágono, octógono, estrela, cruz e seta larga.
-- **Forma livre**: um polígono com pontos que você arrasta. Puxe o ponto azul do meio de um lado para criar um ponto novo; duplo clique apaga um ponto. **Cantos: curvas suaves** arredonda o desenho. Largura e altura mudam o tamanho mantendo o desenho. Também enche pelo valor da chave.
+- **Forma livre**: um polígono com pontos que você arrasta. Puxe o ponto azul do meio de um lado para criar um ponto novo; duplo clique apaga um ponto. **Cantos: curvas suaves** arredonda o desenho. As alças em volta (ou largura e altura) mudam o tamanho mantendo o desenho, e os botões ↻ ↺ ↔ ↕ giram 90° e espelham. Linhas também têm esses botões. Também enche pelo valor da chave.
 
 Todas usam os mesmos tons do **Corpo** (tema, escuro, metal, cor personalizada...).
 
@@ -64,6 +72,10 @@ Categoria **Gráficos**:
 - **Gráfico de barras**: uma barra por chave (`turno1:1º turno, turno2:2º turno`), ou uma chave que traz uma lista (`[118, 126, 109]`) com os rótulos separados por vírgula. Linha de **Meta** opcional; barras abaixo da meta podem ficar amarelas.
 - **Rosca (donut)**: uma fatia por chave, com total no meio e legenda em %.
 - **OEE**: disponibilidade × performance × qualidade (em % ou de 0 a 1), ou a chave do OEE pronto. Fica amarelo abaixo da meta e vermelho abaixo do limite.
+
+### Tendência
+
+O nó guarda os últimos minutos de cada chave usada numa **Tendência** (a janela do símbolo), então quem abre a tela depois já vê a curva cheia.
 
 ### Regras
 
@@ -95,6 +107,8 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 - **Lista de alarmes** (categoria Estados): abas Ativos e Histórico, prioridade com cor, botão ✓ por alarme e **Reconhecer todos**. Alarme não reconhecido pisca.
 - **Resumo de alarmes**: sino com "N ALARMES · M novos", na cor da prioridade mais alta. Bom para o cabeçalho de todas as telas.
 - Num símbolo, **Na lista de alarmes: não** tira ele da lista; **Prioridade** muda de 1 a 3.
+- **Suprimir** (botão II na linha): esconde o alarme da lista e dos contadores pelo tempo configurado na Lista de alarmes (30 min por padrão). Fica na aba **Suprimidos**, com hora de volta e quem suprimiu; ▶ libera antes. Suprimir e liberar vão para o histórico.
+- **Som** (no nó): sem som, bipe quando entra alarme novo, ou bipe a cada 10 s até reconhecer. O botão 🔔 na lista silencia só aquele navegador. O navegador só toca som depois de um clique na página.
 - Com **Eventos: enviar** no nó, cada mudança sai como `{ topic: 'alarme', payload: { event: 'ATIVO' | 'NORMAL' | 'RECONHECIDO', text, priority, ts, user } }`.
 
 ### Editor
@@ -153,6 +167,8 @@ Pintura e esteira funcionam sem CLP: uma função gera os valores a cada segundo
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
 
 Palette (dropdown per category): 22 shapes; process (compressor, blower, bag filter, control valve, 3-way valve, damper, mixer, heat exchanger, boiler, cooling tower, chiller, cyclone, flowmeter, ISA instrument bubble); factory (overhead crane and hoist, robot, welder, oven, paint booth, 3-roll bending machine, press brake, scale, transfer cart, AGV, forklift, roller table); electrical (VFD, breaker, contactor, transformer, generator, energy meter); ISA-101 analog bar (L/H, LL/HH, setpoint), run-hours and start counters, mode and interlock/permissive indicators, pipe fittings and arrows; structures (beam side view, I-beam, U-channel, angle, truss, tube, column, pedestal, bearing pedestal, bracket, A-frame, stand, base plate); reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), shape tones from the slitter screen plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
+
+Trend history is kept by the node, so a page opened later shows the last minutes. Alarms can be shelved (suppressed for N minutes, with a Shelved tab and history events) and the node can beep on new alarms or every 10 s until acknowledged (muted per browser).
 
 Click commands: any symbol can send a message from the node's output when clicked on the dashboard: a fixed value, a toggle of its key, a pulse (1 on press, 0 on release) a typed number checked against a min/max, navigation to another dashboard page, or a **faceplate** popup (state, value, mode, hours, starts, the equipment's alarms and Start/Stop/Reset buttons), with optional confirmation and optional **password** (stored in the node credentials). Every command carries `msg.audit` (`ts, symbol, action, topic, value, user, socketId`) for a command log.
 

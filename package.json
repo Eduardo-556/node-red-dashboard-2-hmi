@@ -1,6 +1,6 @@
 {
   "name": "node-red-dashboard-2-hmi",
-  "version": "0.0.13",
+  "version": "0.1.0",
   "description": "Build machine HMI screens for Node-RED Dashboard 2.0 by dragging symbols onto a canvas (ISA-101 and classic themes)",
   "keywords": [
     "node-red",
@@ -26,7 +26,8 @@
     "resources",
     "examples",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "vite build && vite build --config vite.editor.config.mjs",

@@ -81,12 +81,16 @@ function alarmDefs (symbols) {
 function createAlarms (symbols, saved) {
     const defs = alarmDefs(symbols)
     const known = new Set(defs.map(d => d.id))
+    const byId = new Map(defs.map(d => [d.id, d]))
+    // shelved (suppressed) alarms: id -> { id, symbolId, text, priority, until, by }
+    const shelved = new Map()
     // id -> { id, symbolId, text, priority, active, acked, since, cleared, ackBy }
     const list = new Map()
     let history = []
     if (saved && typeof saved === 'object') {
         for (const a of Array.isArray(saved.active) ? saved.active : []) if (a && known.has(a.id)) list.set(a.id, { ...a })
         if (Array.isArray(saved.history)) history = saved.history.slice(0, HISTORY_MAX)
+        for (const sh of Array.isArray(saved.shelved) ? saved.shelved : []) if (sh && known.has(sh.id)) shelved.set(sh.id, { ...sh })
     }
     const log = (a, event, now, user) => {
         history.unshift({ ts: now, id: a.id, symbolId: a.symbolId, text: a.text, priority: a.priority, event, ...(user ? { user } : {}) })
@@ -130,13 +134,34 @@ function createAlarms (symbols, saved) {
             }
             return events
         },
+        // suppresses an alarm for some minutes (ISA-18.2 shelving): it leaves the list and the counters
+        shelve (id, minutes, now, user) {
+            const d = byId.get(id)
+            if (!d) return []
+            const min = Math.max(1, Math.min(1440, Number(minutes) || 30))
+            const sh = { id, symbolId: d.symbolId, text: d.text, priority: d.priority, until: now + min * 60000, ...(user ? { by: user } : {}) }
+            shelved.set(id, sh)
+            return [log(sh, 'SUPRIMIDO', now, user)]
+        },
+        unshelve (id, now, user) {
+            const sh = shelved.get(id)
+            if (!sh) return []
+            shelved.delete(id)
+            return [log(sh, 'LIBERADO', now, user)]
+        },
+        // shelved alarms whose time is over come back
+        expire (now) {
+            const events = []
+            for (const sh of [...shelved.values()]) if (sh.until <= now) events.push(...this.unshelve(sh.id, now, ''))
+            return events
+        },
         snapshot (historyRows) {
             const order = { 1: 0, 2: 1, 3: 2 }
-            const active = [...list.values()].sort((a, b) => (a.acked - b.acked) || ((order[a.priority] ?? 3) - (order[b.priority] ?? 3)) || (b.since - a.since))
-            return { active, history: history.slice(0, historyRows === undefined ? 100 : historyRows), unacked: active.filter(a => !a.acked).length }
+            const active = [...list.values()].filter(a => !shelved.has(a.id)).sort((a, b) => (a.acked - b.acked) || ((order[a.priority] ?? 3) - (order[b.priority] ?? 3)) || (b.since - a.since))
+            return { active, history: history.slice(0, historyRows === undefined ? 100 : historyRows), unacked: active.filter(a => !a.acked).length, shelved: [...shelved.values()].sort((a, b) => a.until - b.until) }
         },
         save () {
-            return { active: [...list.values()], history }
+            return { active: [...list.values()], history, shelved: [...shelved.values()] }
         }
     }
 }

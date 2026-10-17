@@ -449,6 +449,24 @@
             },
             {
                 "id": "e17",
+                "type": "trend",
+                "x": 520,
+                "y": 50,
+                "w": 420,
+                "h": 80,
+                "rot": 0,
+                "key": "tempEstufa",
+                "props": {
+                    "title": "TEMPERATURA DA ESTUFA",
+                    "unit": "°C",
+                    "decimals": 0,
+                    "min": 100,
+                    "max": 240,
+                    "window": 300
+                }
+            },
+            {
+                "id": "e18",
                 "type": "isaBar",
                 "x": 990,
                 "y": 120,
@@ -472,7 +490,7 @@
                 }
             },
             {
-                "id": "e18",
+                "id": "e19",
                 "type": "oee",
                 "x": 20,
                 "y": 350,
@@ -491,7 +509,7 @@
                 }
             },
             {
-                "id": "e19",
+                "id": "e20",
                 "type": "barChart",
                 "x": 400,
                 "y": 350,
@@ -511,7 +529,7 @@
                 }
             },
             {
-                "id": "e20",
+                "id": "e21",
                 "type": "donut",
                 "x": 840,
                 "y": 350,
@@ -530,7 +548,7 @@
                 }
             },
             {
-                "id": "e21",
+                "id": "e22",
                 "type": "alarmList",
                 "x": 20,
                 "y": 530,
@@ -541,7 +559,9 @@
                 "props": {
                     "title": "ALARMES",
                     "rowHeight": 26,
-                    "tab": "active"
+                    "tab": "active",
+                    "shelve": "yes",
+                    "shelveMinutes": 30
                 }
             }
         ],
@@ -552,7 +572,8 @@
             [
                 "pin_cmd"
             ]
-        ]
+        ],
+        "alarmSound": "new"
     },
     {
         "id": "pin_cmd",
