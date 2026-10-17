@@ -1,0 +1,637 @@
+[
+    {
+        "id": "ex_est",
+        "type": "tab",
+        "label": "IHM esteiras",
+        "info": "Tela de esteiras com dados simulados. Abra /dashboard/esteira."
+    },
+    {
+        "id": "hx_base",
+        "type": "ui-base",
+        "name": "Dashboard",
+        "path": "/dashboard",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "navigationStyle": "none",
+        "titleBarStyle": "hidden"
+    },
+    {
+        "id": "hx_theme",
+        "type": "ui-theme",
+        "name": "Default",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "pg_est",
+        "type": "ui-page",
+        "name": "Esteiras",
+        "ui": "hx_base",
+        "path": "/esteira",
+        "icon": "factory",
+        "layout": "grid",
+        "theme": "hx_theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 3,
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "est_cmt",
+        "type": "comment",
+        "z": "ex_est",
+        "name": "Simulação a cada 1 s. PARTIR / PARAR são pulsos; clique num motor para o faceplate.",
+        "info": "",
+        "x": 330,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "est_tick",
+        "type": "inject",
+        "z": "ex_est",
+        "name": "a cada 1 s",
+        "props": [],
+        "repeat": "1",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "x": 120,
+        "y": 120,
+        "wires": [
+            [
+                "est_sim"
+            ]
+        ]
+    },
+    {
+        "id": "est_sim",
+        "type": "function",
+        "z": "ex_est",
+        "name": "simula esteiras",
+        "func": "// Simulação das esteiras. Troque pelos valores do seu CLP.\nconst s = flow.get('sim') || { boas: 0, refugo: 0, t: 0, h: [0, 0, 0] }\nconst cmd = flow.get('cmd') || { rodando: 1, m1: 1, m2: 1, m3: 1, velocidade: 30 }\ns.t++\nconst roda = i => cmd.rodando === 1 && cmd['m' + i] === 1\nconst passa = roda(1) && roda(2) && roda(3) && s.t % 2 === 0\nif (passa) { if (Math.random() < 0.06) s.refugo++; else s.boas++ }\nfor (let i = 0; i < 3; i++) if (roda(i + 1)) s.h[i] += 60\nflow.set('sim', s)\nmsg.payload = {\n    boas: s.boas, refugo: s.refugo, meta: 900, velocidade: cmd.velocidade,\n    rodando: cmd.rodando, parada: cmd.rodando ? 0 : 1, falha: 0,\n    rod1: roda(1) ? 1 : 0, rod2: roda(2) ? 1 : 0, rod3: roda(3) ? 1 : 0,\n    falha1: 0, falha2: 0, falha3: 0, modo: 1,\n    sp1: passa ? 1 : 0, sp2: roda(2) && s.t % 2 === 1 ? 1 : 0, sp3: passa ? 1 : 0,\n    horas1: 3600 * 812 + s.h[0], horas2: 3600 * 640 + s.h[1], horas3: 3600 * 1203 + s.h[2],\n    desvio: Math.random() < 0.06 ? 1 : 0,\n    h1: 118, h2: 126, h3: 109, h4: 131, h5: 97, h6: Math.floor(s.boas / 2)\n}\nreturn msg",
+        "outputs": 1,
+        "x": 290,
+        "y": 120,
+        "wires": [
+            [
+                "est_canvas"
+            ]
+        ]
+    },
+    {
+        "id": "est_canvas",
+        "type": "ui-hmi-canvas",
+        "z": "ex_est",
+        "name": "Esteiras",
+        "scope": "page",
+        "page": "pg_est",
+        "order": 1,
+        "viewW": 1280,
+        "viewH": 720,
+        "theme": "isa101",
+        "fit": "screen",
+        "background": "theme",
+        "offlineAfter": 10,
+        "locale": "pt-BR",
+        "alarms": "on",
+        "alarmsOut": "no",
+        "symbols": [
+            {
+                "id": "e1",
+                "type": "text",
+                "x": 20,
+                "y": 14,
+                "w": 760,
+                "h": 32,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "ESTEIRAS DE EXPEDIÇÃO  ·  {boas} boas  ·  {refugo} refugo",
+                    "size": 20,
+                    "align": "start",
+                    "bold": "yes",
+                    "tone": "normal",
+                    "unit": "",
+                    "decimals": ""
+                }
+            },
+            {
+                "id": "e2",
+                "type": "alarmSummary",
+                "x": 1040,
+                "y": 10,
+                "w": 220,
+                "h": 40,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "label": ""
+                }
+            },
+            {
+                "id": "e3",
+                "type": "stack",
+                "x": 1220,
+                "y": 60,
+                "w": 36,
+                "h": 130,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "label": "",
+                    "keyRed": "falha",
+                    "keyYellow": "parada",
+                    "keyGreen": "rodando",
+                    "keyBlue": "",
+                    "blink": "no"
+                }
+            },
+            {
+                "id": "e4",
+                "type": "conveyor",
+                "x": 40,
+                "y": 200,
+                "w": 360,
+                "h": 50,
+                "rot": 0,
+                "key": "rod1",
+                "props": {
+                    "label": "ESTEIRA E1",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "dir": "fwd",
+                    "faultKey": "falha1",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e5",
+                "type": "motor",
+                "x": 180,
+                "y": 110,
+                "w": 60,
+                "h": 60,
+                "rot": 0,
+                "key": "rod1",
+                "props": {
+                    "label": "M1",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "falha1",
+                    "priority": "1"
+                },
+                "action": {
+                    "mode": "faceplate",
+                    "confirm": "yes",
+                    "pin": "no",
+                    "value": "",
+                    "topic": "",
+                    "valueKey": "",
+                    "valueUnit": "",
+                    "modeKey": "modo",
+                    "modeTexts": "0=MANUAL,1=AUTO",
+                    "hoursKey": "",
+                    "startsKey": "",
+                    "onTopic": "cmd/m1",
+                    "onValue": "1",
+                    "offTopic": "cmd/m1",
+                    "offValue": "0",
+                    "resetTopic": "reset",
+                    "resetValue": "1"
+                }
+            },
+            {
+                "id": "e6",
+                "type": "sensor",
+                "x": 340,
+                "y": 150,
+                "w": 44,
+                "h": 44,
+                "rot": 0,
+                "key": "sp1",
+                "props": {
+                    "label": "S1",
+                    "kind": "photo",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                }
+            },
+            {
+                "id": "e7",
+                "type": "counter",
+                "x": 60,
+                "y": 300,
+                "w": 150,
+                "h": 56,
+                "rot": 0,
+                "key": "horas1",
+                "props": {
+                    "kind": "hours",
+                    "title": "HORAS M1",
+                    "src": "s",
+                    "decimals": 0,
+                    "unit": "",
+                    "label": ""
+                }
+            },
+            {
+                "id": "e8",
+                "type": "conveyor",
+                "x": 440,
+                "y": 200,
+                "w": 360,
+                "h": 50,
+                "rot": 0,
+                "key": "rod2",
+                "props": {
+                    "label": "ESTEIRA E2",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "dir": "fwd",
+                    "faultKey": "falha2",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e9",
+                "type": "motor",
+                "x": 580,
+                "y": 110,
+                "w": 60,
+                "h": 60,
+                "rot": 0,
+                "key": "rod2",
+                "props": {
+                    "label": "M2",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "falha2",
+                    "priority": "1"
+                },
+                "action": {
+                    "mode": "faceplate",
+                    "confirm": "yes",
+                    "pin": "no",
+                    "value": "",
+                    "topic": "",
+                    "valueKey": "",
+                    "valueUnit": "",
+                    "modeKey": "modo",
+                    "modeTexts": "0=MANUAL,1=AUTO",
+                    "hoursKey": "",
+                    "startsKey": "",
+                    "onTopic": "cmd/m2",
+                    "onValue": "1",
+                    "offTopic": "cmd/m2",
+                    "offValue": "0",
+                    "resetTopic": "reset",
+                    "resetValue": "1"
+                }
+            },
+            {
+                "id": "e10",
+                "type": "sensor",
+                "x": 740,
+                "y": 150,
+                "w": 44,
+                "h": 44,
+                "rot": 0,
+                "key": "sp2",
+                "props": {
+                    "label": "S2",
+                    "kind": "photo",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                }
+            },
+            {
+                "id": "e11",
+                "type": "counter",
+                "x": 460,
+                "y": 300,
+                "w": 150,
+                "h": 56,
+                "rot": 0,
+                "key": "horas2",
+                "props": {
+                    "kind": "hours",
+                    "title": "HORAS M2",
+                    "src": "s",
+                    "decimals": 0,
+                    "unit": "",
+                    "label": ""
+                }
+            },
+            {
+                "id": "e12",
+                "type": "conveyor",
+                "x": 840,
+                "y": 200,
+                "w": 360,
+                "h": 50,
+                "rot": 0,
+                "key": "rod3",
+                "props": {
+                    "label": "ESTEIRA E3",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "dir": "fwd",
+                    "faultKey": "falha3",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e13",
+                "type": "motor",
+                "x": 980,
+                "y": 110,
+                "w": 60,
+                "h": 60,
+                "rot": 0,
+                "key": "rod3",
+                "props": {
+                    "label": "M3",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "falha3",
+                    "priority": "1"
+                },
+                "action": {
+                    "mode": "faceplate",
+                    "confirm": "yes",
+                    "pin": "no",
+                    "value": "",
+                    "topic": "",
+                    "valueKey": "",
+                    "valueUnit": "",
+                    "modeKey": "modo",
+                    "modeTexts": "0=MANUAL,1=AUTO",
+                    "hoursKey": "",
+                    "startsKey": "",
+                    "onTopic": "cmd/m3",
+                    "onValue": "1",
+                    "offTopic": "cmd/m3",
+                    "offValue": "0",
+                    "resetTopic": "reset",
+                    "resetValue": "1"
+                }
+            },
+            {
+                "id": "e14",
+                "type": "sensor",
+                "x": 1140,
+                "y": 150,
+                "w": 44,
+                "h": 44,
+                "rot": 0,
+                "key": "sp3",
+                "props": {
+                    "label": "S3",
+                    "kind": "photo",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                }
+            },
+            {
+                "id": "e15",
+                "type": "counter",
+                "x": 860,
+                "y": 300,
+                "w": 150,
+                "h": 56,
+                "rot": 0,
+                "key": "horas3",
+                "props": {
+                    "kind": "hours",
+                    "title": "HORAS M3",
+                    "src": "s",
+                    "decimals": 0,
+                    "unit": "",
+                    "label": ""
+                }
+            },
+            {
+                "id": "e16",
+                "type": "cylinder",
+                "x": 1100,
+                "y": 310,
+                "w": 140,
+                "h": 36,
+                "rot": 0,
+                "key": "desvio",
+                "props": {
+                    "label": "DESVIO REFUGO",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                }
+            },
+            {
+                "id": "e17",
+                "type": "button",
+                "x": 40,
+                "y": 388,
+                "w": 140,
+                "h": 44,
+                "rot": 0,
+                "key": "rodando",
+                "props": {
+                    "text": "PARTIR",
+                    "textOn": "RODANDO",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                },
+                "action": {
+                    "mode": "pulse",
+                    "value": "",
+                    "topic": "cmd/partir",
+                    "confirm": "no",
+                    "pin": "no"
+                }
+            },
+            {
+                "id": "e18",
+                "type": "button",
+                "x": 200,
+                "y": 388,
+                "w": 140,
+                "h": 44,
+                "rot": 0,
+                "key": "parada",
+                "props": {
+                    "text": "PARAR",
+                    "textOn": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                },
+                "action": {
+                    "mode": "pulse",
+                    "value": "",
+                    "topic": "cmd/parar",
+                    "confirm": "no",
+                    "pin": "no"
+                }
+            },
+            {
+                "id": "e19",
+                "type": "setpoint",
+                "x": 360,
+                "y": 378,
+                "w": 170,
+                "h": 64,
+                "rot": 0,
+                "key": "velocidade",
+                "props": {
+                    "title": "VELOCIDADE",
+                    "unit": "m/min",
+                    "decimals": 0
+                },
+                "action": {
+                    "mode": "input",
+                    "value": "",
+                    "topic": "cmd/velocidade",
+                    "confirm": "yes",
+                    "pin": "no",
+                    "min": "5",
+                    "max": "60"
+                }
+            },
+            {
+                "id": "e20",
+                "type": "kpi",
+                "x": 20,
+                "y": 460,
+                "w": 300,
+                "h": 120,
+                "rot": 0,
+                "key": "boas",
+                "props": {
+                    "title": "CAIXAS BOAS HOJE",
+                    "unit": "",
+                    "decimals": 0,
+                    "subtitle": "Meta {meta} caixas"
+                }
+            },
+            {
+                "id": "e21",
+                "type": "donut",
+                "x": 340,
+                "y": 460,
+                "w": 360,
+                "h": 120,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "QUALIDADE",
+                    "series": "boas:Boas, refugo:Refugo",
+                    "labels": "",
+                    "unit": "",
+                    "decimals": 0,
+                    "legend": "yes",
+                    "center": "total"
+                }
+            },
+            {
+                "id": "e22",
+                "type": "barChart",
+                "x": 720,
+                "y": 460,
+                "w": 540,
+                "h": 120,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "CAIXAS POR HORA",
+                    "series": "h1:6h, h2:7h, h3:8h, h4:9h, h5:10h, h6:11h",
+                    "labels": "",
+                    "unit": "",
+                    "decimals": 0,
+                    "max": "",
+                    "goal": 120,
+                    "lowColor": "warn"
+                }
+            },
+            {
+                "id": "e23",
+                "type": "alarmList",
+                "x": 20,
+                "y": 590,
+                "w": 1240,
+                "h": 120,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "ALARMES",
+                    "rowHeight": 26,
+                    "tab": "active"
+                }
+            }
+        ],
+        "outputs": 1,
+        "x": 460,
+        "y": 120,
+        "wires": [
+            [
+                "est_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "est_cmd",
+        "type": "function",
+        "z": "ex_est",
+        "name": "aplica comando",
+        "func": "// Comandos da tela. Aqui só mudam a simulação; no seu flow ligue a saída no CLP.\nconst cmd = flow.get('cmd') || { rodando: 1, m1: 1, m2: 1, m3: 1, velocidade: 30 }\nconst on = Number(msg.payload) ? 1 : 0\nif (msg.topic === 'cmd/partir' && on) cmd.rodando = 1\nif (msg.topic === 'cmd/parar' && on) cmd.rodando = 0\nif (msg.topic === 'cmd/velocidade') cmd.velocidade = Number(msg.payload)\nconst m = /^cmd\\/m(\\d)$/.exec(msg.topic || '')\nif (m) cmd['m' + m[1]] = on\nflow.set('cmd', cmd)\nreturn msg",
+        "outputs": 1,
+        "x": 660,
+        "y": 120,
+        "wires": [
+            [
+                "est_dbg"
+            ]
+        ]
+    },
+    {
+        "id": "est_dbg",
+        "type": "debug",
+        "z": "ex_est",
+        "name": "comandos",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "topic",
+        "statusType": "auto",
+        "x": 850,
+        "y": 120,
+        "wires": []
+    }
+]

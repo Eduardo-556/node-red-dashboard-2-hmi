@@ -1,0 +1,589 @@
+[
+    {
+        "id": "ex_pin",
+        "type": "tab",
+        "label": "IHM pintura",
+        "info": "Tela de linha de pintura com dados simulados. Abra /dashboard/pintura."
+    },
+    {
+        "id": "hx_base",
+        "type": "ui-base",
+        "name": "Dashboard",
+        "path": "/dashboard",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "navigationStyle": "none",
+        "titleBarStyle": "hidden"
+    },
+    {
+        "id": "hx_theme",
+        "type": "ui-theme",
+        "name": "Default",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "pg_pin",
+        "type": "ui-page",
+        "name": "Pintura",
+        "ui": "hx_base",
+        "path": "/pintura",
+        "icon": "factory",
+        "layout": "grid",
+        "theme": "hx_theme",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": "0",
+                "cols": "3"
+            },
+            {
+                "name": "Desktop",
+                "px": "1024",
+                "cols": "12"
+            }
+        ],
+        "order": 2,
+        "visible": "true",
+        "disabled": "false"
+    },
+    {
+        "id": "pin_cmt",
+        "type": "comment",
+        "z": "ex_pin",
+        "name": "Simulação a cada 1 s. Clique no motor da esteira para o faceplate (Ligar / Desligar / Reset).",
+        "info": "",
+        "x": 330,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "pin_tick",
+        "type": "inject",
+        "z": "ex_pin",
+        "name": "a cada 1 s",
+        "props": [],
+        "repeat": "1",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "x": 120,
+        "y": 120,
+        "wires": [
+            [
+                "pin_sim"
+            ]
+        ]
+    },
+    {
+        "id": "pin_sim",
+        "type": "function",
+        "z": "ex_pin",
+        "name": "simula linha",
+        "func": "// Simulação da linha de pintura. Troque pelos valores do seu CLP.\nconst s = flow.get('sim') || { pecas: 0, tintaA: 80, tintaB: 60, t: 0, temp: 150 }\nconst cmd = flow.get('cmd') || { esteira: 1 }\ns.t++\nconst ligada = cmd.esteira === 1 && !s.falha\nif (ligada && s.t % 3 === 0) s.pecas++\ns.tintaA = s.tintaA <= 8 ? 95 : s.tintaA - (ligada ? 0.6 : 0)\ns.tintaB = s.tintaB <= 5 ? 90 : s.tintaB - (ligada ? 0.4 : 0)\ns.temp += ((ligada ? 205 : 120) - s.temp) * 0.08 + (Math.random() - 0.5) * 3\n// de vez em quando a cabine entra em falha; o comando reset limpa\nif (!s.falha && Math.random() < 0.01) s.falha = true\nif (cmd.reset) { s.falha = false; cmd.reset = 0; flow.set('cmd', cmd) }\nflow.set('sim', s)\nconst r = v => Math.round(v * 10) / 10\nmsg.payload = {\n    lote: 'P' + (2610 + Math.floor(s.pecas / 50)), pecas: s.pecas, modo: 1,\n    esteira: ligada ? 1 : 0, falhaEsteira: 0, velocidade: ligada ? r(6 + Math.random()) : 0,\n    tempDesengraxe: r(62 + Math.random() * 4), aqDesengraxe: 1,\n    cabine: ligada ? 1 : 0, falhaCabine: s.falha ? 1 : 0, robo: ligada ? 1 : 0,\n    tempEstufa: r(s.temp), spEstufa: 200, queimador: s.temp < 200 ? 1 : 0, portaEstufa: 0,\n    resfriamento: ligada ? 1 : 0, pecaSaida: ligada && s.t % 3 === 0 ? 1 : 0,\n    tintaA: r(s.tintaA), tintaB: r(s.tintaB),\n    disp: 91.5, perf: r(86 + Math.random() * 4), qual: 98.2,\n    turno1: 412, turno2: 388, turno3: s.pecas,\n    tProduzindo: 410 + Math.floor(s.t / 60), tParada: 35, tSetup: 22\n}\nreturn msg",
+        "outputs": 1,
+        "x": 290,
+        "y": 120,
+        "wires": [
+            [
+                "pin_canvas"
+            ]
+        ]
+    },
+    {
+        "id": "pin_canvas",
+        "type": "ui-hmi-canvas",
+        "z": "ex_pin",
+        "name": "Linha de pintura",
+        "scope": "page",
+        "page": "pg_pin",
+        "order": 1,
+        "viewW": 1280,
+        "viewH": 720,
+        "theme": "isa101",
+        "fit": "screen",
+        "background": "theme",
+        "offlineAfter": 10,
+        "locale": "pt-BR",
+        "alarms": "on",
+        "alarmsOut": "no",
+        "symbols": [
+            {
+                "id": "e1",
+                "type": "text",
+                "x": 20,
+                "y": 14,
+                "w": 700,
+                "h": 32,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "text": "LINHA DE PINTURA  ·  Lote {lote}  ·  {pecas} peças hoje",
+                    "size": 20,
+                    "align": "start",
+                    "bold": "yes",
+                    "tone": "normal",
+                    "unit": "",
+                    "decimals": ""
+                }
+            },
+            {
+                "id": "e2",
+                "type": "mode",
+                "x": 880,
+                "y": 12,
+                "w": 150,
+                "h": 36,
+                "rot": 0,
+                "key": "modo",
+                "props": {
+                    "title": "MODO",
+                    "texts": "0=MANUAL,1=AUTO,2=LOCAL,3=REMOTO",
+                    "normal": "1",
+                    "label": ""
+                }
+            },
+            {
+                "id": "e3",
+                "type": "alarmSummary",
+                "x": 1040,
+                "y": 10,
+                "w": 220,
+                "h": 40,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "label": ""
+                }
+            },
+            {
+                "id": "e4",
+                "type": "frame",
+                "x": 20,
+                "y": 300,
+                "w": 1240,
+                "h": 14,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "shape": "rect",
+                    "tone": "floor",
+                    "label": "",
+                    "level": "no",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "no",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "e5",
+                "type": "line",
+                "x": 40,
+                "y": 286,
+                "w": 1200,
+                "h": 1,
+                "rot": 0,
+                "key": "esteira",
+                "props": {
+                    "style": "conveyor",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "flow": "auto",
+                    "points": [
+                        [
+                            0,
+                            0
+                        ],
+                        [
+                            1200,
+                            0
+                        ]
+                    ]
+                }
+            },
+            {
+                "id": "e6",
+                "type": "motor",
+                "x": 40,
+                "y": 200,
+                "w": 70,
+                "h": 70,
+                "rot": 0,
+                "key": "esteira",
+                "props": {
+                    "label": "M1 ESTEIRA",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "falhaEsteira",
+                    "priority": "1"
+                },
+                "action": {
+                    "mode": "faceplate",
+                    "confirm": "yes",
+                    "pin": "no",
+                    "value": "",
+                    "topic": "",
+                    "valueKey": "",
+                    "valueUnit": "",
+                    "modeKey": "modo",
+                    "modeTexts": "0=MANUAL,1=AUTO",
+                    "hoursKey": "",
+                    "startsKey": "",
+                    "onTopic": "cmd/esteira",
+                    "onValue": "1",
+                    "offTopic": "cmd/esteira",
+                    "offValue": "0",
+                    "resetTopic": "reset",
+                    "resetValue": "1"
+                }
+            },
+            {
+                "id": "e7",
+                "type": "tag",
+                "x": 130,
+                "y": 204,
+                "w": 150,
+                "h": 60,
+                "rot": 0,
+                "key": "velocidade",
+                "props": {
+                    "title": "VELOCIDADE",
+                    "unit": "m/min",
+                    "decimals": 1,
+                    "min": "",
+                    "max": "",
+                    "lo": 2,
+                    "hi": 9,
+                    "priority": "2"
+                }
+            },
+            {
+                "id": "e8",
+                "type": "tank",
+                "x": 320,
+                "y": 160,
+                "w": 90,
+                "h": 120,
+                "rot": 0,
+                "key": "tempDesengraxe",
+                "props": {
+                    "label": "DESENGRAXE",
+                    "unit": "°C",
+                    "decimals": 0,
+                    "min": 0,
+                    "max": 90,
+                    "lo": 45,
+                    "hi": 75,
+                    "priority": "2"
+                }
+            },
+            {
+                "id": "e9",
+                "type": "heater",
+                "x": 420,
+                "y": 236,
+                "w": 70,
+                "h": 36,
+                "rot": 0,
+                "key": "aqDesengraxe",
+                "props": {
+                    "label": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e10",
+                "type": "paintBooth",
+                "x": 520,
+                "y": 140,
+                "w": 190,
+                "h": 140,
+                "rot": 0,
+                "key": "cabine",
+                "props": {
+                    "label": "CABINE",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "invert": "no",
+                    "faultKey": "falhaCabine",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e11",
+                "type": "robot",
+                "x": 600,
+                "y": 150,
+                "w": 90,
+                "h": 100,
+                "rot": 0,
+                "key": "robo",
+                "props": {
+                    "label": "",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "invert": "no",
+                    "faultKey": "",
+                    "priority": "1",
+                    "weldKey": ""
+                }
+            },
+            {
+                "id": "e12",
+                "type": "oven",
+                "x": 760,
+                "y": 140,
+                "w": 220,
+                "h": 140,
+                "rot": 0,
+                "key": "tempEstufa",
+                "props": {
+                    "label": "ESTUFA",
+                    "unit": "°C",
+                    "decimals": 0,
+                    "lo": 160,
+                    "hi": 220,
+                    "priority": "2",
+                    "doorKey": "portaEstufa",
+                    "heatKey": "queimador"
+                }
+            },
+            {
+                "id": "e13",
+                "type": "fan",
+                "x": 1060,
+                "y": 200,
+                "w": 70,
+                "h": 70,
+                "rot": 0,
+                "key": "resfriamento",
+                "props": {
+                    "label": "RESFRIAMENTO",
+                    "onWhen": "nonzero",
+                    "threshold": 0,
+                    "faultKey": "",
+                    "priority": "1"
+                }
+            },
+            {
+                "id": "e14",
+                "type": "sensor",
+                "x": 1150,
+                "y": 240,
+                "w": 44,
+                "h": 44,
+                "rot": 0,
+                "key": "pecaSaida",
+                "props": {
+                    "label": "SAÍDA",
+                    "kind": "photo",
+                    "onWhen": "nonzero",
+                    "threshold": 0
+                }
+            },
+            {
+                "id": "e15",
+                "type": "frame",
+                "x": 1100,
+                "y": 60,
+                "w": 70,
+                "h": 100,
+                "rot": 0,
+                "key": "tintaA",
+                "props": {
+                    "shape": "silo",
+                    "tone": "equip",
+                    "label": "TINTA A",
+                    "level": "up",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "level",
+                    "showValue": "yes",
+                    "unit": "%",
+                    "decimals": 0,
+                    "lo": ""
+                }
+            },
+            {
+                "id": "e16",
+                "type": "frame",
+                "x": 1190,
+                "y": 70,
+                "w": 70,
+                "h": 90,
+                "rot": 0,
+                "key": "tintaB",
+                "props": {
+                    "shape": "hopper",
+                    "tone": "equip",
+                    "label": "TINTA B",
+                    "level": "up",
+                    "min": 0,
+                    "max": 100,
+                    "levelColor": "material",
+                    "showValue": "yes",
+                    "unit": "%",
+                    "decimals": 0
+                }
+            },
+            {
+                "id": "e17",
+                "type": "isaBar",
+                "x": 990,
+                "y": 120,
+                "w": 80,
+                "h": 140,
+                "rot": 0,
+                "key": "tempEstufa",
+                "props": {
+                    "title": "ESTUFA",
+                    "unit": "°C",
+                    "decimals": 0,
+                    "min": 0,
+                    "max": 260,
+                    "lolo": 140,
+                    "lo": 160,
+                    "hi": 220,
+                    "hihi": 240,
+                    "spKey": "spEstufa",
+                    "priority": "2",
+                    "alarmList": "no"
+                }
+            },
+            {
+                "id": "e18",
+                "type": "oee",
+                "x": 20,
+                "y": 350,
+                "w": 360,
+                "h": 160,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "OEE DA LINHA",
+                    "availKey": "disp",
+                    "perfKey": "perf",
+                    "qualKey": "qual",
+                    "oeeKey": "",
+                    "goal": 85,
+                    "low": 60
+                }
+            },
+            {
+                "id": "e19",
+                "type": "barChart",
+                "x": 400,
+                "y": 350,
+                "w": 420,
+                "h": 160,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "PEÇAS POR TURNO",
+                    "series": "turno1:1º turno, turno2:2º turno, turno3:3º turno",
+                    "labels": "",
+                    "unit": "",
+                    "decimals": 0,
+                    "max": "",
+                    "goal": 400,
+                    "lowColor": "warn"
+                }
+            },
+            {
+                "id": "e20",
+                "type": "donut",
+                "x": 840,
+                "y": 350,
+                "w": 420,
+                "h": 160,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "TEMPO HOJE",
+                    "series": "tProduzindo:Produzindo, tParada:Parada, tSetup:Setup",
+                    "labels": "",
+                    "unit": "min",
+                    "decimals": 0,
+                    "legend": "yes",
+                    "center": "total"
+                }
+            },
+            {
+                "id": "e21",
+                "type": "alarmList",
+                "x": 20,
+                "y": 530,
+                "w": 1240,
+                "h": 180,
+                "rot": 0,
+                "key": "",
+                "props": {
+                    "title": "ALARMES",
+                    "rowHeight": 26,
+                    "tab": "active"
+                }
+            }
+        ],
+        "outputs": 1,
+        "x": 460,
+        "y": 120,
+        "wires": [
+            [
+                "pin_cmd"
+            ]
+        ]
+    },
+    {
+        "id": "pin_cmd",
+        "type": "function",
+        "z": "ex_pin",
+        "name": "aplica comando",
+        "func": "// Comandos da tela (faceplate da esteira). Aqui só mudam a simulação;\n// no seu flow ligue a saída do canvas no nó de escrita do CLP.\nconst cmd = flow.get('cmd') || { esteira: 1 }\nif (msg.topic === 'cmd/esteira') cmd.esteira = Number(msg.payload) ? 1 : 0\nif (msg.topic === 'reset') cmd.reset = 1\nflow.set('cmd', cmd)\nreturn msg",
+        "outputs": 1,
+        "x": 660,
+        "y": 120,
+        "wires": [
+            [
+                "pin_dbg"
+            ]
+        ]
+    },
+    {
+        "id": "pin_dbg",
+        "type": "debug",
+        "z": "ex_pin",
+        "name": "comandos",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "topic",
+        "statusType": "auto",
+        "x": 850,
+        "y": 120,
+        "wires": []
+    }
+]

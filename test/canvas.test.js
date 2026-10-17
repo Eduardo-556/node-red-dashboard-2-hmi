@@ -30,6 +30,10 @@ test('symbols saved from the dashboard are cleaned', () => {
     assert.strictEqual(cleanSymbols([{ type: 'tag' }]), null)
     const [s] = cleanSymbols([{ id: 'a', type: 'tag', x: '10', y: 'oops', w: 1, h: 64, key: 'rpm', props: { title: 'RPM' }, preview: { bad: 1 }, extra: 1 }])
     assert.deepStrictEqual(s, { id: 'a', type: 'tag', x: 10, y: 0, w: 10, h: 64, rot: 0, key: 'rpm', props: { title: 'RPM' } })
+    const [l] = cleanSymbols([{ id: 'b', type: 'frame', x: 0, y: 0, w: 10, h: 10, name: 'Fundo', locked: true }, { id: 'c', type: 'frame', locked: 'yes' }].slice(0, 1))
+    assert.strictEqual(l.name, 'Fundo')
+    assert.strictEqual(l.locked, true)
+    assert.ok(!('locked' in cleanSymbols([{ id: 'c', type: 'frame', locked: 'yes' }])[0]))
 })
 
 test('click actions build the output from the node config', () => {

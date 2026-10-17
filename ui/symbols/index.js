@@ -1,4 +1,5 @@
 import { moreSymbols, MORE_CSS } from './more.js'
+import { chartSymbols, CHART_CSS } from './charts.js'
 
 // Symbol library shared by the Node-RED editor (drag-and-drop preview) and the
 // dashboard widget. Every symbol draws itself as SVG markup in its own box
@@ -170,14 +171,21 @@ export const SYMBOLS = {
         group: 'Formas',
         w: 240,
         h: 300,
-        preview: undefined,
-        defaults: { shape: 'chamfer', tone: 'equip', label: '' },
+        preview: 60,
+        defaults: { shape: 'chamfer', tone: 'equip', label: '', level: 'no', min: 0, max: 100, levelColor: 'level', showValue: 'no', unit: '%', decimals: 0 },
         fields: [
             { key: 'shape', label: 'Forma', type: 'select', options: SHAPES.filter(([k], i) => SHAPES.findIndex(x => x[0] === k) === i).map(([k, l]) => [k, l]) },
             { key: 'tone', label: 'Tom', type: 'select', options: TONES, refresh: true },
             { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
             { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
-            { key: 'label', label: 'Legenda', type: 'text' }
+            { key: 'label', label: 'Legenda', type: 'text' },
+            { key: 'level', label: 'Encher pelo valor da chave', type: 'select', options: [['no', 'Não'], ['up', 'De baixo para cima'], ['down', 'De cima para baixo'], ['right', 'Da esquerda para a direita'], ['left', 'Da direita para a esquerda']], refresh: true },
+            { key: 'min', label: 'Vazio (mín.)', type: 'number', when: p => p.level && p.level !== 'no' },
+            { key: 'max', label: 'Cheio (máx.)', type: 'number', when: p => p.level && p.level !== 'no' },
+            { key: 'levelColor', label: 'Cor do nível', type: 'select', options: [['level', 'Do tema (azul)'], ['ok', 'Verde'], ['warn', 'Amarelo'], ['alarm', 'Vermelho'], ['material', 'Material']], when: p => p.level && p.level !== 'no' },
+            { key: 'showValue', label: 'Mostrar o valor', type: 'select', options: [['no', 'Não'], ['yes', 'Sim']], when: p => p.level && p.level !== 'no', refresh: true },
+            { key: 'unit', label: 'Unidade', type: 'text', when: p => p.level && p.level !== 'no' && p.showValue === 'yes' },
+            { key: 'decimals', label: 'Casas decimais', type: 'number', when: p => p.level && p.level !== 'no' && p.showValue === 'yes' }
         ],
         variants: SHAPES.map(([shape, label, w, h, tone, group]) => ({ label, w, h, category: group, props: { shape, tone: tone || 'equip' } })),
         render: renderFrame
@@ -233,7 +241,7 @@ export const SYMBOLS = {
             { key: 'title', label: 'Título', type: 'text' },
             { key: 'unit', label: 'Unidade', type: 'text' },
             { key: 'decimals', label: 'Casas decimais', type: 'number' },
-            { key: 'subtitle', label: 'Subtítulo', type: 'text' }
+            { key: 'subtitle', label: 'Subtítulo ({chave} mostra um valor)', type: 'text' }
         ],
         render: renderKpi
     },
@@ -245,7 +253,7 @@ export const SYMBOLS = {
         preview: undefined,
         defaults: { text: 'Texto', size: 16, align: 'middle', bold: 'no', tone: 'normal', unit: '', decimals: '' },
         fields: [
-            { key: 'text', label: 'Texto (antes do valor, se tiver chave)', type: 'text' },
+            { key: 'text', label: 'Texto (antes do valor, se tiver chave). {chave} mostra o valor de outra chave', type: 'text' },
             { key: 'size', label: 'Tamanho', type: 'number' },
             { key: 'align', label: 'Alinhamento', type: 'select', options: [['start', 'Esquerda'], ['middle', 'Centro'], ['end', 'Direita']] },
             { key: 'bold', label: 'Negrito', type: 'select', options: [['no', 'Não'], ['yes', 'Sim']] },
@@ -455,7 +463,7 @@ export const SYMBOLS = {
 
 // Palette: categories in the order they appear in the editor. Symbols with
 // variants show one entry per variant (e.g. every frame shape).
-export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Estados', 'Comandos']
+export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Gráficos', 'Estados', 'Comandos']
 export function paletteItems (category) {
     const out = []
     for (const [type, def] of Object.entries(SYMBOLS)) {
@@ -1189,7 +1197,34 @@ function framePath (shape, w, h) {
     }
 }
 
-function renderFrame (sym) {
+// level inside any shape: the shape drawn again with the level colour, clipped to the filled part
+function frameLevel (sym, value, opts) {
+    const p = sym.props || {}
+    const dir = ['up', 'down', 'right', 'left'].includes(p.level) ? p.level : null
+    if (!dir) return ''
+    const w = sym.w
+    const h = sym.h
+    const v = num(value)
+    let min = num(p.min)
+    let max = num(p.max)
+    if (min === null) min = 0
+    if (max === null || max <= min) max = min + 100
+    const k = v === null ? 0 : Math.max(0, Math.min(1, (v - min) / (max - min)))
+    const id = 'hmi-lvl-' + String(sym.id).replace(/[^\w-]/g, '')
+    const r = dir === 'up' ? [0, h * (1 - k), w, h * k] : dir === 'down' ? [0, 0, w, h * k] : dir === 'right' ? [0, 0, w * k, h] : [w * (1 - k), 0, w * k, h]
+    const color = ['ok', 'warn', 'alarm', 'material'].includes(p.levelColor) ? p.levelColor : 'level'
+    let out = k > 0
+        ? `<clipPath id="${id}"><rect x="${f(r[0])}" y="${f(r[1])}" width="${f(r[2])}" height="${f(r[3])}"/></clipPath>` +
+            `<g class="hmi-shape-level hmi-lc-${color}" clip-path="url(#${id})">${framePath(p.shape, w, h).replace(/hmi-body|hmi-detail/g, 'hmi-level')}</g>`
+        : ''
+    if (p.showValue === 'yes') {
+        const text = v === null ? '—' : formatValue(v, p.decimals, opts && opts.locale) + (p.unit ? ' ' + p.unit : '')
+        out += `<text class="hmi-shape-value" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(18, w * 0.14, h * 0.3)))}">${escapeXml(text)}</text>`
+    }
+    return out
+}
+
+function renderFrame (sym, value, opts) {
     const p = sym.props || {}
     const tone = TONES.some(t => t[0] === p.tone) ? p.tone : 'equip'
     const label = p.label ? `<text class="hmi-label" x="${f(sym.w / 2)}" y="${f(sym.h + 18)}">${escapeXml(p.label)}</text>` : ''
@@ -1207,7 +1242,7 @@ function renderFrame (sym) {
         }
         style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`
     }
-    return `<g class="hmi-frame hmi-tone-${fixed ? 'fixed' : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${label}</g>`
+    return `<g class="hmi-frame hmi-tone-${fixed ? 'fixed' : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${frameLevel(sym, value, opts)}${label}</g>`
 }
 
 export function linePoints (sym) {
@@ -1237,15 +1272,25 @@ function renderKpi (sym, value, opts) {
         `<rect class="hmi-kpi-card" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="8"/>` +
         `<text class="hmi-kpi-title" x="${f(w * 0.066)}" y="${f(h * 0.23)}" font-size="${f(Math.max(9, h * 0.1))}">${escapeXml(p.title || sym.key || '')}</text>` +
         `<text class="hmi-kpi-value" x="${f(w * 0.066)}" y="${f(h * 0.6)}" font-size="${big}">${escapeXml(text)}</text>` +
-        (p.subtitle ? `<text class="hmi-kpi-sub" x="${f(w * 0.066)}" y="${f(h * 0.84)}" font-size="${f(Math.max(9, h * 0.1))}">${escapeXml(p.subtitle)}</text>` : '') +
+        (p.subtitle ? `<text class="hmi-kpi-sub" x="${f(w * 0.066)}" y="${f(h * 0.84)}" font-size="${f(Math.max(9, h * 0.1))}">${escapeXml(fillKeys(p.subtitle, opts))}</text>` : '') +
         '</g>'
+}
+
+// {chave} or {chave:2} (decimals) is replaced by that key's value
+export function fillKeys (str, opts) {
+    const o = opts || {}
+    return String(str || '').replace(/\{([^{}:]+)(?::(\d+))?\}/g, (m, k, d) => {
+        const v = o.values ? o.values[k.trim()] : undefined
+        if ((v === undefined || v === null) && o.editor) return m
+        return formatValue(v, d === undefined ? '' : d, o.locale)
+    })
 }
 
 function renderText (sym, value, opts) {
     const p = sym.props || {}
     const align = ['start', 'end'].includes(p.align) ? p.align : 'middle'
     const x = align === 'start' ? 0 : (align === 'end' ? sym.w : sym.w / 2)
-    let text = p.text || ''
+    let text = fillKeys(p.text, opts)
     if (sym.key) text = (text ? text + ' ' : '') + formatValue(value, p.decimals, opts.locale) + (p.unit ? ' ' + p.unit : '')
     const size = Math.max(6, Number(p.size) || 16)
     const unknown = sym.key && (value === undefined || value === null) ? ' hmi-unknown' : ''
@@ -1421,6 +1466,12 @@ export const CSS = `
 .hmi-root .hmi-tank.hmi-alarm .hmi-body { stroke: var(--hmi-alarm); stroke-width: 3; }
 .hmi-root .hmi-tank.hmi-unknown .hmi-body { stroke-dasharray: 6 4; }
 .hmi-root .hmi-level { fill: var(--hmi-level); }
+.hmi-root .hmi-shape-level .hmi-level { stroke: none; }
+.hmi-root .hmi-lc-ok .hmi-level { fill: #2e9d4f; }
+.hmi-root .hmi-lc-warn .hmi-level { fill: var(--hmi-warn); }
+.hmi-root .hmi-lc-alarm .hmi-level { fill: var(--hmi-alarm); }
+.hmi-root .hmi-lc-material .hmi-level { fill: var(--hmi-material); }
+.hmi-root .hmi-shape-value { fill: var(--hmi-text); text-anchor: middle; dominant-baseline: central; font-weight: 600; }
 .hmi-root .hmi-tank-tag { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; opacity: .92; }
 .hmi-root .hmi-tank-value { fill: var(--hmi-text); font-family: Consolas, "Roboto Mono", monospace; font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-tank.hmi-alarm .hmi-tank-value { fill: var(--hmi-alarm); }
@@ -1560,10 +1611,11 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS
+` + MORE_CSS + CHART_CSS
 
 // second batch of symbols, built from the helpers above
 Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
+Object.assign(SYMBOLS, chartSymbols({ f, num, escapeXml, formatValue }))
 
 export function injectStyles (doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null)

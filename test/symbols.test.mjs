@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (['frame', 'stack', 'image', 'alarmList', 'alarmSummary'].includes(type)) continue // static drawing, or several keys of its own
+        if (['frame', 'stack', 'image', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor
@@ -223,4 +223,69 @@ test('ISA-101 bar, mode, VFD and crane read their values', () => {
     const h = createSymbol('counter', 0, 0, 0)
     h.props.src = 's'
     assert.ok(renderSymbol(h, 7380).includes('2 h 03 min'))
+})
+
+test('text with {key} placeholders', () => {
+    const t = createSymbol('text', 0, 0)
+    t.props.text = 'Lote {lote} – {pecas} pç, {temp:1} °C'
+    const out = renderSymbol(t, undefined, { locale: 'pt-BR', values: { lote: 'A12', pecas: 1450, temp: 82 } })
+    assert.ok(out.includes('Lote A12 – 1.450 pç, 82,0 °C'), out)
+    assert.ok(renderSymbol(t, undefined, { values: {} }).includes('Lote — –'))
+    assert.ok(renderSymbol(t, undefined, { values: {}, editor: true }).includes('{lote}'))
+})
+
+test('any shape fills by value', () => {
+    const s = createSymbol('frame', 0, 0)
+    s.w = 100
+    s.h = 200
+    s.props.shape = 'silo'
+    assert.ok(!renderSymbol(s, 50).includes('hmi-shape-level'))
+    s.props.level = 'up'
+    const out = renderSymbol(s, 25)
+    assert.ok(out.includes('clipPath') && out.includes('y="150" width="100" height="50"'), out)
+    assert.ok(out.includes('class="hmi-level"'))
+    assert.ok(!renderSymbol(s, 0).includes('hmi-shape-level'))
+    s.props.level = 'right'
+    s.props.showValue = 'yes'
+    assert.ok(renderSymbol(s, 40).includes('width="40" height="200"') && renderSymbol(s, 40).includes('40 %'))
+})
+
+test('bar chart, donut and OEE', async () => {
+    const { parseSeries, oeeOf } = await import('../ui/symbols/charts.js')
+    assert.deepStrictEqual(parseSeries('a:Turno A, b'), [{ key: 'a', label: 'Turno A' }, { key: 'b', label: 'b' }])
+    assert.strictEqual(oeeOf(90, 95, 99), 84.6)
+    assert.strictEqual(oeeOf(0.9, 0.95, 0.99), 84.6)
+    assert.strictEqual(oeeOf(90, null, 99), null)
+    const b = createSymbol('barChart', 0, 0)
+    b.props.goal = 100
+    b.props.lowColor = 'warn'
+    const out = renderSymbol(b, undefined, { values: { turno1: 120, turno2: 80, turno3: 0 } })
+    assert.strictEqual((out.match(/hmi-ch-bar/g) || []).length, 3)
+    assert.strictEqual((out.match(/hmi-ch-low/g) || []).length, 2)
+    assert.ok(out.includes('Meta 100'))
+    b.props.series = ''
+    b.props.labels = 'Seg,Ter'
+    b.key = 'semana'
+    assert.ok(renderSymbol(b, [5, 7], { values: {} }).includes('>Ter<'))
+    const d = createSymbol('donut', 0, 0)
+    const dout = renderSymbol(d, undefined, { values: { produzindo: 300, parada: 60, setup: 40 } })
+    assert.strictEqual((dout.match(/hmi-ch-arc/g) || []).length, 3)
+    assert.ok(dout.includes('400 min') && dout.includes('75,0%'))
+    const o = createSymbol('oee', 0, 0)
+    assert.ok(renderSymbol(o, undefined, { values: { disponibilidade: 90, performance: 95, qualidade: 99 } }).includes('84,6%'))
+    assert.ok(renderSymbol(o, undefined, { values: { disponibilidade: 90, performance: 95, qualidade: 99 } }).includes('hmi-oee-warn'))
+    assert.ok(renderSymbol(o, undefined, { values: { disponibilidade: 0.5, performance: 0.9, qualidade: 1 } }).includes('hmi-oee-alarm'))
+    assert.ok(renderSymbol(o, undefined, { values: {} }).includes('hmi-unknown'))
+})
+
+test('editor helpers: symbol search, blocks and layer names', async () => {
+    const { searchPalette, makeBlock, layerName } = await import('../ui/editor/index.js')
+    assert.ok(searchPalette('bomba').some(it => it.type === 'pump'))
+    assert.ok(searchPalette('VIGA').length >= 2)
+    assert.deepStrictEqual(searchPalette('  '), [])
+    const b = makeBlock('Motor', [{ id: 'a', type: 'motor', x: 100, y: 50, w: 70, h: 70, locked: true }, { id: 'b', type: 'tag', x: 200, y: 80, w: 160, h: 64 }])
+    assert.deepStrictEqual(b.symbols.map(m => [m.x, m.y]), [[0, 0], [100, 30]])
+    assert.ok(!b.symbols[0].locked)
+    assert.strictEqual(layerName({ type: 'tag', props: { title: 'RPM' } }), 'RPM')
+    assert.strictEqual(layerName({ type: 'tag', name: 'Rolo 1', props: { title: 'RPM' } }), 'Rolo 1')
 })

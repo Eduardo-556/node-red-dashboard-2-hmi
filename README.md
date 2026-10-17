@@ -41,6 +41,22 @@ Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item p
 
 Em **Escala do valor**, o símbolo mostra `valor × multiplicar ÷ dividir + somar`. Ex.: o CLP manda `1450` e com dividir por `10` a tela mostra `145,0`. Num setpoint com escala, o valor digitado volta para o CLP já convertido.
 
+### Texto com várias chaves
+
+No **Texto** (e no subtítulo do **KPI**), `{chave}` vira o valor daquela chave do payload, e `{chave:1}` mostra com 1 casa decimal. Ex.: `Lote {lote} – {pecas} pç` mostra `Lote A12 – 1.450 pç`. No editor, chave sem valor aparece como `{chave}`.
+
+### Encher qualquer forma
+
+Qualquer forma de **Formas** (silo, funil, círculo, forma livre...) pode encher pelo valor da chave: em **Encher pelo valor da chave** escolha de baixo para cima, de cima para baixo ou para os lados, e o vazio/cheio. Dá para mostrar o valor no meio e trocar a cor do nível.
+
+### Gráficos
+
+Categoria **Gráficos**:
+
+- **Gráfico de barras**: uma barra por chave (`turno1:1º turno, turno2:2º turno`), ou uma chave que traz uma lista (`[118, 126, 109]`) com os rótulos separados por vírgula. Linha de **Meta** opcional; barras abaixo da meta podem ficar amarelas.
+- **Rosca (donut)**: uma fatia por chave, com total no meio e legenda em %.
+- **OEE**: disponibilidade × performance × qualidade (em % ou de 0 a 1), ou a chave do OEE pronto. Fica amarelo abaixo da meta e vermelho abaixo do limite.
+
 ### Regras
 
 Qualquer símbolo pode ter **regras**: quando uma chave (ou a do próprio símbolo) estiver ligada, desligada, igual, diferente, maior ou menor que um valor, o símbolo fica vermelho, amarelo, azul, verde, apagado, pisca ou some. Ex.: esconder a bobina quando `temBobina` = 0. As regras usam o valor do CLP, sem escala. No editor, símbolos escondidos aparecem transparentes. **Copiar** (numa regra) ou **Copiar todas** guarda as regras; **Colar regra** adiciona em outro símbolo, ou em todos os selecionados. Regra com chave vazia passa a usar a chave do símbolo onde foi colada.
@@ -82,6 +98,12 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 - Tamanho: 8 alças em volta do símbolo (cantos e lados). `Shift` num canto mantém a proporção. Funciona também com o símbolo girado.
 - Grupos: `Ctrl+G` agrupa, `Ctrl+Shift+G` desagrupa. Clique seleciona e move o grupo inteiro; duplo clique num símbolo do grupo edita só ele. Alinhar e distribuir tratam cada grupo como uma peça.
 - **↶ / ↷** desfazem e refazem.
+- **Buscar símbolo…**: procura pelo nome em todas as categorias (ex.: "bomba", "viga"). `Enter` coloca o primeiro.
+- **Zoom**: botões 🔍, `Ctrl` + roda do mouse ou `Ctrl` `+`/`-`/`0`. Com zoom, a roda do mouse, o botão do meio ou `Espaço` + arrastar movem a tela.
+- **Guias**: ao arrastar, o símbolo encaixa nas bordas e no centro dos outros símbolos e da tela, com uma linha rosa. `Alt` desliga enquanto arrasta.
+- **Travar** (`Ctrl+L`): o símbolo não é selecionado nem movido clicando na tela; bom para fundos e estruturas.
+- **Camadas**: lista de todos os símbolos (o de cima primeiro) com busca por nome ou chave. Clique seleciona (até os travados), 🔒 trava, 👁 esconde só no editor. **Nome (em Camadas)** dá um nome a cada símbolo.
+- **Blocos**: selecione símbolos e **Salvar seleção** guarda como bloco. O bloco entra em qualquer tela (clique ou arraste) já agrupado. Os blocos ficam no navegador; **Exportar** / **Importar** levam para outro computador num arquivo .json.
 - Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica, `Ctrl+A` seleciona tudo, `Esc` limpa a seleção.
 
 ### Temas
@@ -102,7 +124,16 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 
 ### Exemplo
 
-**Menu → Importar → Exemplos → node-red-dashboard-2-hmi → tela-basica**. Abre em `/dashboard/hmi`, ocupando a página inteira.
+**Menu → Importar → Exemplos → node-red-dashboard-2-hmi**:
+
+| Exemplo | Abre em | O que mostra |
+|---|---|---|
+| tela-basica | `/dashboard/hmi` | Slitter com bobinas, motor, tags e alarme. |
+| pintura | `/dashboard/pintura` | Linha de pintura simulada: desengraxe, cabine, robô, estufa, tintas enchendo, OEE, peças por turno, tempo parado e lista de alarmes. Faceplate no motor da esteira. |
+| esteira | `/dashboard/esteira` | Três esteiras simuladas com partir/parar, velocidade, horas por motor, boas × refugo e caixas por hora. |
+| clp-schneider | `/dashboard/clp` | Leitura de um M221 com o **node-red-contrib-schneider-modbus-tags** direto no canvas (as chaves são os nomes da lista de tags) e comandos convertidos para escrita Modbus. Tem um inject de valores de teste para ver a tela sem CLP. |
+
+Pintura e esteira funcionam sem CLP: uma função gera os valores a cada segundo e os comandos da tela mudam a simulação.
 
 ---
 
@@ -120,6 +151,8 @@ Click commands: any symbol can send a message from the node's output when clicke
 Alarms (ISA-18.2 style): the canvas tracks every fault key, lo/hi limit, alarm banner and tripped breaker with activation time and acknowledgement; an alarm leaves the list once it is back to normal and acknowledged. **Alarm list** symbol (active and history tabs, ack one or all) and **alarm summary** symbol; optional alarm events on the node output. `msg.topic` is the action topic or the symbol key. **Background** can be the theme colour or transparent.
 
 Per symbol: **scale** (`raw × factor ÷ divisor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
+
+Text with `{key}` placeholders (several keys in one line), any shape filled by a value, charts (bar chart with goal line, donut, OEE = availability × performance × quality). Editor: symbol search, zoom and pan, smart guides, lock, layers panel (search, lock, hide in editor), and **blocks**: save a selection and reuse it on any screen (stored in the browser, export/import as JSON). Examples: paint line, conveyors (both simulated) and a Schneider M221 screen using node-red-contrib-schneider-modbus-tags.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

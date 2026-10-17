@@ -24,7 +24,9 @@ const ICONS = {
     sameh: '<rect x="2" y="2" width="4" height="12"/><rect x="10" y="2" width="4" height="12"/>',
     same: '<rect x="1.5" y="4" width="6" height="8"/><rect x="8.5" y="4" width="6" height="8"/>',
     group: '<rect x="1" y="1" width="14" height="14" stroke-dasharray="2 2"/><rect x="3.5" y="3.5" width="5" height="5"/><rect x="7.5" y="7.5" width="5" height="5"/>',
-    ungroup: '<rect x="1" y="1" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>'
+    ungroup: '<rect x="1" y="1" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/>',
+    zoomin: '<circle cx="7" cy="7" r="5"/><path d="M11 11l4 4M4.5 7h5M7 4.5v5"/>',
+    zoomout: '<circle cx="7" cy="7" r="5"/><path d="M11 11l4 4M4.5 7h5"/>'
 }
 const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página'], ['faceplate', 'Abrir faceplate (detalhes e comandos)']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
@@ -42,6 +44,46 @@ function copiedRules () {
         if (Array.isArray(saved)) ruleClipboard = saved
     } catch (e) {}
     return Array.isArray(ruleClipboard) ? ruleClipboard.filter(r => r && typeof r === 'object') : []
+}
+
+// saved blocks (templates): a set of symbols reused on any screen of this browser
+const BLOCKS_STORE = 'hmi-editor-blocks'
+function loadBlocks () {
+    try {
+        const list = JSON.parse(localStorage.getItem(BLOCKS_STORE) || '[]')
+        return Array.isArray(list) ? list.filter(b => b && typeof b.name === 'string' && Array.isArray(b.symbols)) : []
+    } catch (e) { return [] }
+}
+function saveBlocks (list) {
+    try { localStorage.setItem(BLOCKS_STORE, JSON.stringify(list)); return true } catch (e) { return false }
+}
+// "Bomba" matches "bomba", "BOMBA" and "bômba"
+const plain = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+export function searchPalette (text) {
+    const q = plain(text).trim()
+    if (!q) return []
+    const words = q.split(/\s+/)
+    const out = []
+    for (const cat of CATEGORIES) {
+        for (const it of paletteItems(cat)) {
+            const hay = plain(it.label + ' ' + cat + ' ' + it.type + ' ' + ((SYMBOLS[it.type] && SYMBOLS[it.type].label) || ''))
+            if (words.every(w => hay.includes(w))) out.push(it)
+        }
+    }
+    return out.slice(0, 60)
+}
+// symbols moved so the block starts at 0,0
+export function makeBlock (name, list) {
+    const syms = clone(list)
+    const x = Math.min(...syms.map(m => m.x))
+    const y = Math.min(...syms.map(m => m.y))
+    for (const m of syms) { m.x -= x; m.y -= y; delete m.locked }
+    return { name: String(name || 'Bloco').slice(0, 60), symbols: syms }
+}
+export function layerName (s) {
+    const p = (s && s.props) || {}
+    const def = SYMBOLS[s && s.type]
+    return String(s.name || p.label || p.title || p.text || (def && def.label) || s.type)
 }
 
 const CSS = `
@@ -99,6 +141,28 @@ const CSS = `
 .hmi-ed-marquee { fill: rgba(30, 136, 229, .08); stroke: #1e88e5; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
 .hmi-ed-props h5 { margin: 14px 0 6px 0; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
 .hmi-ed-align { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 10px; }
+.hmi-ed-guide { stroke: #e91e63; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; vector-effect: non-scaling-stroke; }
+.hmi-ed-sel.hmi-ed-locked { stroke: #8a8e93; }
+.hmi-ed-lockmark { fill: #8a8e93; pointer-events: none; }
+.hmi-ed-zoom { min-width: 58px; }
+.hmi-ed .hmi-ed-search { width: 150px; height: 30px; padding: 2px 8px; font: inherit; border: 1px solid var(--hmi-ed-border); border-radius: 4px; background: var(--hmi-ed-bg); color: var(--hmi-ed-text); margin: 0; }
+.hmi-ed-tabs { display: flex; gap: 0; margin: -2px 0 10px 0; border-bottom: 1px solid var(--hmi-ed-border); }
+.hmi-ed-tab { flex: 1; font: inherit; font-size: 12px; padding: 6px 4px; border: 0; background: none; color: var(--hmi-ed-text); cursor: pointer; opacity: .7; }
+.hmi-ed-tab.hmi-ed-on { opacity: 1; font-weight: 700; box-shadow: inset 0 -2px 0 #1e88e5; }
+.hmi-ed-layers { display: flex; flex-direction: column; gap: 1px; }
+.hmi-ed-layer { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+.hmi-ed-layer:hover { background: var(--hmi-ed-bg); }
+.hmi-ed-layer.hmi-ed-on { background: rgba(30, 136, 229, .15); }
+.hmi-ed-layer .hmi-ed-lname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hmi-ed-layer .hmi-ed-lkey { opacity: .6; font-size: 11px; }
+.hmi-ed-layer.hmi-ed-off .hmi-ed-lname { opacity: .45; text-decoration: line-through; }
+.hmi-ed-lbtn { font: inherit; font-size: 12px; border: 0; background: none; padding: 0 3px; cursor: pointer; opacity: .35; color: inherit; line-height: 1; }
+.hmi-ed-lbtn.hmi-ed-on { opacity: 1; }
+.hmi-ed-menu .hmi-ed-menurow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-bottom: 4px; border-bottom: 1px solid var(--hmi-ed-border); margin-bottom: 2px; }
+.hmi-ed-menu .hmi-ed-menurow input { height: 26px; padding: 2px 6px; font: inherit; font-size: 12px; border: 1px solid var(--hmi-ed-border); border-radius: 4px; flex: 1; min-width: 120px; }
+.hmi-ed-menu .hmi-ed-empty { grid-column: 1 / -1; font-size: 12px; opacity: .7; padding: 4px; }
+.hmi-ed-item { position: relative; }
+.hmi-ed-item .hmi-ed-del { position: absolute; top: 1px; right: 3px; border: 0; background: none; cursor: pointer; opacity: .5; font-size: 13px; color: inherit; }
 .hmi-ed-mid { fill: #1e88e5; fill-opacity: .25; stroke: #1e88e5; stroke-width: 1; cursor: copy; }
 `
 
@@ -134,7 +198,7 @@ export function createEditor (root, opts) {
     }
     const o = opts || {}
     const btnClass = 'hmi-ed-btn ' + (o.buttonClass || '')
-    const ed = { symbols: clone(o.symbols), sel: null, multi: [], drag: null, history: [], future: [] }
+    const ed = { symbols: clone(o.symbols), sel: null, multi: [], drag: null, history: [], future: [], zoom: 1, pan: { x: 0, y: 0 }, guides: [], hidden: new Set(), panel: 'props', filter: '' }
     ed.history.push(clone(ed.symbols))
 
     root.classList.add('hmi-ed')
@@ -172,6 +236,12 @@ export function createEditor (root, opts) {
     sep()
     tool('group', 'Agrupar (Ctrl+G)', () => group(), () => units(selection()).length >= 2)
     tool('ungroup', 'Desagrupar (Ctrl+Shift+G)', () => ungroup(), () => selection().some(m => m.group))
+    sep()
+    tool('zoomout', 'Diminuir zoom (Ctrl+roda do mouse)', () => zoomBy(1 / 1.25), () => ed.zoom > 1)
+    const zoomBtn = el('button', { type: 'button', class: btnClass + ' hmi-ed-small hmi-ed-zoom', title: 'Ver a tela inteira (100%)' }, '100%')
+    zoomBtn.addEventListener('click', () => { ed.zoom = 1; ed.pan = { x: 0, y: 0 }; draw(); stage.focus() })
+    tools.appendChild(zoomBtn)
+    tool('zoomin', 'Aumentar zoom (Ctrl+roda do mouse). Com zoom: roda ou botão do meio / Espaço+arrastar move a tela', () => zoomBy(1.25), () => ed.zoom < 8)
     toolbar.appendChild(tools)
     toolbar.appendChild(el('span', { class: 'hmi-ed-spacer' }))
     const msg = el('span', { class: 'hmi-ed-msg' })
@@ -182,6 +252,12 @@ export function createEditor (root, opts) {
     gridLabel.appendChild(gridBox)
     gridLabel.appendChild(document.createTextNode('Grade'))
     toolbar.appendChild(gridLabel)
+    const guideLabel = el('label', { class: 'hmi-ed-check', title: 'Ao arrastar, encaixa nas bordas e no centro dos outros símbolos' })
+    const guideBox = el('input', { type: 'checkbox' })
+    guideBox.checked = true
+    guideLabel.appendChild(guideBox)
+    guideLabel.appendChild(document.createTextNode('Guias'))
+    toolbar.appendChild(guideLabel)
     const btn = (label, title, onClick, primary) => {
         const b = el('button', { type: 'button', class: btnClass + (primary ? ' hmi-ed-primary' : ''), title: title || label }, label)
         b.addEventListener('click', onClick)
@@ -282,7 +358,12 @@ export function createEditor (root, opts) {
     function draw () {
         const v = view()
         const theme = (o.getTheme && o.getTheme()) === 'classic' ? 'classic' : 'isa101'
-        svg.setAttribute('viewBox', '0 0 ' + v.w + ' ' + v.h)
+        const vw = v.w / ed.zoom
+        const vh = v.h / ed.zoom
+        ed.pan.x = Math.max(0, Math.min(v.w - vw, ed.pan.x))
+        ed.pan.y = Math.max(0, Math.min(v.h - vh, ed.pan.y))
+        svg.setAttribute('viewBox', ed.pan.x + ' ' + ed.pan.y + ' ' + vw + ' ' + vh)
+        zoomBtn.textContent = Math.round(ed.zoom * 100) + '%'
         svg.setAttribute('class', 'hmi-root hmi-theme-' + theme + ((o.getBackground && o.getBackground()) === 'transparent' ? ' hmi-transparent' : ''))
         let out = '<rect class="hmi-bg" x="0" y="0" width="' + v.w + '" height="' + v.h + '"/>'
         if (gridBox.checked) {
@@ -301,7 +382,7 @@ export function createEditor (root, opts) {
         const values = { ...live, ...previews }
         for (const s of ed.symbols) {
             const def = SYMBOLS[s.type]
-            if (!def) continue
+            if (!def || ed.hidden.has(s.id)) continue
             // live values go through the symbol's scale; typed test values are already in screen units
             let value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
             if (s.preview === undefined && s.key && !typed.has(s.key) && s.key in live) value = scaleValue(s, value)
@@ -318,10 +399,11 @@ export function createEditor (root, opts) {
             out += '</g>'
         } else if (s) {
             const rot = Number(s.rot) || 0
-            const hs = Math.max(8, Math.min(12, view().w / 120))
+            const hs = Math.max(8, Math.min(12, view().w / 120)) / ed.zoom
             out += '<g transform="translate(' + s.x + ',' + s.y + ')' + (rot ? ' rotate(' + rot + ',' + s.w / 2 + ',' + s.h / 2 + ')' : '') + '">' +
-                '<rect class="hmi-ed-sel" x="-3" y="-3" width="' + (s.w + 6) + '" height="' + (s.h + 6) + '"/>'
-            for (const [dir, hx, hy] of HANDLES) {
+                '<rect class="hmi-ed-sel' + (s.locked ? ' hmi-ed-locked' : '') + '" x="-3" y="-3" width="' + (s.w + 6) + '" height="' + (s.h + 6) + '"/>'
+            if (s.locked) out += '<path class="hmi-ed-lockmark" transform="translate(' + (s.w - 4) + ',-14) scale(' + (1 / ed.zoom) + ')" d="M2 6V4a3 3 0 0 1 6 0v2h1v6H1V6Zm2 0h2V4a1 1 0 0 0-2 0Z"/>'
+            for (const [dir, hx, hy] of s.locked ? [] : HANDLES) {
                 out += '<rect class="hmi-ed-handle" data-handle="' + dir + '" style="cursor:' + handleCursor(dir, rot) + '" x="' + (hx * s.w - hs / 2) + '" y="' + (hy * s.h - hs / 2) + '" width="' + hs + '" height="' + hs + '"/>'
             }
             out += '</g>'
@@ -337,6 +419,11 @@ export function createEditor (root, opts) {
             }
         }
         for (const [b, enabled] of toolBtns) b.disabled = !enabled()
+        for (const g of ed.guides) {
+            out += g.x !== undefined
+                ? '<path class="hmi-ed-guide" d="M' + g.x + ' 0V' + v.h + '"/>'
+                : '<path class="hmi-ed-guide" d="M0 ' + g.y + 'H' + v.w + '"/>'
+        }
         if (ed.drag && ed.drag.mode === 'box') {
             const r = marquee(ed.drag)
             out += '<rect class="hmi-ed-marquee" x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '"/>'
@@ -383,9 +470,18 @@ export function createEditor (root, opts) {
             b.addEventListener('click', fn)
             parent.appendChild(b)
         }
+        const tabs = el('div', { class: 'hmi-ed-tabs' })
+        for (const [k, label] of [['props', 'Propriedades'], ['layers', 'Camadas (' + ed.symbols.length + ')']]) {
+            const b = el('button', { type: 'button', class: 'hmi-ed-tab' + (ed.panel === k ? ' hmi-ed-on' : '') }, label)
+            b.addEventListener('click', () => { ed.panel = k; showProps() })
+            tabs.appendChild(b)
+        }
+        props.appendChild(tabs)
+        if (ed.panel === 'layers') return showLayers()
         const editRow = () => {
             const row = el('div', { class: 'hmi-ed-btnrow' })
-            for (const [label, title, fn] of [['Duplicar', 'Ctrl+D', duplicate], ['Frente', 'Trazer para a frente', () => order(1)], ['Trás', 'Mandar para trás', () => order(-1)], ['Excluir', 'Delete', remove]]) smallBtn(row, label, title, fn)
+            const locked = selection().length && selection().every(m => m.locked)
+            for (const [label, title, fn] of [['Duplicar', 'Ctrl+D', duplicate], ['Frente', 'Trazer para a frente', () => order(1)], ['Trás', 'Mandar para trás', () => order(-1)], ['Excluir', 'Delete', remove], [locked ? 'Destravar' : 'Travar', locked ? 'Deixar mover e editar na tela' : 'Não deixa mover nem selecionar clicando na tela (Ctrl+L). Destrave em Camadas.', () => setLocked(!locked)]]) smallBtn(row, label, title, fn)
             props.appendChild(row)
         }
         if (ed.multi.length > 1) {
@@ -433,6 +529,7 @@ export function createEditor (root, opts) {
         props.appendChild(el('h4', {}, def.label))
         editRow()
         props.appendChild(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
+        props.appendChild(field('Nome (em Camadas)', s.name || '', 'text', v => { if (v.trim()) s.name = v.trim(); else delete s.name }))
         props.appendChild(pair(field('X', s.x, 'number', v => { s.x = Number(v) || 0 }), field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })))
         if (def.line) {
             props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga.'))
@@ -587,6 +684,93 @@ export function createEditor (root, opts) {
 
     function refresh () { draw(); showProps() }
 
+    // Layers: every symbol, top first. Click selects (also locked ones), padlock locks, eye hides in the editor.
+    function showLayers () {
+        const search = el('input', { type: 'search', class: 'hmi-ed-search', placeholder: 'Buscar por nome ou chave', style: 'width:100%;margin-bottom:6px' })
+        search.value = ed.filter
+        const list = el('div', { class: 'hmi-ed-layers' })
+        const fill = () => {
+            list.innerHTML = ''
+            const q = plain(ed.filter).trim()
+            const rows = [...ed.symbols].reverse().filter(m => !q || plain(layerName(m) + ' ' + m.key + ' ' + m.type).includes(q))
+            if (!rows.length) list.appendChild(el('div', { class: 'hmi-ed-hint' }, ed.symbols.length ? 'Nada encontrado.' : 'A tela está vazia.'))
+            for (const m of rows) {
+                const row = el('div', { class: 'hmi-ed-layer' + (ed.multi.includes(m.id) ? ' hmi-ed-on' : '') + (ed.hidden.has(m.id) ? ' hmi-ed-off' : ''), 'data-layer': m.id })
+                const eye = el('button', { type: 'button', class: 'hmi-ed-lbtn' + (ed.hidden.has(m.id) ? '' : ' hmi-ed-on'), title: 'Mostrar / esconder só no editor' }, '👁')
+                eye.addEventListener('click', e => { e.stopPropagation(); if (ed.hidden.has(m.id)) ed.hidden.delete(m.id); else ed.hidden.add(m.id); draw(); fill() })
+                const lock = el('button', { type: 'button', class: 'hmi-ed-lbtn' + (m.locked ? ' hmi-ed-on' : ''), title: m.locked ? 'Destravar' : 'Travar' }, m.locked ? '🔒' : '🔓')
+                lock.addEventListener('click', e => { e.stopPropagation(); if (m.locked) delete m.locked; else m.locked = true; draw(); fill(); changed() })
+                const name = el('span', { class: 'hmi-ed-lname', title: layerName(m) }, layerName(m))
+                row.appendChild(eye)
+                row.appendChild(lock)
+                row.appendChild(name)
+                if (m.key) row.appendChild(el('span', { class: 'hmi-ed-lkey' }, m.key))
+                row.addEventListener('click', e => {
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) select(ed.multi.includes(m.id) ? ed.multi.filter(x => x !== m.id) : [...ed.multi, m.id], m.id)
+                    else select([m.id])
+                    draw()
+                    fill()
+                })
+                row.addEventListener('dblclick', () => { select([m.id]); ed.panel = 'props'; refresh() })
+                list.appendChild(row)
+            }
+        }
+        search.addEventListener('input', () => { ed.filter = search.value; fill() })
+        search.addEventListener('keydown', e => e.stopPropagation())
+        props.appendChild(search)
+        props.appendChild(list)
+        props.appendChild(el('div', { class: 'hmi-ed-hint', style: 'margin-top:8px' }, 'Clique seleciona (Shift soma). Duplo clique abre as propriedades. 🔒 trava na tela; 👁 esconde só aqui no editor.'))
+        fill()
+    }
+
+    function setLocked (on) {
+        for (const m of selection()) { if (on) m.locked = true; else delete m.locked }
+        refresh()
+        changed()
+    }
+
+    function zoomBy (k, at) {
+        const v = view()
+        const z = Math.max(1, Math.min(8, ed.zoom * k))
+        const c = at || { x: ed.pan.x + v.w / ed.zoom / 2, y: ed.pan.y + v.h / ed.zoom / 2 }
+        // keep the point under the mouse (or the middle) where it is
+        const fx = (c.x - ed.pan.x) / (v.w / ed.zoom)
+        const fy = (c.y - ed.pan.y) / (v.h / ed.zoom)
+        ed.zoom = z
+        ed.pan = { x: c.x - fx * v.w / z, y: c.y - fy * v.h / z }
+        draw()
+    }
+    // screen units per CSS pixel
+    const unitsPerPx = () => (view().w / ed.zoom) / Math.max(1, svg.getBoundingClientRect().width)
+
+    // smart guides: snap the moving box to the edges and centres of the other symbols and of the screen
+    function guideSnap (b0, dx, dy, moving) {
+        const v = view()
+        const tol = 6 * unitsPerPx()
+        const xs = [0, v.w / 2, v.w]
+        const ys = [0, v.h / 2, v.h]
+        for (const m of ed.symbols) {
+            if (moving.has(m.id) || ed.hidden.has(m.id)) continue
+            const b = box(m)
+            xs.push(b.x, b.x + b.w / 2, b.x + b.w)
+            ys.push(b.y, b.y + b.h / 2, b.y + b.h)
+        }
+        const best = (edges, targets, d) => {
+            let hit = null
+            for (const e of edges) for (const t of targets) {
+                const diff = t - (e + d)
+                if (Math.abs(diff) <= tol && (!hit || Math.abs(diff) < Math.abs(hit.diff))) hit = { diff, t }
+            }
+            return hit
+        }
+        const hx = best([b0.x, b0.x + b0.w / 2, b0.x + b0.w], xs, dx)
+        const hy = best([b0.y, b0.y + b0.h / 2, b0.y + b0.h], ys, dy)
+        const guides = []
+        if (hx) { dx += hx.diff; guides.push({ x: hx.t }) }
+        if (hy) { dy += hy.diff; guides.push({ y: hy.t }) }
+        return { dx: Math.round(dx), dy: Math.round(dy), guides, hx: !!hx, hy: !!hy }
+    }
+
     function add (type, cx, cy, variant) {
         if (!SYMBOLS[type]) return
         const s = createSymbol(type, 0, 0, isFinite(variant) ? variant : -1)
@@ -600,7 +784,9 @@ export function createEditor (root, opts) {
 
     function remove () {
         if (!ed.multi.length) return
-        ed.symbols = ed.symbols.filter(s => !ed.multi.includes(s.id))
+        const gone = ed.multi.filter(id => !(ed.symbols.find(m => m.id === id) || {}).locked)
+        if (!gone.length) { msg.textContent = 'Símbolo travado: destrave para excluir.'; return }
+        ed.symbols = ed.symbols.filter(s => !gone.includes(s.id))
         select([])
         refresh()
         changed()
@@ -614,6 +800,7 @@ export function createEditor (root, opts) {
         const out = list.map(x => {
             const c = createSymbol(x.type, x.x + 20, x.y + 20)
             Object.assign(c, clone(x), { id: c.id, x: x.x + 20, y: x.y + 20 })
+            delete c.locked
             // copies form their own group, not join the original's
             if (x.group) c.group = groups[x.group] || (groups[x.group] = newGroupId())
             return c
@@ -732,10 +919,19 @@ export function createEditor (root, opts) {
         return '<svg xmlns="http://www.w3.org/2000/svg" class="hmi-root hmi-theme-' + theme + ' hmi-transparent" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet">' +
             renderSymbol(sym, def.preview, { editor: true, values: {} }) + '</svg>'
     }
-    function openMenu (cat, btn) {
+    function placeMenu (btn) {
+        root.appendChild(menu)
+        const rb = root.getBoundingClientRect()
+        const bb = btn.getBoundingClientRect()
+        menu.style.left = Math.max(4, Math.min(bb.left - rb.left, rb.width - menu.offsetWidth - 4)) + 'px'
+        menu.style.top = (bb.bottom - rb.top + 4) + 'px'
+    }
+    function openMenu (cat, btn, items) {
         menu = el('div', { class: 'hmi-ed-menu' })
-        btn.classList.add('hmi-ed-open')
-        for (const it of paletteItems(cat)) {
+        if (cat) btn.classList.add('hmi-ed-open')
+        const list = items || paletteItems(cat)
+        if (!list.length) menu.appendChild(el('div', { class: 'hmi-ed-empty' }, 'Nenhum símbolo com esse nome.'))
+        for (const it of list) {
             const item = el('div', { class: 'hmi-ed-item', draggable: 'true', title: 'Arraste para a tela ou clique' })
             item.innerHTML = icon(it)
             item.appendChild(el('span', {}, it.label))
@@ -747,11 +943,94 @@ export function createEditor (root, opts) {
             item.addEventListener('click', () => { const v = view(); add(it.type, v.w / 2, v.h / 2, it.variant); closeMenu() })
             menu.appendChild(item)
         }
-        root.appendChild(menu)
-        const rb = root.getBoundingClientRect()
-        const bb = btn.getBoundingClientRect()
-        menu.style.left = Math.max(4, Math.min(bb.left - rb.left, rb.width - menu.offsetWidth - 4)) + 'px'
-        menu.style.top = (bb.bottom - rb.top + 4) + 'px'
+        placeMenu(btn)
+    }
+
+    // ---- blocks: save the selection, insert it on any screen, export / import as a file
+    const blockIcon = b => {
+        const theme = (o.getTheme && o.getTheme()) === 'classic' ? 'classic' : 'isa101'
+        const w = Math.max(10, ...b.symbols.map(m => box(m).x + box(m).w))
+        const h = Math.max(10, ...b.symbols.map(m => box(m).y + box(m).h))
+        return '<svg xmlns="http://www.w3.org/2000/svg" class="hmi-root hmi-theme-' + theme + ' hmi-transparent" viewBox="-4 -4 ' + (w + 8) + ' ' + (h + 28) + '" preserveAspectRatio="xMidYMid meet">' +
+            b.symbols.map(m => SYMBOLS[m.type] ? renderSymbol(m, m.preview !== undefined ? m.preview : SYMBOLS[m.type].preview, { editor: true, values: {} }) : '').join('') + '</svg>'
+    }
+    function insertBlock (b, cx, cy) {
+        const syms = b.symbols.filter(m => m && SYMBOLS[m.type])
+        if (!syms.length) return
+        const w = Math.max(...syms.map(m => box(m).x + box(m).w))
+        const h = Math.max(...syms.map(m => box(m).y + box(m).h))
+        const ox = snap(cx - w / 2) - 20
+        const oy = snap(cy - h / 2) - 20
+        const out = paste(syms.map(m => ({ ...clone(m), x: m.x + ox, y: m.y + oy })))
+        // the block lands as one group, so it moves as a piece; Ctrl+Shift+G breaks it up
+        if (out && out.length > 1 && !out.some(m => m.group)) group()
+    }
+    function openBlocks (btn) {
+        menu = el('div', { class: 'hmi-ed-menu' })
+        btn.classList.add('hmi-ed-open')
+        const blocks = loadBlocks()
+        const row = el('div', { class: 'hmi-ed-menurow' })
+        const name = el('input', { type: 'text', placeholder: 'Nome do bloco (ex.: Motor com tag)' })
+        name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') saveSel() })
+        const mini = (label, title, fn, disabled) => {
+            const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
+            if (disabled) b.disabled = true
+            b.addEventListener('click', fn)
+            row.appendChild(b)
+        }
+        const saveSel = () => {
+            const sel = selection()
+            if (!sel.length) return
+            blocks.push(makeBlock(name.value.trim() || ('Bloco ' + (blocks.length + 1)), sel))
+            msg.textContent = saveBlocks(blocks) ? 'Bloco salvo.' : 'Não deu para salvar (memória do navegador cheia?).'
+            closeMenu()
+        }
+        if (ed.multi.length) row.appendChild(name)
+        mini('Salvar seleção', ed.multi.length ? 'Guarda os símbolos selecionados como um bloco' : 'Selecione os símbolos primeiro', saveSel, !ed.multi.length)
+        mini('Exportar', 'Baixa todos os blocos num arquivo .json', () => {
+            const a = el('a', { download: 'blocos-ihm.json', href: URL.createObjectURL(new Blob([JSON.stringify({ hmiBlocks: blocks }, null, 1)], { type: 'application/json' })) })
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+        }, !blocks.length)
+        const file = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none' })
+        file.addEventListener('change', () => {
+            const f = file.files && file.files[0]
+            if (!f) return
+            f.text().then(t => {
+                const data = JSON.parse(t)
+                const got = (Array.isArray(data) ? data : data.hmiBlocks || []).filter(b => b && typeof b.name === 'string' && Array.isArray(b.symbols))
+                msg.textContent = saveBlocks([...loadBlocks(), ...got]) ? got.length + ' bloco(s) importado(s).' : 'Não deu para salvar.'
+            }).catch(() => { msg.textContent = 'Arquivo de blocos inválido.' })
+            closeMenu()
+        })
+        row.appendChild(file)
+        mini('Importar', 'Lê um arquivo .json de blocos', () => file.click())
+        menu.appendChild(row)
+        if (!blocks.length) menu.appendChild(el('div', { class: 'hmi-ed-empty' }, 'Nenhum bloco salvo. Selecione símbolos e clique em Salvar seleção. Os blocos ficam neste navegador e servem em qualquer tela.'))
+        blocks.forEach((b, i) => {
+            const item = el('div', { class: 'hmi-ed-item', draggable: 'true', title: 'Arraste para a tela ou clique' })
+            item.innerHTML = blockIcon(b)
+            item.appendChild(el('span', {}, b.name))
+            const del = el('button', { type: 'button', class: 'hmi-ed-del', title: 'Apagar o bloco' }, '×')
+            del.addEventListener('click', e => {
+                e.stopPropagation()
+                const list = loadBlocks()
+                list.splice(i, 1)
+                saveBlocks(list)
+                closeMenu()
+                openBlocks(btn)
+            })
+            item.appendChild(del)
+            item.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', 'hmi-block:' + i)
+                menu.style.opacity = '0'
+            })
+            item.addEventListener('dragend', closeMenu)
+            item.addEventListener('click', () => { const v = view(); insertBlock(b, v.w / 2, v.h / 2); closeMenu() })
+            menu.appendChild(item)
+        })
+        placeMenu(btn)
     }
     for (const cat of CATEGORIES) {
         if (!paletteItems(cat).length) continue
@@ -764,11 +1043,40 @@ export function createEditor (root, opts) {
         })
         palette.appendChild(b)
     }
-    const outside = e => { if (menu && !menu.contains(e.target) && !e.target.closest('.hmi-ed-cat')) closeMenu() }
+    const blocksBtn = el('button', { type: 'button', class: btnClass + ' hmi-ed-cat', title: 'Conjuntos de símbolos salvos para usar em outras telas' }, 'Blocos ▾')
+    blocksBtn.addEventListener('click', e => {
+        e.stopPropagation()
+        const same = blocksBtn.classList.contains('hmi-ed-open')
+        closeMenu()
+        if (!same) openBlocks(blocksBtn)
+    })
+    palette.appendChild(blocksBtn)
+    const search = el('input', { type: 'search', class: 'hmi-ed-search', placeholder: 'Buscar símbolo…', title: 'Busca pelo nome em todas as categorias. Enter coloca o primeiro.' })
+    search.addEventListener('input', () => {
+        closeMenu()
+        if (search.value.trim()) openMenu(null, search, searchPalette(search.value))
+    })
+    search.addEventListener('keydown', e => {
+        e.stopPropagation()
+        if (e.key === 'Escape') { search.value = ''; closeMenu() }
+        if (e.key === 'Enter') {
+            const first = searchPalette(search.value)[0]
+            if (first) { const v = view(); add(first.type, v.w / 2, v.h / 2, first.variant); closeMenu(); search.value = '' }
+        }
+    })
+    palette.appendChild(search)
+    const outside = e => { if (menu && !menu.contains(e.target) && !e.target.closest('.hmi-ed-cat, .hmi-ed-search')) closeMenu() }
     document.addEventListener('pointerdown', outside, true)
     stage.addEventListener('dragover', e => { e.preventDefault() })
     stage.addEventListener('drop', e => {
         const data = e.dataTransfer.getData('text/plain') || ''
+        if (data.startsWith('hmi-block:')) {
+            e.preventDefault()
+            const b = loadBlocks()[Number(data.slice(10))]
+            const p = toSvg(e)
+            if (b) insertBlock(b, p.x, p.y)
+            return
+        }
         if (!data.startsWith('hmi:')) return
         e.preventDefault()
         const p = toSvg(e)
@@ -784,9 +1092,17 @@ export function createEditor (root, opts) {
         lastDown = { what: dbl ? null : what, t: now }
         return dbl
     }
+    let spaceDown = false
     svg.addEventListener('pointerdown', e => {
         stage.focus()
         const p = toSvg(e)
+        // pan the zoomed screen: middle button, or Space + drag
+        if (e.button === 1 || (spaceDown && e.button === 0)) {
+            ed.drag = { mode: 'pan', cx: e.clientX, cy: e.clientY, pan: { ...ed.pan }, upp: unitsPerPx() }
+            svg.setPointerCapture(e.pointerId)
+            e.preventDefault()
+            return
+        }
         const pointEl = e.target.closest('[data-point], [data-mid]')
         // double click on a line point deletes it
         if (pointEl && pointEl.hasAttribute('data-point') && isDouble('pt' + pointEl.getAttribute('data-point'))) {
@@ -815,7 +1131,9 @@ export function createEditor (root, opts) {
             const s = selected()
             ed.drag = { mode: 'size', dir: e.target.closest('[data-handle]').getAttribute('data-handle'), start: p, x: s.x, y: s.y, w: s.w, h: s.h }
         } else {
-            const g = e.target.closest('.hmi-symbol')
+            let g = e.target.closest('.hmi-symbol')
+            // locked symbols are not picked on the screen (only in Camadas)
+            if (g && (ed.symbols.find(m => m.id === g.getAttribute('data-id')) || {}).locked) g = null
             const adding = e.shiftKey || e.ctrlKey || e.metaKey
             if (!g) {
                 // rubber band selection
@@ -841,7 +1159,11 @@ export function createEditor (root, opts) {
                     ed.sel = id
                     if (ed.multi.length > mates.length) narrow = mates
                 } else select(mates, id)
-                ed.drag = { mode: 'move', start: p, narrow, id, orig: selection().map(m => ({ m, x: m.x, y: m.y })) }
+                const orig = selection().filter(m => !m.locked).map(m => ({ m, x: m.x, y: m.y }))
+                const bs = orig.map(q => box(q.m))
+                const b0 = bs.length ? { x: Math.min(...bs.map(b => b.x)), y: Math.min(...bs.map(b => b.y)) } : null
+                if (b0) { b0.w = Math.max(...bs.map(b => b.x + b.w)) - b0.x; b0.h = Math.max(...bs.map(b => b.y + b.h)) - b0.y }
+                ed.drag = { mode: 'move', start: p, narrow, id, orig, b0, ids: new Set(orig.map(q => q.m.id)) }
                 refresh()
             }
         }
@@ -851,11 +1173,17 @@ export function createEditor (root, opts) {
     svg.addEventListener('pointermove', e => {
         const d = ed.drag
         if (!d) return
+        if (d.mode === 'pan') {
+            ed.pan = { x: d.pan.x - (e.clientX - d.cx) * d.upp, y: d.pan.y - (e.clientY - d.cy) * d.upp }
+            draw()
+            return
+        }
         const p = toSvg(e)
         if (d.mode === 'box') {
             d.cur = p
             const r = marquee(d)
             const hits = ed.symbols.filter(m => {
+                if (m.locked || ed.hidden.has(m.id)) return false
                 const b = box(m)
                 return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y
             }).flatMap(m => groupOf(m.id))
@@ -866,8 +1194,16 @@ export function createEditor (root, opts) {
         if (d.mode === 'move') {
             const lead = d.orig.find(o => o.m.id === ed.sel) || d.orig[0]
             if (!lead) return
-            const dx = snap(lead.x + p.x - d.start.x) - lead.x
-            const dy = snap(lead.y + p.y - d.start.y) - lead.y
+            let dx = snap(lead.x + p.x - d.start.x) - lead.x
+            let dy = snap(lead.y + p.y - d.start.y) - lead.y
+            ed.guides = []
+            if (guideBox.checked && d.b0 && !e.altKey) {
+                // guides win over the grid on the axis where they hit (Alt turns them off while dragging)
+                const g = guideSnap(d.b0, p.x - d.start.x, p.y - d.start.y, d.ids)
+                if (g.hx) dx = g.dx
+                if (g.hy) dy = g.dy
+                ed.guides = g.guides
+            }
             for (const o of d.orig) { o.m.x = o.x + dx; o.m.y = o.y + dy }
             d.moved = true
             draw()
@@ -942,6 +1278,7 @@ export function createEditor (root, opts) {
         const s = selected()
         if (ed.drag.mode === 'point' && s) normalizeLine(s)
         ed.drag = null
+        ed.guides = []
         draw()
         showProps()
         if (moved) changed()
@@ -959,13 +1296,17 @@ export function createEditor (root, opts) {
             else if (k === 'd') duplicate()
             else if (k === 'a') { select(ed.symbols.map(m => m.id)); refresh() } else if (k === 'g' && e.shiftKey) ungroup()
             else if (k === 'g') group()
+            else if (k === 'l' && ed.multi.length) setLocked(!selection().every(m => m.locked))
+            else if (k === '0') { ed.zoom = 1; ed.pan = { x: 0, y: 0 }; draw() } else if (k === '=' || k === '+') zoomBy(1.25)
+            else if (k === '-') zoomBy(1 / 1.25)
             else return
             e.preventDefault()
             e.stopPropagation()
             return
         }
-        const list = selection()
-        if (!list.length) return
+        if (e.key === ' ') { spaceDown = true; stage.style.cursor = 'grab'; e.preventDefault(); return }
+        const list = selection().filter(m => !m.locked)
+        if (!list.length && e.key !== 'Escape') return
         const step = e.shiftKey ? 10 : 1
         const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
         if (e.key === 'Delete' || e.key === 'Backspace') remove()
@@ -977,6 +1318,18 @@ export function createEditor (root, opts) {
         e.preventDefault()
         e.stopPropagation()
     })
+    stage.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; stage.style.cursor = '' } })
+    stage.addEventListener('wheel', e => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15, toSvg(e))
+        } else if (ed.zoom > 1) {
+            e.preventDefault()
+            const upp = unitsPerPx()
+            ed.pan = { x: ed.pan.x + (e.shiftKey ? e.deltaY : e.deltaX) * upp, y: ed.pan.y + (e.shiftKey ? 0 : e.deltaY) * upp }
+            draw()
+        }
+    }, { passive: false })
     gridBox.addEventListener('change', draw)
 
     Object.assign(api, {
