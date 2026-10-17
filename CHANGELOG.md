@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2
+
+Novidades:
+
+- 55 peças novas para montar máquinas no símbolo **Corpo**, em quatro menus novos: **Pneumática**, **Sensores**, **Manuseio** e **Produção**.
+- As peças seguem a chave: haste do cilindro sai, garra fecha, feixe do sensor é cortado, lâmina desce, mesa sobe, molde fecha, sinalizador acende, botão de emergência afunda.
+- Encoder, mesa giratória e serra podem girar com a chave.
+- Opção **Escurecer quando a chave ligar** em qualquer forma do Corpo.
+
 ## 0.1.1
 
 Segurança / security:

@@ -313,3 +313,24 @@ test('machine parts, free shape and turning wheels', () => {
     f.props.level = 'up'
     assert.ok(renderSymbol(f, 50).includes('hmi-shape-level'))
 })
+
+test('pneumatic, sensor, handling and production parts follow the key', () => {
+    for (const cat of ['Pneumática', 'Sensores', 'Manuseio', 'Produção']) {
+        assert.ok(CATEGORIES.includes(cat), cat)
+        assert.ok(paletteItems(cat).length >= 10, cat)
+    }
+    const make = shape => createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === shape))
+    for (const v of SYMBOLS.frame.variants) {
+        const s = createSymbol('frame', 0, 0, SYMBOLS.frame.variants.indexOf(v))
+        for (const val of [0, 1]) assert.ok(!/NaN|undefined/.test(renderSymbol(s, val)), v.label)
+    }
+    const cyl = make('pneuCyl')
+    assert.notStrictEqual(renderSymbol(cyl, 1), renderSymbol(cyl, 0))
+    assert.ok(renderSymbol(cyl, 1).includes('hmi-on') && !renderSymbol(cyl, 0).includes('hmi-on'))
+    assert.ok(renderSymbol(make('photoEye'), 1).includes('hmi-beam-cut'))
+    const enc = make('encoder')
+    enc.props.spin = 'cw'
+    assert.ok(renderSymbol(enc, 1).includes('hmi-turning'))
+    cyl.props.darken = 'yes'
+    assert.ok(renderSymbol(cyl, 1).includes('hmi-darken'))
+})

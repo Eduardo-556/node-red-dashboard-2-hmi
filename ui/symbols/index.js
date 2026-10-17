@@ -5,6 +5,7 @@ export { renderOverlay, interlockOf } from './overlay.js'
 import { moreSymbols, MORE_CSS } from './more.js'
 import { chartSymbols, CHART_CSS } from './charts.js'
 import { MACHINE_SHAPES, ROUND_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
+import { MACHINE2_SHAPES, MACHINE2_ROUND, MACHINE2_CSS, machine2Path } from './machine2.js'
 
 // Symbol library shared by the Node-RED editor (drag-and-drop preview) and the
 // dashboard widget. Every symbol draws itself as SVG markup in its own box
@@ -68,8 +69,11 @@ const SHAPES = [
     ['beamSide', 'Viga aço (slitter)', 400, 30, 'steel', 'Estruturas'],
     ['pedestal', 'Pedestal metal (slitter)', 120, 140, 'metal', 'Estruturas'],
     // machine parts (palette category "Mecânica") and more geometric shapes
-    ...MACHINE_SHAPES
+    ...MACHINE_SHAPES,
+    // pneumatics, sensors, handling and production parts
+    ...MACHINE2_SHAPES
 ]
+const SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND]
 const TONES = [
     ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
     ['metal', 'Metal (slitter)'], ['metalLight', 'Metal, borda clara (slitter)'], ['steel', 'Aço escuro (slitter)'], ['graphite', 'Grafite / rolo (slitter)'],
@@ -186,7 +190,8 @@ export const SYMBOLS = {
             { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
             { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
             { key: 'label', label: 'Legenda', type: 'text' },
-            { key: 'spin', label: 'Girar quando a chave ligar', type: 'select', options: [['no', 'Não'], ['cw', 'Sentido horário'], ['ccw', 'Anti-horário']], when: p => ROUND_SHAPES.includes(p.shape) },
+            { key: 'spin', label: 'Girar quando a chave ligar', type: 'select', options: [['no', 'Não'], ['cw', 'Sentido horário'], ['ccw', 'Anti-horário']], when: p => SPIN_SHAPES.includes(p.shape) },
+            { key: 'darken', label: 'Escurecer quando a chave ligar', type: 'select', options: [['no', 'Não'], ['yes', 'Sim']] },
             { key: 'level', label: 'Encher pelo valor da chave', type: 'select', options: [['no', 'Não'], ['up', 'De baixo para cima'], ['down', 'De cima para baixo'], ['right', 'Da esquerda para a direita'], ['left', 'Da direita para a esquerda']], refresh: true },
             { key: 'min', label: 'Vazio (mín.)', type: 'number', when: p => p.level && p.level !== 'no' },
             { key: 'max', label: 'Cheio (máx.)', type: 'number', when: p => p.level && p.level !== 'no' },
@@ -488,7 +493,7 @@ export const SYMBOLS = {
 
 // Palette: categories in the order they appear in the editor. Symbols with
 // variants show one entry per variant (e.g. every frame shape).
-export const CATEGORIES = ['Formas', 'Estruturas', 'Mecânica', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Gráficos', 'Estados', 'Comandos']
+export const CATEGORIES = ['Formas', 'Estruturas', 'Mecânica', 'Pneumática', 'Sensores', 'Manuseio', 'Produção', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Gráficos', 'Estados', 'Comandos']
 export function paletteItems (category) {
     const out = []
     for (const [type, def] of Object.entries(SYMBOLS)) {
@@ -1174,7 +1179,7 @@ function renderSetpoint (sym, value, opts) {
         `<path class="hmi-pencil" d="M${px} ${py + 9}l2 -5 7 -7 3 3 -7 7z"/></g>`
 }
 
-function framePath (shape, w, h) {
+function framePath (shape, w, h, on) {
     const st = structurePath(shape, w, h)
     if (st) return st
     const m = Math.min(w, h)
@@ -1218,7 +1223,7 @@ function framePath (shape, w, h) {
             `<rect class="hmi-detail" x="${f(w / 2 - hw * 2.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/>` +
             `<rect class="hmi-detail" x="${f(w / 2 + hw * 1.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/>`
     }
-    default: return machinePath(shape, w, h, { f, poly, box }) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`
+    default: return machinePath(shape, w, h, { f, poly, box }) || machine2Path(shape, w, h, { f, poly, box }, on) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`
     }
 }
 
@@ -1290,17 +1295,19 @@ function renderFrame (sym, value, opts) {
         style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`
     }
     const free = sym.type === 'shape'
-    let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h)
+    // parts that move with the key (cylinder rod, gripper, light beam...) get its state
+    const on = onState(value, p)
+    let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, on)
     const level = frameLevel(sym, value, opts, body)
     let turning = ''
-    if (!free && ROUND_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
+    if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
         // turns around its centre while the key is on
         const cx = f(sym.w / 2)
         const cy = f(sym.h / 2)
         body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`
-        if (onState(value, p) === true) turning = ' hmi-turning' + (p.spin === 'ccw' ? ' hmi-ccw' : '')
+        if (on === true) turning = ' hmi-turning' + (p.spin === 'ccw' ? ' hmi-ccw' : '')
     }
-    return `<g class="hmi-frame${free ? ' hmi-shape' : ''} hmi-tone-${fixed ? 'fixed' : tone}${turning}"${style}>${defs}${body}${level}${label}</g>`
+    return `<g class="hmi-frame${free ? ' hmi-shape' : ''} hmi-tone-${fixed ? 'fixed' : tone}${turning}${on === true ? ' hmi-on' : ''}${p.darken === 'yes' ? ' hmi-darken' : ''}"${style}>${defs}${body}${level}${label}</g>`
 }
 
 export function linePoints (sym) {
@@ -1669,7 +1676,7 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS + MACHINE_CSS + OVERLAY_CSS + SVGIMPORT_CSS
+` + MORE_CSS + CHART_CSS + MACHINE_CSS + MACHINE2_CSS + OVERLAY_CSS + SVGIMPORT_CSS
 
 // second batch of symbols, built from the helpers above
 Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
