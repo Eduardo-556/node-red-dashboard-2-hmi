@@ -1,6 +1,6 @@
 {
   "name": "node-red-dashboard-2-hmi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build machine HMI screens for Node-RED Dashboard 2.0 by dragging symbols onto a canvas (ISA-101 and classic themes)",
   "keywords": [
     "node-red",
@@ -31,7 +31,7 @@
   ],
   "scripts": {
     "build": "vite build && vite build --config vite.editor.config.mjs",
-    "test": "node --test test/symbols.test.mjs test/canvas.test.js"
+    "test": "node --test test/symbols.test.mjs test/canvas.test.js test/server.test.js"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
@@ -45,6 +45,9 @@
     "version": ">=3.0.0",
     "nodes": {
       "ui-hmi-canvas": "nodes/ui-hmi-canvas.js"
+    },
+    "plugins": {
+      "hmi-canvas-actions": "nodes/plugin.js"
     }
   },
   "node-red-dashboard-2": {

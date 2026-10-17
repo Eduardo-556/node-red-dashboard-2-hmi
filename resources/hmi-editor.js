@@ -1,5 +1,323 @@
 var HmiEditor = (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+	//#region ui/symbols/overlay.js
+	var f$1 = (n) => Math.round(n * 10) / 10;
+	var truthy = (v) => v === true || v !== false && v !== null && v !== void 0 && v !== "" && v !== "false" && Number(v) !== 0;
+	function interlockOf(act, values) {
+		const list = String(act && act.interlock || "").split(",").map((t) => t.trim()).filter(Boolean);
+		for (const item of list) {
+			const not = item.startsWith("!");
+			const key = not ? item.slice(1).trim() : item;
+			if (!key) continue;
+			const on = truthy((values || {})[key]);
+			if (not ? on : !on) return String(act.interlockText || "").trim() || (not ? key + " ligado" : key + " desligado");
+		}
+		return "";
+	}
+	function badge(x, y, cls, inner) {
+		return `<g class="hmi-ov-badge ${cls}" transform="translate(${f$1(x)},${f$1(y)})"><circle r="9"/>${inner}</g>`;
+	}
+	function renderOverlay(sym, st) {
+		if (!st) return "";
+		const w = sym.w;
+		const h = sym.h;
+		const rot = Number(sym.rot) || 0;
+		const tf = `translate(${f$1(sym.x)},${f$1(sym.y)})` + (rot ? ` rotate(${f$1(rot)},${f$1(w / 2)},${f$1(h / 2)})` : "");
+		let out = "";
+		const box = (cls, pad) => `<rect class="${cls}" x="${f$1(-pad)}" y="${f$1(-pad)}" width="${f$1(w + pad * 2)}" height="${f$1(h + pad * 2)}" rx="4"/>`;
+		if (st.flash) out += box("hmi-ov-flash hmi-blink", 8);
+		if (st.alarm) out += box("hmi-ov-alarm hmi-ov-p" + st.alarm.priority + (st.alarm.unacked ? " hmi-blink" : ""), 4);
+		if (st.pending === "wait") out += box("hmi-ov-wait", 2);
+		if (st.pending === "fail") out += box("hmi-ov-fail", 2) + badge(w, h, "hmi-ov-b-fail", "<path d=\"M0 -5v6M0 3.5v1.5\"/>");
+		if (st.quality === "bad") out += badge(0, 0, "hmi-ov-b-bad", "<path d=\"M-4 -4l8 8M4 -4l-8 8\"/>");
+		else if (st.quality === "uncertain") out += badge(0, 0, "hmi-ov-b-unc", "<path d=\"M-3 -3a3 3 0 1 1 3 3v2M0 5v1\"/>");
+		else if (st.quality === "stale") out += badge(0, 0, "hmi-ov-b-stale", "<circle class=\"hmi-ov-clock\" r=\"5\"/><path d=\"M0 -3v3l2.5 1.5\"/>");
+		if (st.locked) out += badge(w, 0, "hmi-ov-b-lock", "<rect x=\"-4\" y=\"-1\" width=\"8\" height=\"6\" rx=\"1\"/><path d=\"M-2.5 -1v-2a2.5 2.5 0 0 1 5 0v2\"/>");
+		return out ? `<g class="hmi-overlay" data-for="${String(sym.id).replace(/[^\w-]/g, "")}" transform="${tf}">${out}</g>` : "";
+	}
+	var OVERLAY_CSS = `
+.hmi-root .hmi-overlay { pointer-events: none; }
+.hmi-root .hmi-overlay rect, .hmi-root .hmi-overlay path { fill: none; }
+.hmi-root .hmi-ov-alarm { stroke-width: 3; }
+.hmi-root .hmi-ov-p1 { stroke: var(--hmi-alarm); }
+.hmi-root .hmi-ov-p2 { stroke: var(--hmi-warn); }
+.hmi-root .hmi-ov-p3 { stroke: var(--hmi-low); }
+.hmi-root .hmi-ov-flash { stroke: var(--hmi-info); stroke-width: 4; }
+.hmi-root .hmi-ov-wait { stroke: var(--hmi-info); stroke-width: 2; stroke-dasharray: 5 4; animation: hmi-flow 1s linear infinite; }
+.hmi-root .hmi-ov-fail { stroke: var(--hmi-alarm); stroke-width: 2; stroke-dasharray: 5 4; }
+.hmi-root .hmi-ov-badge circle { stroke-width: 1.5; }
+.hmi-root .hmi-ov-badge path, .hmi-root .hmi-ov-badge .hmi-ov-clock { stroke-width: 1.8; stroke-linecap: round; fill: none; }
+.hmi-root .hmi-ov-b-bad circle { fill: var(--hmi-alarm); stroke: #fff; }
+.hmi-root .hmi-ov-b-bad path, .hmi-root .hmi-ov-b-fail path { stroke: #fff; }
+.hmi-root .hmi-ov-b-fail circle { fill: var(--hmi-alarm); stroke: #fff; }
+.hmi-root .hmi-ov-b-unc circle { fill: var(--hmi-warn); stroke: #000; }
+.hmi-root .hmi-ov-b-unc path { stroke: #000; }
+.hmi-root .hmi-ov-b-stale circle { fill: var(--hmi-tag-bg); stroke: var(--hmi-text-dim); }
+.hmi-root .hmi-ov-b-stale path, .hmi-root .hmi-ov-b-stale .hmi-ov-clock { stroke: var(--hmi-text-dim); }
+.hmi-root .hmi-ov-b-stale .hmi-ov-clock { stroke-width: 1.2; }
+.hmi-root .hmi-ov-b-lock circle { fill: var(--hmi-tag-bg); stroke: var(--hmi-text); }
+.hmi-root .hmi-ov-b-lock rect { fill: var(--hmi-text); }
+.hmi-root .hmi-ov-b-lock path { stroke: var(--hmi-text); stroke-width: 1.5; }
+.hmi-root .hmi-q-bad > .hmi-symbol, .hmi-root .hmi-q-stale > .hmi-symbol { opacity: .5; }
+.hmi-root .hmi-q-uncertain > .hmi-symbol { opacity: .75; }
+.hmi-root .hmi-disabled .hmi-clickable { cursor: not-allowed; }
+.hmi-root.hmi-bg-dashboard { background: rgb(var(--v-theme-background, 238, 238, 238)); }
+.hmi-root.hmi-bg-dashboard .hmi-bg { fill: rgb(var(--v-theme-background, 238, 238, 238)); }
+`;
+	//#endregion
+	//#region ui/symbols/svgimport.js
+	var ALLOWED = /* @__PURE__ */ new Set([
+		"svg",
+		"g",
+		"path",
+		"rect",
+		"circle",
+		"ellipse",
+		"line",
+		"polyline",
+		"polygon",
+		"text",
+		"tspan",
+		"defs",
+		"lineargradient",
+		"radialgradient",
+		"stop",
+		"clippath",
+		"mask",
+		"pattern",
+		"use",
+		"symbol",
+		"title",
+		"desc",
+		"marker"
+	]);
+	var ATTRS = /* @__PURE__ */ new Set([
+		"id",
+		"class",
+		"transform",
+		"d",
+		"x",
+		"y",
+		"x1",
+		"y1",
+		"x2",
+		"y2",
+		"cx",
+		"cy",
+		"r",
+		"rx",
+		"ry",
+		"width",
+		"height",
+		"points",
+		"viewbox",
+		"fill",
+		"fill-opacity",
+		"fill-rule",
+		"stroke",
+		"stroke-width",
+		"stroke-opacity",
+		"stroke-linecap",
+		"stroke-linejoin",
+		"stroke-dasharray",
+		"stroke-dashoffset",
+		"stroke-miterlimit",
+		"opacity",
+		"font-size",
+		"font-family",
+		"font-weight",
+		"text-anchor",
+		"dominant-baseline",
+		"offset",
+		"stop-color",
+		"stop-opacity",
+		"gradientunits",
+		"gradienttransform",
+		"fx",
+		"fy",
+		"clip-path",
+		"clip-rule",
+		"mask",
+		"patternunits",
+		"preserveaspectratio",
+		"style",
+		"href",
+		"xlink:href",
+		"marker-start",
+		"marker-mid",
+		"marker-end",
+		"markerwidth",
+		"markerheight",
+		"refx",
+		"refy",
+		"orient",
+		"visibility",
+		"display",
+		"dx",
+		"dy",
+		"letter-spacing",
+		"vector-effect"
+	]);
+	var cache = /* @__PURE__ */ new Map();
+	var safeRef = (v) => !/url\(\s*['"]?\s*(?!#)/i.test(v) && !/(javascript|expression|@import|behavior)/i.test(v);
+	function parseSvg(text) {
+		const src = String(text || "");
+		if (!src || typeof DOMParser === "undefined") return null;
+		if (cache.has(src)) return cache.get(src);
+		let out = null;
+		try {
+			const doc = new DOMParser().parseFromString(src, "image/svg+xml");
+			const root = doc.documentElement;
+			if (root && root.nodeName.toLowerCase() === "svg" && !doc.getElementsByTagName("parsererror").length) {
+				const ids = [];
+				const walk = (el) => {
+					for (const child of [...el.children]) {
+						if (!ALLOWED.has(child.nodeName.toLowerCase())) {
+							child.remove();
+							continue;
+						}
+						walk(child);
+					}
+					for (const a of [...el.attributes]) {
+						const n = a.name.toLowerCase();
+						const v = a.value;
+						if (!ATTRS.has(n) || n.startsWith("on")) el.removeAttribute(a.name);
+						else if ((n === "href" || n === "xlink:href") && !v.trim().startsWith("#")) el.removeAttribute(a.name);
+						else if (!safeRef(v)) el.removeAttribute(a.name);
+					}
+					if (el.id && el !== root) ids.push(el.id);
+				};
+				walk(root);
+				let vb = root.getAttribute("viewBox");
+				if (!vb) {
+					const w = parseFloat(root.getAttribute("width")) || 100;
+					const h = parseFloat(root.getAttribute("height")) || 100;
+					vb = "0 0 " + w + " " + h;
+				}
+				out = {
+					viewBox: vb,
+					root,
+					ids
+				};
+			}
+		} catch (e) {
+			out = null;
+		}
+		if (cache.size > 50) cache.clear();
+		cache.set(src, out);
+		return out;
+	}
+	function cleanSvg(text) {
+		const p = parseSvg(text);
+		return p ? new XMLSerializer().serializeToString(p.root) : "";
+	}
+	function parseBinds(text) {
+		const out = [];
+		for (const line of String(text || "").split("\n")) {
+			const i = line.indexOf("=");
+			if (i < 1) continue;
+			const id = line.slice(0, i).trim();
+			let rest = line.slice(i + 1).trim();
+			let mode = "on";
+			if (rest.startsWith("#")) {
+				mode = "text";
+				rest = rest.slice(1).trim();
+			}
+			const j = rest.indexOf(":");
+			if (j >= 0) {
+				const m = rest.slice(j + 1).trim().toLowerCase();
+				if (["alarme", "alarm"].includes(m)) mode = "alarm";
+				else if ([
+					"atencao",
+					"atenção",
+					"warn"
+				].includes(m)) mode = "warn";
+				else if (["esconder", "hide"].includes(m)) mode = "hide";
+				rest = rest.slice(0, j).trim();
+			}
+			if (id && rest) out.push({
+				id,
+				key: rest,
+				mode
+			});
+		}
+		return out;
+	}
+	function svgImportSymbol(h) {
+		const { f, isOn, formatValue, labelBelow } = h;
+		function render(sym, value, opts) {
+			const p = sym.props || {};
+			const w = sym.w;
+			const ht = sym.h;
+			const parsed = parseSvg(p.svg);
+			if (!parsed) return `<g class="hmi-svgimp hmi-img-empty"><rect class="hmi-img-box" x="1" y="1" width="${f(w - 2)}" height="${f(ht - 2)}" rx="4"/><text class="hmi-svgimp-hint" x="${f(w / 2)}" y="${f(ht / 2)}" font-size="13">SVG</text>${labelBelow(p, w, ht)}</g>`;
+			const root = parsed.root.cloneNode(true);
+			const values = opts && opts.values || {};
+			for (const b of parseBinds(p.binds)) {
+				const el = root.querySelector("[id=\"" + b.id.replace(/["\\]/g, "") + "\"]");
+				if (!el) continue;
+				const v = values[b.key];
+				if (b.mode === "text") {
+					el.textContent = v === void 0 ? "—" : formatValue(v, p.decimals === "" || p.decimals === void 0 ? void 0 : Number(p.decimals), opts && opts.locale);
+					continue;
+				}
+				const on = isOn(v, "nonzero") === true;
+				const cls = (el.getAttribute("class") || "") + " hmi-svgb" + (b.mode === "hide" ? on ? " hmi-svgb-hide" : "" : on ? " hmi-svgb-" + b.mode : " hmi-svgb-off");
+				el.setAttribute("class", cls.trim());
+			}
+			root.setAttribute("x", "0");
+			root.setAttribute("y", "0");
+			root.setAttribute("width", f(w));
+			root.setAttribute("height", f(ht));
+			root.setAttribute("viewBox", parsed.viewBox);
+			root.setAttribute("preserveAspectRatio", p.fit === "stretch" ? "none" : "xMidYMid meet");
+			root.removeAttribute("id");
+			const markup = new XMLSerializer().serializeToString(root);
+			return `<g class="hmi-svgimp"><rect class="hmi-hitbox" x="0" y="0" width="${f(w)}" height="${f(ht)}"/>${markup}${labelBelow(p, w, ht)}</g>`;
+		}
+		return { svgImport: {
+			label: "SVG com partes ligadas",
+			group: "Formas",
+			w: 240,
+			h: 160,
+			preview: void 0,
+			svgImport: true,
+			defaults: {
+				svg: "",
+				binds: "",
+				fit: "meet",
+				decimals: "",
+				label: ""
+			},
+			fields: [
+				{
+					key: "fit",
+					label: "Ajuste",
+					type: "select",
+					options: [["meet", "Caber inteiro"], ["stretch", "Esticar"]]
+				},
+				{
+					key: "decimals",
+					label: "Casas decimais dos textos",
+					type: "number"
+				},
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				}
+			],
+			render
+		} };
+	}
+	var SVGIMPORT_CSS = `
+.hmi-root .hmi-svgimp-hint { fill: var(--hmi-line); font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-svgimp .hmi-svgb-on { fill: var(--hmi-equip-on) !important; }
+.hmi-root .hmi-svgimp .hmi-svgb-alarm { fill: var(--hmi-alarm) !important; }
+.hmi-root .hmi-svgimp .hmi-svgb-warn { fill: var(--hmi-warn) !important; }
+.hmi-root .hmi-svgimp .hmi-svgb-hide { display: none; }
+`;
+	//#endregion
 	//#region ui/symbols/more.js
 	function moreSymbols(H) {
 		const { f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD } = H;
@@ -794,10 +1112,12 @@ var HmiEditor = (function(exports) {
 			const active = Array.isArray(data.active) ? data.active : [];
 			const unacked = active.filter((a) => !a.acked).length;
 			const shelvedList = Array.isArray(data.shelved) ? data.shelved : [];
-			const canShelve = p.shelve !== "no";
+			const perm = opts.perm || {};
+			const canAck = perm.ack !== false;
+			const canShelve = p.shelve !== "no" && perm.shelve !== false;
 			const tx0 = Math.max(150, Math.min(w * .32, w - 152 - 340));
 			const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? " " + cls : ""}" data-hmi="${escapeXml(action)}">${rect("hmi-al-btn-box", x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`;
-			let out = `<g class="hmi-alarmlist">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || "ALARMES") + " (" + active.length + ")")}</text>` + btn(tx0, 6, 78, 22, "Ativos", "tab:active", tab === "active" ? "hmi-al-sel" : "") + btn(tx0 + 84, 6, 84, 22, "Histórico", "tab:history", tab === "history" ? "hmi-al-sel" : "") + (p.shelve !== "no" ? btn(tx0 + 174, 6, 112, 22, "Suprimidos (" + shelvedList.length + ")", "tab:shelved", tab === "shelved" ? "hmi-al-sel" : "") : "") + (unacked ? btn(w - 152, 6, 144, 22, "Reconhecer todos", "ack:all", "hmi-al-ackall") : "") + (opts.sound && opts.sound !== "off" ? btn(w - 190, 6, 32, 22, opts.muted ? "🔕" : "🔔", "mute", "hmi-al-shelve") : "") + path("hmi-al-line", `M1 ${head}H${f(w - 1)}`);
+			let out = `<g class="hmi-alarmlist">` + rect("hmi-tag-box", .5, .5, w - 1, h - 1, 4) + `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || "ALARMES") + " (" + active.length + ")")}</text>` + btn(tx0, 6, 78, 22, "Ativos", "tab:active", tab === "active" ? "hmi-al-sel" : "") + btn(tx0 + 84, 6, 84, 22, "Histórico", "tab:history", tab === "history" ? "hmi-al-sel" : "") + (p.shelve !== "no" ? btn(tx0 + 174, 6, 112, 22, "Suprimidos (" + shelvedList.length + ")", "tab:shelved", tab === "shelved" ? "hmi-al-sel" : "") : "") + (unacked && canAck ? btn(w - 152, 6, 144, 22, "Reconhecer todos", "ack:all", "hmi-al-ackall") : "") + (opts.sound && opts.sound !== "off" ? btn(w - 190, 6, 32, 22, opts.muted ? "🔕" : "🔔", "mute", "hmi-al-shelve") : "") + path("hmi-al-line", `M1 ${head}H${f(w - 1)}`);
 			const tx = 48;
 			const tw = w - tx - 10;
 			const timeW = Math.min(150, tw * .3);
@@ -824,10 +1144,10 @@ var HmiEditor = (function(exports) {
 					cls = a.active ? a.acked ? "hmi-al-acked" : "hmi-al-unacked" : "hmi-al-rtn";
 				}
 				const stateW = tab === "active" ? 118 : Math.min(200, tw * .3);
-				const ackW = tab === "active" && !a.acked ? 34 : 0;
-				const shW = tab === "active" && canShelve || tab === "shelved" ? 34 : 0;
+				const ackW = tab === "active" && !a.acked && canAck ? 34 : 0;
+				const shW = tab === "active" && canShelve || tab === "shelved" && perm.shelve !== false ? 34 : 0;
 				const textW = tw - timeW - stateW - ackW - shW - 16;
-				out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect("hmi-al-stripe", 1, y, w - 2, rowH) : "") + `<g class="${cls === "hmi-al-unacked" ? "hmi-blink" : ""}">${alarmIndicator(24, cy, pr)}</g><text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * .92)}">${escapeXml(tab === "shelved" ? "suprimido" : when(a.since || a.ts, opts.locale))}</text><text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text><text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - shW - stateW)}" y="${f(cy)}" font-size="${f(fs * .85)}">${escapeXml(clip(state, stateW, fs * .85))}</text>` + (shW ? btn(w - 10 - ackW - shW + 4, cy - 10, shW - 4, 20, tab === "shelved" ? "▶" : "II", (tab === "shelved" ? "unshelve:" : "shelve:") + a.id, "hmi-al-shelve") : "") + (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, "✓", "ack:" + a.id, "hmi-al-ack") : "") + "</g>";
+				out += `<g class="hmi-al-row ${cls}"${a.symbolId ? ` data-hmi="goto:${escapeXml(a.symbolId)}"` : ""}>` + (i % 2 ? rect("hmi-al-stripe", 1, y, w - 2, rowH) : "") + `<g class="${cls === "hmi-al-unacked" ? "hmi-blink" : ""}">${alarmIndicator(24, cy, pr)}</g><text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * .92)}">${escapeXml(tab === "shelved" ? "suprimido" : when(a.since || a.ts, opts.locale))}</text><text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text><text class="hmi-al-state hmi-left" x="${f(w - 10 - ackW - shW - stateW)}" y="${f(cy)}" font-size="${f(fs * .85)}">${escapeXml(clip(state, stateW, fs * .85))}</text>` + (shW ? btn(w - 10 - ackW - shW + 4, cy - 10, shW - 4, 20, tab === "shelved" ? "▶" : "II", (tab === "shelved" ? "unshelve:" : "shelve:") + a.id, "hmi-al-shelve") : "") + (ackW ? btn(w - 10 - ackW + 4, cy - 10, ackW - 4, 20, "✓", "ack:" + a.id, "hmi-al-ack") : "") + "</g>";
 			});
 			if (list.length > rows) out += `<text class="hmi-al-more hmi-right" x="${f(w - 10)}" y="${f(h - 4)}" font-size="10">+${list.length - rows}</text>`;
 			return out + "</g>";
@@ -2138,6 +2458,19 @@ var HmiEditor = (function(exports) {
 .hmi-fp-on { background: #4d5156; color: #fff; }
 .hmi-pin-label { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 4px; font-size: 13px; color: var(--fp-dim); }
 .hmi-pin-label input { font-size: 18px; padding: 8px; border-radius: 4px; border: 1px solid var(--fp-line); background: #fff; color: #111; }
+.hmi-fp-pid { padding: 4px 14px 8px; }
+.hmi-fp-bar { position: relative; height: 16px; background: var(--fp-btn); border: 1px solid var(--fp-line); border-radius: 3px; overflow: visible; }
+.hmi-fp-bar-pv { position: absolute; left: 0; top: 0; bottom: 0; background: #808489; border-radius: 2px; }
+.hmi-fp-bar-sp { position: absolute; top: -5px; width: 0; height: 0; margin-left: -6px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #2f6fb3; }
+.hmi-fp-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--fp-dim); padding-top: 2px; }
+.hmi-fp-blocked { margin: 8px 14px 0; padding: 6px 10px; border-left: 6px solid #f2b705; background: var(--fp-btn); font-size: 13px; font-weight: 700; }
+.hmi-kp { width: min(320px, calc(100vw - 32px)); min-width: 0; }
+.hmi-kp-hint { padding: 8px 14px 0; font-size: 13px; color: var(--fp-dim); }
+.hmi-kp-display { display: block; box-sizing: border-box; width: calc(100% - 28px); margin: 8px 14px; font-size: 26px; padding: 8px 10px; text-align: right; border-radius: 4px; border: 1px solid var(--fp-line); background: #fff; color: #111; font-family: Consolas, "Roboto Mono", monospace; }
+.hmi-kp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 14px 4px; }
+.hmi-kp-key { min-height: 52px; font-size: 22px; font-weight: 700; border-radius: 6px; border: 1px solid var(--fp-line); background: var(--fp-btn); color: var(--fp-text); cursor: pointer; touch-action: manipulation; }
+.hmi-kp-key:active { filter: brightness(.85); }
+.hmi-kp-fn { font-size: 18px; color: var(--fp-dim); }
 .hmi-notice { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3100; background: #d71920; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 @keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
 @keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
@@ -5564,7 +5897,7 @@ ${[
 }
 .hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
-.hmi-root text { text-anchor: middle; }
+.hmi-root text:where(:not(.hmi-svgimp *)) { text-anchor: middle; }
 .hmi-root .hmi-label { fill: var(--hmi-text); font-size: 14px; font-weight: 600; }
 .hmi-root .hmi-reel .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-reel.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
@@ -5765,7 +6098,7 @@ ${[
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS + MACHINE_CSS;
+` + MORE_CSS + CHART_CSS + MACHINE_CSS + OVERLAY_CSS + SVGIMPORT_CSS;
 	Object.assign(SYMBOLS, moreSymbols({
 		f,
 		num,
@@ -5791,6 +6124,12 @@ ${[
 		num,
 		escapeXml,
 		formatValue
+	}));
+	Object.assign(SYMBOLS, svgImportSymbol({
+		f,
+		isOn,
+		formatValue,
+		labelBelow
 	}));
 	SYMBOLS.shape.fields.push(...SYMBOLS.frame.fields.filter((fd) => [
 		"level",
@@ -5945,8 +6284,8 @@ ${[
 		}
 		return out.slice(0, 60);
 	}
-	function makeBlock(name, list) {
-		const syms = clone(list);
+	function makeBlock(name, list, param) {
+		let syms = clone(list);
 		const x = Math.min(...syms.map((m) => m.x));
 		const y = Math.min(...syms.map((m) => m.y));
 		for (const m of syms) {
@@ -5954,10 +6293,53 @@ ${[
 			m.y -= y;
 			delete m.locked;
 		}
+		const p = String(param || "").trim();
+		if (p) syms = replaceStrings(syms, (s) => s.split(p).join("{{tag}}"));
 		return {
 			name: String(name || "Bloco").slice(0, 60),
 			symbols: syms
 		};
+	}
+	function replaceStrings(v, fn) {
+		if (typeof v === "string") return v.startsWith("data:") ? v : fn(v);
+		if (Array.isArray(v)) return v.map((x) => replaceStrings(x, fn));
+		if (v && typeof v === "object") {
+			const out = {};
+			for (const k of Object.keys(v)) out[k] = k === "id" || k === "type" || k === "group" ? v[k] : replaceStrings(v[k], fn);
+			return out;
+		}
+		return v;
+	}
+	function blockParams(b) {
+		const out = [];
+		const re = /\{\{(\w{1,30})\}\}/g;
+		let m;
+		const text = JSON.stringify(b.symbols);
+		while (m = re.exec(text)) if (!out.includes(m[1])) out.push(m[1]);
+		return out;
+	}
+	function fillBlock(b, values) {
+		return replaceStrings(b.symbols, (s) => s.replace(/\{\{(\w{1,30})\}\}/g, (all, k) => values[k] !== void 0 ? String(values[k]) : all));
+	}
+	function cleanBlockSymbols(list) {
+		const n = (v) => isFinite(Number(v)) ? Number(v) : 0;
+		return (Array.isArray(list) ? list : []).filter((m) => m && typeof m === "object" && typeof m.id === "string" && typeof m.type === "string" && SYMBOLS[m.type]).map((m) => {
+			const c = {
+				...m,
+				x: n(m.x),
+				y: n(m.y),
+				w: Math.max(10, n(m.w) || SYMBOLS[m.type].w || 10),
+				h: Math.max(1, n(m.h) || SYMBOLS[m.type].h || 10),
+				rot: n(m.rot),
+				key: typeof m.key === "string" ? m.key : ""
+			};
+			c.props = m.props && typeof m.props === "object" && !Array.isArray(m.props) ? m.props : {};
+			if (m.action && (typeof m.action !== "object" || Array.isArray(m.action))) delete c.action;
+			if (m.rules && !Array.isArray(m.rules)) delete c.rules;
+			if (m.scale && typeof m.scale !== "object") delete c.scale;
+			if (typeof m.group !== "string") delete c.group;
+			return c;
+		});
 	}
 	function layerName(s) {
 		const p = s && s.props || {};
@@ -6610,7 +6992,8 @@ ${[
 				else s.preview = p;
 			}));
 			if (def.image) imageFields(s, smallBtn);
-			if (!def.line && !def.image && !def.alarms && !["frame", "stack"].includes(s.type)) {
+			if (def.svgImport) svgFields(s, smallBtn);
+			if (!def.line && !def.image && !def.svgImport && !def.alarms && !["frame", "stack"].includes(s.type)) {
 				props.appendChild(el("h5", {}, "Escala do valor"));
 				const sc = s.scale || {};
 				const setSc = (k, v) => {
@@ -6651,7 +7034,10 @@ ${[
 			}, ACTIONS));
 			if (act.mode && act.mode !== "none") {
 				if (act.mode === "value") props.appendChild(field("Valor enviado", act.value, "text", (v) => setAct("value", v)));
-				if (act.mode === "input") props.appendChild(pair(field("Mínimo", act.min, "number", (v) => setAct("min", v)), field("Máximo", act.max, "number", (v) => setAct("max", v))));
+				if (act.mode === "input") {
+					props.appendChild(pair(field("Mínimo", act.min, "number", (v) => setAct("min", v)), field("Máximo", act.max, "number", (v) => setAct("max", v))));
+					props.appendChild(field("Maior mudança de uma vez (vazio = sem limite)", act.maxStep ?? "", "number", (v) => setAct("maxStep", v)));
+				}
 				if (act.mode === "faceplate") {
 					props.appendChild(el("div", { class: "hmi-ed-hint" }, "Abre uma janela com estado, alarmes deste símbolo e os campos abaixo. Deixe vazio o que não usa."));
 					props.appendChild(pair(field("Chave de um valor", act.valueKey || "", "text", (v) => setAct("valueKey", v.trim())), field("Unidade", act.valueUnit || "", "text", (v) => setAct("valueUnit", v))));
@@ -6662,6 +7048,16 @@ ${[
 						["off", "Desligar"],
 						["reset", "Reset"]
 					]) props.appendChild(pair(field("Botão " + label + ": tópico", act[k + "Topic"] || "", "text", (v) => setAct(k + "Topic", v.trim())), field("valor", act[k + "Value"] ?? "", "text", (v) => setAct(k + "Value", v))));
+					props.appendChild(el("h5", {}, "Regulador (PID)"));
+					props.appendChild(el("div", { class: "hmi-ed-hint" }, "Para malhas de controle: mostra PV, SP e saída, com botões Auto/Manual, Alterar SP e Saída manual."));
+					props.appendChild(pair(field("Chave do PV (medido)", act.pvKey || "", "text", (v) => setAct("pvKey", v.trim())), field("Unidade", act.pidUnit || "", "text", (v) => setAct("pidUnit", v))));
+					props.appendChild(pair(field("Chave do SP", act.spKey || "", "text", (v) => setAct("spKey", v.trim())), field("Chave da saída (%)", act.opKey || "", "text", (v) => setAct("opKey", v.trim()))));
+					props.appendChild(field("Alterar SP: tópico", act.spTopic || "", "text", (v) => setAct("spTopic", v.trim())));
+					props.appendChild(pair(field("SP mínimo", act.spMin ?? "", "number", (v) => setAct("spMin", v)), field("SP máximo", act.spMax ?? "", "number", (v) => setAct("spMax", v))));
+					props.appendChild(field("Saída manual: tópico", act.opTopic || "", "text", (v) => setAct("opTopic", v.trim())));
+					props.appendChild(pair(field("Saída mínima", act.opMin ?? "0", "number", (v) => setAct("opMin", v)), field("Saída máxima", act.opMax ?? "100", "number", (v) => setAct("opMax", v))));
+					props.appendChild(field("Auto/Manual: tópico", act.modeTopic || "", "text", (v) => setAct("modeTopic", v.trim())));
+					props.appendChild(pair(field("valor Auto", act.autoValue ?? "1", "text", (v) => setAct("autoValue", v)), field("valor Manual", act.manValue ?? "0", "text", (v) => setAct("manValue", v))));
 				} else if (act.mode === "page") {
 					const pages = o.getPages && o.getPages() || [];
 					const pf = pages.length ? field("Página", act.value, "select", (v) => setAct("value", v), [["", "(escolha)"], ...pages]) : field("Página (caminho, ex. /linha2)", act.value, "text", (v) => setAct("value", v.trim()));
@@ -6679,6 +7075,13 @@ ${[
 					"faceplate"
 				].includes(act.mode)) props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
 				if (act.mode !== "page") props.appendChild(field("Pedir senha", act.pin || "no", "select", (v) => setAct("pin", v), [["no", "Não"], ["yes", "Sim (a senha do nó)"]]));
+				if (act.mode !== "page") {
+					const il = field("Intertravamento: chaves que precisam estar ligadas", act.interlock || "", "text", (v) => setAct("interlock", v.trim()));
+					il.querySelector("input").placeholder = "ex.: permissivo, !emergencia";
+					props.appendChild(il);
+					props.appendChild(field("Motivo mostrado quando bloqueado", act.interlockText || "", "text", (v) => setAct("interlockText", v)));
+					props.appendChild(el("div", { class: "hmi-ed-hint" }, "Separe por vírgula; \"!\" na frente exige a chave desligada. O Node-RED recusa o comando enquanto faltar alguma, e o símbolo mostra um cadeado."));
+				}
 				if (act.mode !== "page") props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
 			}
 		}
@@ -6790,6 +7193,51 @@ ${[
 			});
 			url.querySelector("input").placeholder = "https://... ou /imagens/maquina.png";
 			props.appendChild(url);
+		}
+		function svgFields(s, smallBtn) {
+			props.appendChild(el("h5", {}, "Desenho SVG"));
+			const input = el("input", {
+				type: "file",
+				accept: ".svg,image/svg+xml",
+				style: "display:none"
+			});
+			const btns = el("div", { class: "hmi-ed-btnrow" });
+			smallBtn(btns, s.props.svg ? "Trocar" : "Escolher arquivo .svg", "Um desenho do Inkscape, Illustrator, draw.io... até 300 KB", () => input.click());
+			input.addEventListener("change", () => {
+				const file = input.files && input.files[0];
+				if (!file) return;
+				if (file.size > 307200) return api.setMessage("SVG grande demais (máx. 300 KB)");
+				file.text().then((text) => {
+					const clean = cleanSvg(text);
+					if (!clean) return api.setMessage("Não é um SVG válido");
+					s.props.svg = clean;
+					const vb = String(parseSvg(clean).viewBox).split(/[\s,]+/).map(Number);
+					if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) s.h = Math.max(10, Math.round(s.w * vb[3] / vb[2]));
+					refresh();
+					changed();
+				});
+			});
+			props.appendChild(btns);
+			props.appendChild(input);
+			const parsed = parseSvg(s.props.svg);
+			const row = el("div", { class: "hmi-ed-f" });
+			row.appendChild(el("label", {}, "Ligações (uma por linha)"));
+			const ta = el("textarea", {
+				rows: "5",
+				style: "width:100%;font-family:monospace;font-size:12px",
+				placeholder: "motor1 = M1.ligado\nfalha1 = M1.falha : alarme\ntempTxt = # temperatura"
+			});
+			ta.value = s.props.binds || "";
+			ta.addEventListener("input", () => {
+				s.props.binds = ta.value;
+				draw();
+				changed();
+			});
+			ta.addEventListener("keydown", (e) => e.stopPropagation());
+			row.appendChild(ta);
+			props.appendChild(row);
+			props.appendChild(el("div", { class: "hmi-ed-hint" }, "id = chave: o elemento fica escuro quando a chave liga. \": alarme\" deixa vermelho, \": atencao\" amarelo, \": esconder\" some. \"id = # chave\" mostra o valor num texto."));
+			if (parsed && parsed.ids.length) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Elementos com id neste desenho: " + parsed.ids.slice(0, 40).join(", ") + (parsed.ids.length > 40 ? "…" : "")));
 		}
 		function refresh() {
 			draw();
@@ -7183,18 +7631,35 @@ ${[
 			}) : "").join("") + "</svg>";
 		};
 		function insertBlock(b, cx, cy) {
-			const syms = b.symbols.filter((m) => m && SYMBOLS[m.type]);
-			if (!syms.length) return;
-			const w = Math.max(...syms.map((m) => box(m).x + box(m).w));
-			const h = Math.max(...syms.map((m) => box(m).y + box(m).h));
-			const ox = snap(cx - w / 2) - 20;
+			const base = cleanBlockSymbols(b.symbols);
+			if (!base.length) return;
+			const params = blockParams({ symbols: base });
+			const sets = [{}];
+			for (const k of params) {
+				const raw = window.prompt("Bloco \"" + b.name + "\": valor de {{" + k + "}}\nVários separados por vírgula colocam uma cópia para cada (ex.: M1, M2, M3)", "");
+				if (raw === null) return;
+				const vals = raw.split(",").map((t) => t.trim()).filter(Boolean);
+				if (!vals.length) vals.push("");
+				while (sets.length < vals.length) sets.push({ ...sets[0] });
+				sets.forEach((st, i) => {
+					st[k] = vals[Math.min(i, vals.length - 1)];
+				});
+			}
+			const w = Math.max(...base.map((m) => box(m).x + box(m).w));
+			const h = Math.max(...base.map((m) => box(m).y + box(m).h));
+			const total = sets.length * w + (sets.length - 1) * 20;
 			const oy = snap(cy - h / 2) - 20;
-			const out = paste(syms.map((m) => ({
-				...clone(m),
-				x: m.x + ox,
-				y: m.y + oy
-			})));
-			if (out && out.length > 1 && !out.some((m) => m.group)) group();
+			sets.forEach((st, i) => {
+				const syms = params.length ? fillBlock({ symbols: base }, st) : base;
+				const ox = snap(cx - total / 2 + i * (w + 20)) - 20;
+				const out = paste(syms.map((m) => ({
+					...clone(m),
+					x: m.x + ox,
+					y: m.y + oy
+				})));
+				if (out && out.length > 1 && !out.some((m) => m.group)) group();
+			});
+			if (sets.length > 1) msg.textContent = sets.length + " cópias do bloco colocadas.";
 		}
 		function openBlocks(btn) {
 			menu = el("div", { class: "hmi-ed-menu" });
@@ -7206,6 +7671,16 @@ ${[
 				placeholder: "Nome do bloco (ex.: Motor com tag)"
 			});
 			name.addEventListener("keydown", (e) => {
+				e.stopPropagation();
+				if (e.key === "Enter") saveSel();
+			});
+			const param = el("input", {
+				type: "text",
+				placeholder: "Parte que muda (ex.: M1)",
+				title: "Opcional: o trecho das chaves e textos que muda de uma cópia para outra. Vira {{tag}} e é perguntado ao colocar o bloco.",
+				style: "width:150px"
+			});
+			param.addEventListener("keydown", (e) => {
 				e.stopPropagation();
 				if (e.key === "Enter") saveSel();
 			});
@@ -7222,11 +7697,14 @@ ${[
 			const saveSel = () => {
 				const sel = selection();
 				if (!sel.length) return;
-				blocks.push(makeBlock(name.value.trim() || "Bloco " + (blocks.length + 1), sel));
+				blocks.push(makeBlock(name.value.trim() || "Bloco " + (blocks.length + 1), sel, param.value));
 				msg.textContent = saveBlocks(blocks) ? "Bloco salvo." : "Não deu para salvar (memória do navegador cheia?).";
 				closeMenu();
 			};
-			if (ed.multi.length) row.appendChild(name);
+			if (ed.multi.length) {
+				row.appendChild(name);
+				row.appendChild(param);
+			}
 			mini("Salvar seleção", ed.multi.length ? "Guarda os símbolos selecionados como um bloco" : "Selecione os símbolos primeiro", saveSel, !ed.multi.length);
 			mini("Exportar", "Baixa todos os blocos num arquivo .json", () => {
 				const a = el("a", {
@@ -7247,7 +7725,10 @@ ${[
 				if (!f) return;
 				f.text().then((t) => {
 					const data = JSON.parse(t);
-					const got = (Array.isArray(data) ? data : data.hmiBlocks || []).filter((b) => b && typeof b.name === "string" && Array.isArray(b.symbols));
+					const got = (Array.isArray(data) ? data : data.hmiBlocks || []).filter((b) => b && typeof b.name === "string" && Array.isArray(b.symbols)).map((b) => ({
+						name: b.name.slice(0, 60),
+						symbols: cleanBlockSymbols(b.symbols)
+					})).filter((b) => b.symbols.length);
 					msg.textContent = saveBlocks([...loadBlocks(), ...got]) ? got.length + " bloco(s) importado(s)." : "Não deu para salvar.";
 				}).catch(() => {
 					msg.textContent = "Arquivo de blocos inválido.";
@@ -7265,7 +7746,8 @@ ${[
 					title: "Arraste para a tela ou clique"
 				});
 				item.innerHTML = blockIcon(b);
-				item.appendChild(el("span", {}, b.name));
+				const ps = blockParams(b);
+				item.appendChild(el("span", {}, b.name + (ps.length ? " (" + ps.map((k) => "{{" + k + "}}").join(" ") + ")" : "")));
 				const del = el("button", {
 					type: "button",
 					class: "hmi-ed-del",
@@ -7727,18 +8209,23 @@ ${[
 	exports.SYMBOLS = SYMBOLS;
 	exports.THEMES = THEMES;
 	exports.alarmIndicator = alarmIndicator;
+	exports.cleanSvg = cleanSvg;
 	exports.createEditor = createEditor;
 	exports.createSymbol = createSymbol;
 	exports.escapeXml = escapeXml;
 	exports.fillKeys = fillKeys;
 	exports.formatValue = formatValue;
 	exports.injectStyles = injectStyles;
+	exports.interlockOf = interlockOf;
 	exports.isOn = isOn;
 	exports.linePoints = linePoints;
 	exports.onState = onState;
 	exports.paletteItems = paletteItems;
+	exports.parseBinds = parseBinds;
 	exports.parsePreview = parsePreview;
+	exports.parseSvg = parseSvg;
 	exports.rangeState = rangeState;
+	exports.renderOverlay = renderOverlay;
 	exports.renderSymbol = renderSymbol;
 	exports.ruleEffects = ruleEffects;
 	exports.ruleMatch = ruleMatch;

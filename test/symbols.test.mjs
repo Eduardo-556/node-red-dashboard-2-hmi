@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (['frame', 'shape', 'stack', 'image', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
+        if (['frame', 'shape', 'stack', 'image', 'svgImport', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor

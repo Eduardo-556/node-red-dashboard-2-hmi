@@ -72,8 +72,8 @@ test('typed setpoints are checked against the configured range', () => {
     const syms = [{ id: 's', type: 'setpoint', key: 'vel', action: { mode: 'input', topic: 'velAlvo', min: '0', max: '200' } }]
     const act = value => { const o = actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'input', value } }); if (o) delete o.audit; return o }
     assert.deepStrictEqual(act('150,5'), { topic: 'velAlvo', payload: 150.5, symbol: { id: 's', type: 'setpoint', key: 'vel' } })
-    assert.strictEqual(act('250'), null)
-    assert.strictEqual(act('-1'), null)
+    assert.deepStrictEqual(act('250'), { rejected: 'Valor fora da faixa (0 a 200)' })
+    assert.ok(act('-1').rejected)
     assert.strictEqual(act('abc'), null)
     assert.strictEqual(act(''), null)
     assert.strictEqual(actionMessage(syms, {}, { _hmiAction: { id: 's', phase: 'click' } }), null)

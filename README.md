@@ -90,9 +90,9 @@ Qualquer símbolo pode ter uma ação em **Ao clicar no dashboard**. A mensagem 
 | Enviar um valor | O valor configurado (número, `true`/`false` ou texto). |
 | Inverter | O contrário do valor atual da chave: 1/0, ou `true`/`false` se a chave for booleana. |
 | Pulso | 1 ao apertar e 0 ao soltar (ou `true`/`false`). Bom para botões de partida do CLP. |
-| Digitar um valor | Abre um campo para digitar um número; fora do mínimo/máximo configurado não é enviado. |
+| Digitar um valor | Abre um teclado numérico na tela (bom para touch); fora do mínimo/máximo ou acima da **maior mudança de uma vez** não é enviado. |
 | Ir para outra página | Abre outra página do dashboard (escolhida na lista) ou um endereço. Não sai mensagem pelo nó. |
-| Abrir faceplate | Abre uma janela com estado, valor, modo, horas, partidas, alarmes do equipamento e os botões **Ligar**, **Desligar** e **Reset** (cada um com seu tópico e valor). Botão sem tópico não aparece. |
+| Abrir faceplate | Abre uma janela com estado, valor, modo, horas, partidas, alarmes do equipamento e os botões **Ligar**, **Desligar** e **Reset** (cada um com seu tópico e valor). Botão sem tópico não aparece. Para malhas de controle (**Regulador PID**): PV, SP e saída com barra, e botões **Auto**, **Manual**, **Alterar SP** e **Saída manual**. Clique com o botão direito (ou toque longo) também abre. |
 
 **Pedir confirmação** abre um "Confirmar?" antes de enviar. O valor enviado é sempre o que está configurado no nó; o navegador só avisa qual símbolo foi clicado.
 
@@ -109,6 +109,8 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 - Num símbolo, **Na lista de alarmes: não** tira ele da lista; **Prioridade** muda de 1 a 3.
 - **Suprimir** (botão II na linha): esconde o alarme da lista e dos contadores pelo tempo configurado na Lista de alarmes (30 min por padrão). Fica na aba **Suprimidos**, com hora de volta e quem suprimiu; ▶ libera antes. Suprimir e liberar vão para o histórico.
 - **Som** (no nó): sem som, bipe quando entra alarme novo, ou bipe a cada 10 s até reconhecer. O botão 🔔 na lista silencia só aquele navegador. O navegador só toca som depois de um clique na página.
+- O símbolo com alarme ganha uma borda na cor da prioridade, piscando até reconhecer. Clique numa linha da lista para destacar o símbolo na tela.
+- Reconhecer pelo fluxo: mande `msg._hmiAck = "all"` (ou o id do alarme) para o nó.
 - Com **Eventos: enviar** no nó, cada mudança sai como `{ topic: 'alarme', payload: { event: 'ATIVO' | 'NORMAL' | 'RECONHECIDO', text, priority, ts, user } }`.
 
 ### Editor
@@ -126,7 +128,25 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 - **Travar** (`Ctrl+L`): o símbolo não é selecionado nem movido clicando na tela; bom para fundos e estruturas.
 - **Camadas**: lista de todos os símbolos (o de cima primeiro) com busca por nome ou chave. Clique seleciona (até os travados), 🔒 trava, 👁 esconde só no editor. **Nome (em Camadas)** dá um nome a cada símbolo.
 - **Blocos**: selecione símbolos e **Salvar seleção** guarda como bloco. O bloco entra em qualquer tela (clique ou arraste) já agrupado. Os blocos ficam no navegador; **Exportar** / **Importar** levam para outro computador num arquivo .json.
+- **Bloco com parâmetro**: ao salvar, preencha **Parte que muda** (ex.: `M1`). Ela vira `{{tag}}` nas chaves, tópicos e textos. Ao colocar o bloco, o editor pergunta o valor; vários separados por vírgula (`M1, M2, M3`) colocam uma cópia para cada, lado a lado.
 - Teclas: `Delete` apaga, setas movem (`Shift` = 10 px), `Ctrl+Z` / `Ctrl+Y` desfazem e refazem, `Ctrl+C` / `Ctrl+V` copiam e colam (também entre canvas abertos na mesma aba do navegador), `Ctrl+D` duplica, `Ctrl+A` seleciona tudo, `Esc` limpa a seleção.
+
+### Qualidade do dado
+
+- `msg.quality = { "temp": "bad" }` (ou `"uncertain"`, ou `"good"` para limpar) marca a chave: os símbolos dela ficam apagados com × (ruim) ou ? (incerto).
+- **Valor velho** (no nó): uma chave que não recebe leitura há N segundos fica apagada com um relógio.
+
+### SVG com partes ligadas
+
+Símbolo em **Formas** para usar um desenho próprio (Inkscape, draw.io, P&ID). Escolha o arquivo .svg e escreva as ligações, uma por linha:
+
+```
+motor1 = M1.ligado          o elemento com id motor1 fica escuro quando a chave liga
+falha1 = M1.falha : alarme  vermelho quando liga (": atencao" amarelo, ": esconder" some)
+tempTxt = # temperatura     o texto mostra o valor
+```
+
+O editor lista os ids do desenho. Scripts, eventos e links para fora do desenho são removidos.
 
 ### Temas
 
@@ -139,10 +159,15 @@ O canvas monta uma lista de alarmes (estilo ISA-18.2) com tudo que os símbolos 
 |---|---|
 | Show in | Página inteira ou dentro de um grupo. |
 | Screen | Tamanho da tela em pixels (o sistema de coordenadas dos símbolos). |
-| Background | **Cor do tema** ou **Transparente** (aparece o fundo da página do dashboard). |
+| Background | **Cor do tema**, **Transparente** (aparece o fundo da página do dashboard) ou **Cor do Dashboard** (segue o tema claro/escuro do Dashboard). |
 | Fit | **Caber na tela**: a tela inteira aparece sem rolar. **Largura toda**: ocupa a largura e a altura acompanha. |
 | Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
 | Number format | Formato dos números, ex. `pt-BR` (1.450,5) ou `en-US` (1,450.5). |
+| Valor velho | Segundos sem leitura de uma chave até marcá-la como velha (0 desliga). |
+| Confirmação | Segundos esperando o CLP devolver o valor de um comando (0 desliga). |
+| Comandar / Reconhecer / Suprimir | Quem pode (nomes separados por vírgula; vazio = todos, `-` = ninguém). |
+
+`msg.ui_update` muda em funcionamento: `theme`, `background`, `viewW`, `viewH`, `fit`, `locale`, `offlineAfter`, `staleAfter`, `alarmSound`.
 
 ### Exemplo
 
@@ -177,6 +202,8 @@ Alarms (ISA-18.2 style): the canvas tracks every fault key, lo/hi limit, alarm b
 Per symbol: **scale** (`raw × factor ÷ divisor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 
 Machine parts (gears and pulleys that turn while a key is on, belt and chain drives, gearbox, coupling, spring, lead screw, linear guide, rack, link, 3D boxes and cylinders, guards, doors), more geometric shapes and a **free shape** (polygon with draggable points, straight or smooth). Text with `{key}` placeholders (several keys in one line), any shape filled by a value, charts (bar chart with goal line, donut, OEE = availability × performance × quality). Editor: symbol search, zoom and pan, smart guides, lock, layers panel (search, lock, hide in editor), and **blocks**: save a selection and reuse it on any screen (stored in the browser, export/import as JSON). Examples: paint line, conveyors (both simulated) and a Schneider M221 screen using node-red-contrib-schneider-modbus-tags.
+
+Security and operation (0.1.1): page clicks go to the node through a small Dashboard 2.0 plugin, so a page can only trigger the commands configured on the symbols (never send values or its own messages). Per-canvas user lists for **commands**, **acknowledge** and **shelve** (user from the dashboard login or `httpNodeAuth`; empty = everybody, `-` = nobody), checked in Node-RED. Password tries are rate limited. Hold-to-run pulses are released by the node when the page closes, disconnects or stops answering. **Interlocks** per command (keys that must be on, `!` for off) with a padlock mark, max step for typed setpoints, **write confirmation** (dashed border until the key reads back the value, red on timeout), **data quality** (`msg.quality`, and stale keys), alarm border on the symbol (click a row in the alarm list to highlight it), PID faceplate (PV/SP/OP, auto/manual, setpoint and manual output), on-screen numeric keypad, `msg.enabled` and `msg.ui_update`, flow acknowledgement (`msg._hmiAck`), **parameterized blocks** (`{{tag}}`, place M1, M2, M3 at once) and an **SVG with bound parts** symbol (element ids follow keys; scripts and external links are stripped).
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

@@ -1,6 +1,6 @@
 // Drag-and-drop screen editor. Plain DOM, no framework, so the same editor
 // runs inside the Node-RED edit dialog and inside the dashboard page.
-import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints, scaleValue, RULE_OPS, RULE_EFFECTS } from '../symbols/index.js'
+import { SYMBOLS, CATEGORIES, paletteItems, createSymbol, renderSymbol, injectStyles, linePoints, scaleValue, RULE_OPS, RULE_EFFECTS, cleanSvg, parseSvg } from '../symbols/index.js'
 
 const GRID = 10
 // resize handles: direction and position as a fraction of the box
@@ -72,13 +72,54 @@ export function searchPalette (text) {
     }
     return out.slice(0, 60)
 }
-// symbols moved so the block starts at 0,0
-export function makeBlock (name, list) {
-    const syms = clone(list)
+// symbols moved so the block starts at 0,0. param: a piece of the keys and
+// texts (e.g. "M1") that becomes {{tag}}, asked again when the block is placed
+export function makeBlock (name, list, param) {
+    let syms = clone(list)
     const x = Math.min(...syms.map(m => m.x))
     const y = Math.min(...syms.map(m => m.y))
     for (const m of syms) { m.x -= x; m.y -= y; delete m.locked }
+    const p = String(param || '').trim()
+    if (p) syms = replaceStrings(syms, s => s.split(p).join('{{tag}}'))
     return { name: String(name || 'Bloco').slice(0, 60), symbols: syms }
+}
+// every string inside a value (keys, topics, texts, rules...), changed by fn
+function replaceStrings (v, fn) {
+    // pictures (data: addresses) are left alone
+    if (typeof v === 'string') return v.startsWith('data:') ? v : fn(v)
+    if (Array.isArray(v)) return v.map(x => replaceStrings(x, fn))
+    if (v && typeof v === 'object') {
+        const out = {}
+        for (const k of Object.keys(v)) out[k] = k === 'id' || k === 'type' || k === 'group' ? v[k] : replaceStrings(v[k], fn)
+        return out
+    }
+    return v
+}
+// the {{name}} parameters of a block
+export function blockParams (b) {
+    const out = []
+    const re = /\{\{(\w{1,30})\}\}/g
+    let m
+    const text = JSON.stringify(b.symbols)
+    while ((m = re.exec(text))) if (!out.includes(m[1])) out.push(m[1])
+    return out
+}
+// the block's symbols with every {{name}} replaced
+export function fillBlock (b, values) {
+    return replaceStrings(b.symbols, s => s.replace(/\{\{(\w{1,30})\}\}/g, (all, k) => values[k] !== undefined ? String(values[k]) : all))
+}
+// symbols from a block file or the browser storage: only what the editor can draw
+export function cleanBlockSymbols (list) {
+    const n = v => (isFinite(Number(v)) ? Number(v) : 0)
+    return (Array.isArray(list) ? list : []).filter(m => m && typeof m === 'object' && typeof m.id === 'string' && typeof m.type === 'string' && SYMBOLS[m.type]).map(m => {
+        const c = { ...m, x: n(m.x), y: n(m.y), w: Math.max(10, n(m.w) || SYMBOLS[m.type].w || 10), h: Math.max(1, n(m.h) || SYMBOLS[m.type].h || 10), rot: n(m.rot), key: typeof m.key === 'string' ? m.key : '' }
+        c.props = m.props && typeof m.props === 'object' && !Array.isArray(m.props) ? m.props : {}
+        if (m.action && (typeof m.action !== 'object' || Array.isArray(m.action))) delete c.action
+        if (m.rules && !Array.isArray(m.rules)) delete c.rules
+        if (m.scale && typeof m.scale !== 'object') delete c.scale
+        if (typeof m.group !== 'string') delete c.group
+        return c
+    })
 }
 export function layerName (s) {
     const p = (s && s.props) || {}
@@ -578,7 +619,8 @@ export function createEditor (root, opts) {
             else s.preview = p
         }))
         if (def.image) imageFields(s, smallBtn)
-        if (!def.line && !def.image && !def.alarms && !['frame', 'stack'].includes(s.type)) {
+        if (def.svgImport) svgFields(s, smallBtn)
+        if (!def.line && !def.image && !def.svgImport && !def.alarms && !['frame', 'stack'].includes(s.type)) {
             props.appendChild(el('h5', {}, 'Escala do valor'))
             const sc = s.scale || {}
             const setSc = (k, v) => {
@@ -601,7 +643,10 @@ export function createEditor (root, opts) {
         props.appendChild(field('Ação', act.mode || 'none', 'select', v => { setAct('mode', v); setTimeout(showProps) }, ACTIONS))
         if (act.mode && act.mode !== 'none') {
             if (act.mode === 'value') props.appendChild(field('Valor enviado', act.value, 'text', v => setAct('value', v)))
-            if (act.mode === 'input') props.appendChild(pair(field('Mínimo', act.min, 'number', v => setAct('min', v)), field('Máximo', act.max, 'number', v => setAct('max', v))))
+            if (act.mode === 'input') {
+                props.appendChild(pair(field('Mínimo', act.min, 'number', v => setAct('min', v)), field('Máximo', act.max, 'number', v => setAct('max', v))))
+                props.appendChild(field('Maior mudança de uma vez (vazio = sem limite)', act.maxStep ?? '', 'number', v => setAct('maxStep', v)))
+            }
             if (act.mode === 'faceplate') {
                 props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Abre uma janela com estado, alarmes deste símbolo e os campos abaixo. Deixe vazio o que não usa.'))
                 props.appendChild(pair(field('Chave de um valor', act.valueKey || '', 'text', v => setAct('valueKey', v.trim())), field('Unidade', act.valueUnit || '', 'text', v => setAct('valueUnit', v))))
@@ -610,6 +655,16 @@ export function createEditor (root, opts) {
                 for (const [k, label] of [['on', 'Ligar'], ['off', 'Desligar'], ['reset', 'Reset']]) {
                     props.appendChild(pair(field('Botão ' + label + ': tópico', act[k + 'Topic'] || '', 'text', v => setAct(k + 'Topic', v.trim())), field('valor', act[k + 'Value'] ?? '', 'text', v => setAct(k + 'Value', v))))
                 }
+                props.appendChild(el('h5', {}, 'Regulador (PID)'))
+                props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Para malhas de controle: mostra PV, SP e saída, com botões Auto/Manual, Alterar SP e Saída manual.'))
+                props.appendChild(pair(field('Chave do PV (medido)', act.pvKey || '', 'text', v => setAct('pvKey', v.trim())), field('Unidade', act.pidUnit || '', 'text', v => setAct('pidUnit', v))))
+                props.appendChild(pair(field('Chave do SP', act.spKey || '', 'text', v => setAct('spKey', v.trim())), field('Chave da saída (%)', act.opKey || '', 'text', v => setAct('opKey', v.trim()))))
+                props.appendChild(field('Alterar SP: tópico', act.spTopic || '', 'text', v => setAct('spTopic', v.trim())))
+                props.appendChild(pair(field('SP mínimo', act.spMin ?? '', 'number', v => setAct('spMin', v)), field('SP máximo', act.spMax ?? '', 'number', v => setAct('spMax', v))))
+                props.appendChild(field('Saída manual: tópico', act.opTopic || '', 'text', v => setAct('opTopic', v.trim())))
+                props.appendChild(pair(field('Saída mínima', act.opMin ?? '0', 'number', v => setAct('opMin', v)), field('Saída máxima', act.opMax ?? '100', 'number', v => setAct('opMax', v))))
+                props.appendChild(field('Auto/Manual: tópico', act.modeTopic || '', 'text', v => setAct('modeTopic', v.trim())))
+                props.appendChild(pair(field('valor Auto', act.autoValue ?? '1', 'text', v => setAct('autoValue', v)), field('valor Manual', act.manValue ?? '0', 'text', v => setAct('manValue', v))))
             } else if (act.mode === 'page') {
                 const pages = (o.getPages && o.getPages()) || []
                 const pf = pages.length
@@ -624,6 +679,13 @@ export function createEditor (root, opts) {
             }
             if (['value', 'toggle', 'page', 'faceplate'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
             if (act.mode !== 'page') props.appendChild(field('Pedir senha', act.pin || 'no', 'select', v => setAct('pin', v), [['no', 'Não'], ['yes', 'Sim (a senha do nó)']]))
+            if (act.mode !== 'page') {
+                const il = field('Intertravamento: chaves que precisam estar ligadas', act.interlock || '', 'text', v => setAct('interlock', v.trim()))
+                il.querySelector('input').placeholder = 'ex.: permissivo, !emergencia'
+                props.appendChild(il)
+                props.appendChild(field('Motivo mostrado quando bloqueado', act.interlockText || '', 'text', v => setAct('interlockText', v)))
+                props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Separe por vírgula; "!" na frente exige a chave desligada. O Node-RED recusa o comando enquanto faltar alguma, e o símbolo mostra um cadeado.'))
+            }
             if (act.mode !== 'page') props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
         }
     }
@@ -705,6 +767,41 @@ export function createEditor (root, opts) {
         const url = field('ou endereço da imagem (URL)', String(s.props.src || '').startsWith('data:') ? '' : s.props.src, 'text', v => { s.props.src = v.trim() })
         url.querySelector('input').placeholder = 'https://... ou /imagens/maquina.png'
         props.appendChild(url)
+    }
+
+    // "SVG com partes ligadas": the file, and which of its elements follow which key
+    function svgFields (s, smallBtn) {
+        props.appendChild(el('h5', {}, 'Desenho SVG'))
+        const input = el('input', { type: 'file', accept: '.svg,image/svg+xml', style: 'display:none' })
+        const btns = el('div', { class: 'hmi-ed-btnrow' })
+        smallBtn(btns, s.props.svg ? 'Trocar' : 'Escolher arquivo .svg', 'Um desenho do Inkscape, Illustrator, draw.io... até 300 KB', () => input.click())
+        input.addEventListener('change', () => {
+            const file = input.files && input.files[0]
+            if (!file) return
+            if (file.size > 300 * 1024) return api.setMessage('SVG grande demais (máx. 300 KB)')
+            file.text().then(text => {
+                const clean = cleanSvg(text)
+                if (!clean) return api.setMessage('Não é um SVG válido')
+                s.props.svg = clean
+                const vb = String(parseSvg(clean).viewBox).split(/[\s,]+/).map(Number)
+                if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) s.h = Math.max(10, Math.round(s.w * vb[3] / vb[2]))
+                refresh()
+                changed()
+            })
+        })
+        props.appendChild(btns)
+        props.appendChild(input)
+        const parsed = parseSvg(s.props.svg)
+        const row = el('div', { class: 'hmi-ed-f' })
+        row.appendChild(el('label', {}, 'Ligações (uma por linha)'))
+        const ta = el('textarea', { rows: '5', style: 'width:100%;font-family:monospace;font-size:12px', placeholder: 'motor1 = M1.ligado\nfalha1 = M1.falha : alarme\ntempTxt = # temperatura' })
+        ta.value = s.props.binds || ''
+        ta.addEventListener('input', () => { s.props.binds = ta.value; draw(); changed() })
+        ta.addEventListener('keydown', e => e.stopPropagation())
+        row.appendChild(ta)
+        props.appendChild(row)
+        props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'id = chave: o elemento fica escuro quando a chave liga. ": alarme" deixa vermelho, ": atencao" amarelo, ": esconder" some. "id = # chave" mostra o valor num texto.'))
+        if (parsed && parsed.ids.length) props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Elementos com id neste desenho: ' + parsed.ids.slice(0, 40).join(', ') + (parsed.ids.length > 40 ? '…' : '')))
     }
 
     function refresh () { draw(); showProps() }
@@ -989,15 +1086,31 @@ export function createEditor (root, opts) {
             b.symbols.map(m => SYMBOLS[m.type] ? renderSymbol(m, m.preview !== undefined ? m.preview : SYMBOLS[m.type].preview, { editor: true, values: {} }) : '').join('') + '</svg>'
     }
     function insertBlock (b, cx, cy) {
-        const syms = b.symbols.filter(m => m && SYMBOLS[m.type])
-        if (!syms.length) return
-        const w = Math.max(...syms.map(m => box(m).x + box(m).w))
-        const h = Math.max(...syms.map(m => box(m).y + box(m).h))
-        const ox = snap(cx - w / 2) - 20
+        const base = cleanBlockSymbols(b.symbols)
+        if (!base.length) return
+        // a block with {{tag}}: one copy per value typed (M1, M2, M3 side by side)
+        const params = blockParams({ symbols: base })
+        const sets = [{}]
+        for (const k of params) {
+            const raw = window.prompt('Bloco "' + b.name + '": valor de {{' + k + '}}\nVários separados por vírgula colocam uma cópia para cada (ex.: M1, M2, M3)', '')
+            if (raw === null) return
+            const vals = raw.split(',').map(t => t.trim()).filter(Boolean)
+            if (!vals.length) vals.push('')
+            while (sets.length < vals.length) sets.push({ ...sets[0] })
+            sets.forEach((st, i) => { st[k] = vals[Math.min(i, vals.length - 1)] })
+        }
+        const w = Math.max(...base.map(m => box(m).x + box(m).w))
+        const h = Math.max(...base.map(m => box(m).y + box(m).h))
+        const total = sets.length * w + (sets.length - 1) * 20
         const oy = snap(cy - h / 2) - 20
-        const out = paste(syms.map(m => ({ ...clone(m), x: m.x + ox, y: m.y + oy })))
-        // the block lands as one group, so it moves as a piece; Ctrl+Shift+G breaks it up
-        if (out && out.length > 1 && !out.some(m => m.group)) group()
+        sets.forEach((st, i) => {
+            const syms = params.length ? fillBlock({ symbols: base }, st) : base
+            const ox = snap(cx - total / 2 + i * (w + 20)) - 20
+            const out = paste(syms.map(m => ({ ...clone(m), x: m.x + ox, y: m.y + oy })))
+            // each copy lands as one group, so it moves as a piece; Ctrl+Shift+G breaks it up
+            if (out && out.length > 1 && !out.some(m => m.group)) group()
+        })
+        if (sets.length > 1) msg.textContent = sets.length + ' cópias do bloco colocadas.'
     }
     function openBlocks (btn) {
         menu = el('div', { class: 'hmi-ed-menu' })
@@ -1006,6 +1119,8 @@ export function createEditor (root, opts) {
         const row = el('div', { class: 'hmi-ed-menurow' })
         const name = el('input', { type: 'text', placeholder: 'Nome do bloco (ex.: Motor com tag)' })
         name.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') saveSel() })
+        const param = el('input', { type: 'text', placeholder: 'Parte que muda (ex.: M1)', title: 'Opcional: o trecho das chaves e textos que muda de uma cópia para outra. Vira {{tag}} e é perguntado ao colocar o bloco.', style: 'width:150px' })
+        param.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') saveSel() })
         const mini = (label, title, fn, disabled) => {
             const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
             if (disabled) b.disabled = true
@@ -1015,11 +1130,11 @@ export function createEditor (root, opts) {
         const saveSel = () => {
             const sel = selection()
             if (!sel.length) return
-            blocks.push(makeBlock(name.value.trim() || ('Bloco ' + (blocks.length + 1)), sel))
+            blocks.push(makeBlock(name.value.trim() || ('Bloco ' + (blocks.length + 1)), sel, param.value))
             msg.textContent = saveBlocks(blocks) ? 'Bloco salvo.' : 'Não deu para salvar (memória do navegador cheia?).'
             closeMenu()
         }
-        if (ed.multi.length) row.appendChild(name)
+        if (ed.multi.length) { row.appendChild(name); row.appendChild(param) }
         mini('Salvar seleção', ed.multi.length ? 'Guarda os símbolos selecionados como um bloco' : 'Selecione os símbolos primeiro', saveSel, !ed.multi.length)
         mini('Exportar', 'Baixa todos os blocos num arquivo .json', () => {
             const a = el('a', { download: 'blocos-ihm.json', href: URL.createObjectURL(new Blob([JSON.stringify({ hmiBlocks: blocks }, null, 1)], { type: 'application/json' })) })
@@ -1034,6 +1149,7 @@ export function createEditor (root, opts) {
             f.text().then(t => {
                 const data = JSON.parse(t)
                 const got = (Array.isArray(data) ? data : data.hmiBlocks || []).filter(b => b && typeof b.name === 'string' && Array.isArray(b.symbols))
+                    .map(b => ({ name: b.name.slice(0, 60), symbols: cleanBlockSymbols(b.symbols) })).filter(b => b.symbols.length)
                 msg.textContent = saveBlocks([...loadBlocks(), ...got]) ? got.length + ' bloco(s) importado(s).' : 'Não deu para salvar.'
             }).catch(() => { msg.textContent = 'Arquivo de blocos inválido.' })
             closeMenu()
@@ -1045,7 +1161,8 @@ export function createEditor (root, opts) {
         blocks.forEach((b, i) => {
             const item = el('div', { class: 'hmi-ed-item', draggable: 'true', title: 'Arraste para a tela ou clique' })
             item.innerHTML = blockIcon(b)
-            item.appendChild(el('span', {}, b.name))
+            const ps = blockParams(b)
+            item.appendChild(el('span', {}, b.name + (ps.length ? ' (' + ps.map(k => '{{' + k + '}}').join(' ') + ')' : '')))
             const del = el('button', { type: 'button', class: 'hmi-ed-del', title: 'Apagar o bloco' }, '×')
             del.addEventListener('click', e => {
                 e.stopPropagation()

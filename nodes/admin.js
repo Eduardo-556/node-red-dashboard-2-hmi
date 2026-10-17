@@ -3,14 +3,18 @@
 const crypto = require('crypto')
 const http = require('http')
 const https = require('https')
+const net = require('net')
 
-// Edit sessions opened from the Node-RED editor: canvas id -> key
+// Edit sessions opened from the Node-RED editor: canvas id -> { key, until }
 const editKeys = new Map()
+const EDIT_TTL = 4 * 3600 * 1000
 
 const RULE_OPS = ['on', 'off', 'eq', 'ne', 'gt', 'lt']
 const RULE_EFFECTS = ['alarm', 'warn', 'info', 'ok', 'dim', 'blink', 'hide']
 const ACTIONS = ['value', 'toggle', 'pulse', 'input', 'page', 'faceplate']
-const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueKey', 'valueUnit', 'onTopic', 'onValue', 'offTopic', 'offValue', 'resetTopic', 'resetValue']
+const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueKey', 'valueUnit', 'onTopic', 'onValue', 'offTopic', 'offValue', 'resetTopic', 'resetValue',
+    // PID / regulator: process value, setpoint, output and auto/manual
+    'pvKey', 'spKey', 'opKey', 'pidUnit', 'spTopic', 'spMin', 'spMax', 'opTopic', 'opMin', 'opMax', 'modeTopic', 'autoValue', 'manValue']
 
 function cleanSymbols (list) {
     if (!Array.isArray(list)) return null
@@ -46,7 +50,8 @@ function cleanSymbols (list) {
         }
         if (a && typeof a === 'object' && ACTIONS.includes(a.mode)) {
             clean.action = { mode: a.mode, value: String(a.value ?? ''), topic: String(a.topic ?? ''), confirm: a.confirm === 'yes' ? 'yes' : 'no', pin: a.pin === 'yes' ? 'yes' : 'no' }
-            if (a.mode === 'input') Object.assign(clean.action, { min: String(a.min ?? ''), max: String(a.max ?? '') })
+            if (a.interlock) Object.assign(clean.action, { interlock: String(a.interlock).slice(0, 300), interlockText: String(a.interlockText ?? '').slice(0, 120) })
+            if (a.mode === 'input') Object.assign(clean.action, { min: String(a.min ?? ''), max: String(a.max ?? ''), maxStep: String(a.maxStep ?? '') })
             if (a.mode === 'faceplate') for (const k of FACEPLATE_KEYS) clean.action[k] = String(a[k] ?? '').slice(0, 200)
         }
         out.push(clean)
@@ -59,8 +64,10 @@ async function adminRequest (RED, req, method, body) {
     let tls = RED.settings.https
     if (typeof tls === 'function') tls = await tls()
     const lib = tls ? https : http
+    // always this machine: an address of its own (uiHost) or loopback, never a host
+    // name, so the user's credentials cannot be sent anywhere else
     const h = RED.settings.uiHost
-    const host = (!h || h === '0.0.0.0' || h === '::') ? '127.0.0.1' : h
+    const host = (!h || h === '0.0.0.0' || h === '::' || !net.isIP(h)) ? '127.0.0.1' : h
     const root = typeof RED.settings.httpAdminRoot === 'string' ? RED.settings.httpAdminRoot : '/'
     const headers = { 'Node-RED-API-Version': 'v2', Accept: 'application/json' }
     if (req.headers.authorization) headers.authorization = req.headers.authorization
@@ -79,6 +86,7 @@ async function adminRequest (RED, req, method, body) {
             path: ('/' + root + '/flows').replace(/\/+/g, '/'),
             method,
             headers,
+            // our own address: its certificate is not issued for it
             rejectUnauthorized: false,
             ...(tls && typeof tls === 'object' ? { ca: tls.ca, cert: tls.cert, key: tls.key } : {})
         }, res => {
@@ -106,7 +114,7 @@ module.exports = function setupAdmin (RED) {
             return res.status(404).json({ error: 'Canvas not deployed', code: 'NOT_DEPLOYED' })
         }
         const key = crypto.randomBytes(16).toString('hex')
-        editKeys.set(req.params.id, key)
+        editKeys.set(req.params.id, { key, until: Date.now() + EDIT_TTL })
         res.json({ key })
     })
 
@@ -114,7 +122,9 @@ module.exports = function setupAdmin (RED) {
     RED.httpAdmin.post('/hmi-canvas/:id/symbols', canWrite, async function (req, res) {
         const id = req.params.id
         const body = req.body || {}
-        if (!body.key || editKeys.get(id) !== body.key) {
+        const open = editKeys.get(id)
+        if (open && open.until < Date.now()) editKeys.delete(id)
+        if (!body.key || !open || open.key !== body.key || open.until < Date.now()) {
             return res.status(403).json({ error: 'Edit session expired, open the editor again from Node-RED', code: 'BAD_KEY' })
         }
         const symbols = cleanSymbols(body.symbols)
@@ -132,6 +142,7 @@ module.exports = function setupAdmin (RED) {
             if (saved.status !== 200) {
                 return res.status(saved.status).json({ error: (saved.json && saved.json.message) || 'Deploy failed', code: 'POST_FAILED' })
             }
+            editKeys.delete(id)
             res.json({ ok: true, rev: saved.json && saved.json.rev })
         } catch (err) {
             res.status(500).json({ error: err.message, code: 'ERROR' })

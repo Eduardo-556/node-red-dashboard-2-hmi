@@ -125,6 +125,11 @@
             alarms: { value: 'on' },
             alarmsOut: { value: 'no' },
             alarmSound: { value: 'off' },
+            staleAfter: { value: 0, validate: RED.validators.number(true) },
+            confirmTimeout: { value: 5, validate: RED.validators.number(true) },
+            cmdUsers: { value: '' },
+            ackUsers: { value: '' },
+            shelveUsers: { value: '' },
             symbols: { value: [] }
         },
         credentials: {
@@ -215,11 +220,20 @@
         <select id="node-input-background" style="width: 200px">
             <option value="theme">Cor do tema</option>
             <option value="transparent">Transparente</option>
+            <option value="dashboard">Cor do Dashboard (tema claro/escuro)</option>
         </select>
     </div>
     <div class="form-row">
         <label for="node-input-offlineAfter"><i class="fa fa-chain-broken"></i> Offline after</label>
         <input type="number" id="node-input-offlineAfter" style="width: 90px"> s without data (0 = off)
+    </div>
+    <div class="form-row">
+        <label for="node-input-staleAfter"><i class="fa fa-clock-o"></i> Valor velho</label>
+        <input type="number" id="node-input-staleAfter" style="width: 90px"> s sem chegar leitura (0 = off)
+    </div>
+    <div class="form-row">
+        <label for="node-input-confirmTimeout"><i class="fa fa-hourglass-half"></i> Confirmação</label>
+        <input type="number" id="node-input-confirmTimeout" style="width: 90px"> s esperando o CLP (0 = off)
     </div>
     <div class="form-row">
         <label for="node-input-locale"><i class="fa fa-globe"></i> Number format</label>
@@ -252,6 +266,18 @@
         <input type="password" id="node-input-pin" style="width: 260px" placeholder="dos comandos com &quot;Pedir senha&quot;" autocomplete="new-password">
     </div>
     <div class="form-row">
+        <label for="node-input-cmdUsers"><i class="fa fa-users"></i> Comandar</label>
+        <input type="text" id="node-input-cmdUsers" style="width: 260px" placeholder="todos (ou: ana, bruno · - = ninguém)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-ackUsers"><i class="fa fa-check"></i> Reconhecer</label>
+        <input type="text" id="node-input-ackUsers" style="width: 260px" placeholder="todos (ou: ana, bruno · - = ninguém)">
+    </div>
+    <div class="form-row">
+        <label for="node-input-shelveUsers"><i class="fa fa-pause"></i> Suprimir</label>
+        <input type="text" id="node-input-shelveUsers" style="width: 260px" placeholder="os mesmos de Reconhecer">
+    </div>
+    <div class="form-row">
         <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
         <input type="text" id="node-input-name">
     </div>
@@ -271,6 +297,14 @@
         <dd>Values by key, e.g. the output of <code>schneider read</code>: <code>{ "rpm": 1450, "speed": 42.5 }</code>. Keys are merged with the previous values.</dd>
         <dt class="optional">topic <span class="property-type">string</span></dt>
         <dd>With a non-object payload, the value is stored under this key.</dd>
+        <dt class="optional">quality <span class="property-type">object</span></dt>
+        <dd>Data quality by key: <code>{ "temp": "bad" }</code>, <code>"uncertain"</code> or <code>"good"</code> (clears it). The symbols of that key are dimmed and marked × or ?.</dd>
+        <dt class="optional">enabled <span class="property-type">boolean</span></dt>
+        <dd><code>false</code> turns every command of the canvas off (view only); Node-RED also refuses them.</dd>
+        <dt class="optional">ui_update <span class="property-type">object</span></dt>
+        <dd>Changes settings while running: <code>theme</code>, <code>background</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
+        <dt class="optional">_hmiAck <span class="property-type">string</span></dt>
+        <dd>Acknowledges alarms from the flow: an alarm id, <code>"symbol:&lt;id&gt;"</code> or <code>"all"</code>.</dd>
     </dl>
     <h3>Outputs</h3>
     <dl class="message-properties">
@@ -287,7 +321,14 @@
     <p>With <b>Alarmes</b> on, the node tracks every alarm its symbols can show: fault keys, limits (below/above, LL/HH on the ISA-101 bar), alarm banners and tripped breakers. Add the <b>Lista de alarmes</b> symbol to see them; operators acknowledge one alarm or all. An alarm leaves the list when it is back to normal and acknowledged (ISA-18.2). The list is kept in the node context, so a persistent context store keeps it across restarts.</p>
     <p>With <b>Eventos</b> set to output, each change also leaves the node as <code>msg.topic = "alarme"</code> and <code>msg.payload = { event, id, text, priority, ts, user }</code>, with event <code>ATIVO</code>, <code>NORMAL</code> or <code>RECONHECIDO</code>.</p>
     <h3>Password</h3>
-    <p>Commands with <b>Pedir senha</b> ask for the canvas <b>Senha</b>. It is checked by Node-RED, not by the browser.</p>
+    <p>Commands with <b>Pedir senha</b> ask for the canvas <b>Senha</b> on an on-screen keypad. It is checked by Node-RED, not by the browser. After 5 wrong passwords in 5 minutes the address waits 1 minute. A pulse button with password asks once, then can be held for 30 s.</p>
+    <h3>Permissions</h3>
+    <p><b>Comandar</b>, <b>Reconhecer</b> and <b>Suprimir</b> take user names separated by commas; empty means everybody and <code>-</code> nobody. The user comes from the dashboard login (FlowFuse, a multi-user plugin, or HTTP basic auth with <code>httpNodeAuth</code>). Node-RED checks every click, so a page cannot get around it; the buttons the user may not use are hidden.</p>
+    <h3>Safety</h3>
+    <p>A pulse (hold-to-run) button sends 0 by itself when the page closes, loses the connection or stops answering for 1.5 s. Commands are only accepted from the canvas' own symbols: a page cannot send values or other messages through the node.</p>
+    <p><b>Intertravamento</b> (per symbol): keys that must be on (or off with <code>!</code>) for the command to be accepted; the symbol shows a padlock while it is blocked.</p>
+    <p><b>Confirmação</b>: after a command the symbol shows a dashed blue border until its key reads back the new value; with no answer in time it turns red and Node-RED logs a warning.</p>
+    <p><b>Valor velho</b>: a key that got no new reading for that long is shown dimmed with a clock.</p>
     <h3>Themes</h3>
     <p><b>Background</b>: <i>Transparente</i> removes the canvas fill so the dashboard page shows through.</p>
     <p><b>ISA-101</b>: grey, flat symbols; colour only for abnormal states and alarms. <b>Clássico</b>: dark theme with animated reels.</p>

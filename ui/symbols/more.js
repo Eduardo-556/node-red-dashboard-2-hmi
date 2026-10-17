@@ -816,7 +816,10 @@ export function moreSymbols (H) {
         const active = Array.isArray(data.active) ? data.active : []
         const unacked = active.filter(a => !a.acked).length
         const shelvedList = Array.isArray(data.shelved) ? data.shelved : []
-        const canShelve = p.shelve !== 'no'
+        // the node tells each page what its user may do
+        const perm = opts.perm || {}
+        const canAck = perm.ack !== false
+        const canShelve = p.shelve !== 'no' && perm.shelve !== false
         const tx0 = Math.max(150, Math.min(w * 0.32, w - 152 - 340))
         const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? ' ' + cls : ''}" data-hmi="${escapeXml(action)}">${rect('hmi-al-btn-box', x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`
         let out = `<g class="hmi-alarmlist">` + rect('hmi-tag-box', 0.5, 0.5, w - 1, h - 1, 4) +
@@ -824,7 +827,7 @@ export function moreSymbols (H) {
             btn(tx0, 6, 78, 22, 'Ativos', 'tab:active', tab === 'active' ? 'hmi-al-sel' : '') +
             btn(tx0 + 84, 6, 84, 22, 'Histórico', 'tab:history', tab === 'history' ? 'hmi-al-sel' : '') +
             (p.shelve !== 'no' ? btn(tx0 + 174, 6, 112, 22, 'Suprimidos (' + shelvedList.length + ')', 'tab:shelved', tab === 'shelved' ? 'hmi-al-sel' : '') : '') +
-            (unacked ? btn(w - 152, 6, 144, 22, 'Reconhecer todos', 'ack:all', 'hmi-al-ackall') : '') +
+            (unacked && canAck ? btn(w - 152, 6, 144, 22, 'Reconhecer todos', 'ack:all', 'hmi-al-ackall') : '') +
             (opts.sound && opts.sound !== 'off' ? btn(w - 190, 6, 32, 22, opts.muted ? '🔕' : '🔔', 'mute', 'hmi-al-shelve') : '') +
             path('hmi-al-line', `M1 ${head}H${f(w - 1)}`)
         const tx = 48
@@ -849,10 +852,11 @@ export function moreSymbols (H) {
                 cls = a.active ? (a.acked ? 'hmi-al-acked' : 'hmi-al-unacked') : 'hmi-al-rtn'
             }
             const stateW = tab === 'active' ? 118 : Math.min(200, tw * 0.3)
-            const ackW = tab === 'active' && !a.acked ? 34 : 0
-            const shW = (tab === 'active' && canShelve) || tab === 'shelved' ? 34 : 0
+            const ackW = tab === 'active' && !a.acked && canAck ? 34 : 0
+            const shW = (tab === 'active' && canShelve) || (tab === 'shelved' && perm.shelve !== false) ? 34 : 0
             const textW = tw - timeW - stateW - ackW - shW - 16
-            out += `<g class="hmi-al-row ${cls}">` + (i % 2 ? rect('hmi-al-stripe', 1, y, w - 2, rowH) : '') +
+            // a click on the row shows the symbol on the screen
+            out += `<g class="hmi-al-row ${cls}"${a.symbolId ? ` data-hmi="goto:${escapeXml(a.symbolId)}"` : ''}>` + (i % 2 ? rect('hmi-al-stripe', 1, y, w - 2, rowH) : '') +
                 `<g class="${cls === 'hmi-al-unacked' ? 'hmi-blink' : ''}">${alarmIndicator(24, cy, pr)}</g>` +
                 `<text class="hmi-al-time hmi-left" x="${tx}" y="${f(cy)}" font-size="${f(fs * 0.92)}">${escapeXml(tab === 'shelved' ? 'suprimido' : when(a.since || a.ts, opts.locale))}</text>` +
                 `<text class="hmi-al-text hmi-left" x="${f(tx + timeW + 8)}" y="${f(cy)}" font-size="${f(fs)}">${escapeXml(clip(a.text, textW, fs))}</text>` +
@@ -1430,6 +1434,19 @@ export const MORE_CSS = `
 .hmi-fp-on { background: #4d5156; color: #fff; }
 .hmi-pin-label { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 4px; font-size: 13px; color: var(--fp-dim); }
 .hmi-pin-label input { font-size: 18px; padding: 8px; border-radius: 4px; border: 1px solid var(--fp-line); background: #fff; color: #111; }
+.hmi-fp-pid { padding: 4px 14px 8px; }
+.hmi-fp-bar { position: relative; height: 16px; background: var(--fp-btn); border: 1px solid var(--fp-line); border-radius: 3px; overflow: visible; }
+.hmi-fp-bar-pv { position: absolute; left: 0; top: 0; bottom: 0; background: #808489; border-radius: 2px; }
+.hmi-fp-bar-sp { position: absolute; top: -5px; width: 0; height: 0; margin-left: -6px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #2f6fb3; }
+.hmi-fp-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--fp-dim); padding-top: 2px; }
+.hmi-fp-blocked { margin: 8px 14px 0; padding: 6px 10px; border-left: 6px solid #f2b705; background: var(--fp-btn); font-size: 13px; font-weight: 700; }
+.hmi-kp { width: min(320px, calc(100vw - 32px)); min-width: 0; }
+.hmi-kp-hint { padding: 8px 14px 0; font-size: 13px; color: var(--fp-dim); }
+.hmi-kp-display { display: block; box-sizing: border-box; width: calc(100% - 28px); margin: 8px 14px; font-size: 26px; padding: 8px 10px; text-align: right; border-radius: 4px; border: 1px solid var(--fp-line); background: #fff; color: #111; font-family: Consolas, "Roboto Mono", monospace; }
+.hmi-kp-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 14px 4px; }
+.hmi-kp-key { min-height: 52px; font-size: 22px; font-weight: 700; border-radius: 6px; border: 1px solid var(--fp-line); background: var(--fp-btn); color: var(--fp-text); cursor: pointer; touch-action: manipulation; }
+.hmi-kp-key:active { filter: brightness(.85); }
+.hmi-kp-fn { font-size: 18px; color: var(--fp-dim); }
 .hmi-notice { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3100; background: #d71920; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 @keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
 @keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }

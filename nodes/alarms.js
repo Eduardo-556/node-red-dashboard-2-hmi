@@ -88,11 +88,16 @@ function createAlarms (symbols, saved) {
     const list = new Map()
     let history = []
     if (saved && typeof saved === 'object') {
-        for (const a of Array.isArray(saved.active) ? saved.active : []) if (a && known.has(a.id)) list.set(a.id, { ...a })
+        // text and priority follow the symbol as it is now (renamed after a deploy)
+        const fresh = a => ({ ...a, text: byId.get(a.id).text, priority: byId.get(a.id).priority })
+        for (const a of Array.isArray(saved.active) ? saved.active : []) if (a && known.has(a.id)) list.set(a.id, fresh(a))
         if (Array.isArray(saved.history)) history = saved.history.slice(0, HISTORY_MAX)
-        for (const sh of Array.isArray(saved.shelved) ? saved.shelved : []) if (sh && known.has(sh.id)) shelved.set(sh.id, { ...sh })
+        for (const sh of Array.isArray(saved.shelved) ? saved.shelved : []) if (sh && known.has(sh.id)) shelved.set(sh.id, fresh(sh))
     }
+    // goes up on every history row, so pages only get the history when it changed
+    let version = 0
     const log = (a, event, now, user) => {
+        version++
         history.unshift({ ts: now, id: a.id, symbolId: a.symbolId, text: a.text, priority: a.priority, event, ...(user ? { user } : {}) })
         if (history.length > HISTORY_MAX) history.length = HISTORY_MAX
         return { event, id: a.id, symbolId: a.symbolId, text: a.text, priority: a.priority, ts: now, ...(user ? { user } : {}) }
@@ -100,6 +105,8 @@ function createAlarms (symbols, saved) {
 
     return {
         count: defs.length,
+        get version () { return version },
+        has (id) { return byId.has(id) },
         // checks every alarm against the values; returns the events (ATIVO, NORMAL)
         evaluate (values, now) {
             const events = []
@@ -124,7 +131,8 @@ function createAlarms (symbols, saved) {
         ack (which, now, user) {
             const events = []
             for (const a of [...list.values()]) {
-                const match = which === 'all' || a.id === which || (typeof which === 'string' && which.startsWith('symbol:') && a.symbolId === which.slice(7))
+                // "all" is what the operator sees: shelved alarms are not in it
+                const match = (which === 'all' && !shelved.has(a.id)) || a.id === which || (typeof which === 'string' && which.startsWith('symbol:') && a.symbolId === which.slice(7))
                 if (!match || a.acked) continue
                 a.acked = true
                 a.ackTs = now

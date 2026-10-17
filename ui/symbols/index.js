@@ -1,3 +1,7 @@
+import { OVERLAY_CSS } from './overlay.js'
+import { svgImportSymbol, SVGIMPORT_CSS } from './svgimport.js'
+export { cleanSvg, parseSvg, parseBinds } from './svgimport.js'
+export { renderOverlay, interlockOf } from './overlay.js'
 import { moreSymbols, MORE_CSS } from './more.js'
 import { chartSymbols, CHART_CSS } from './charts.js'
 import { MACHINE_SHAPES, ROUND_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
@@ -1464,7 +1468,7 @@ export const CSS = `
 }
 .hmi-root { background: var(--hmi-bg); }
 .hmi-root .hmi-bg { fill: var(--hmi-bg); }
-.hmi-root text { text-anchor: middle; }
+.hmi-root text:where(:not(.hmi-svgimp *)) { text-anchor: middle; }
 .hmi-root .hmi-label { fill: var(--hmi-text); font-size: 14px; font-weight: 600; }
 .hmi-root .hmi-reel .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-reel.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
@@ -1665,11 +1669,12 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS + MACHINE_CSS
+` + MORE_CSS + CHART_CSS + MACHINE_CSS + OVERLAY_CSS + SVGIMPORT_CSS
 
 // second batch of symbols, built from the helpers above
 Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
 Object.assign(SYMBOLS, chartSymbols({ f, num, escapeXml, formatValue }))
+Object.assign(SYMBOLS, svgImportSymbol({ f, isOn, formatValue, labelBelow }))
 // the free shape fills by value like the frame shapes
 SYMBOLS.shape.fields.push(...SYMBOLS.frame.fields.filter(fd => ['level', 'min', 'max', 'levelColor', 'showValue', 'unit', 'decimals'].includes(fd.key)))
 
