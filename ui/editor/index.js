@@ -531,6 +531,15 @@ export function createEditor (root, opts) {
         props.appendChild(field('Chave do payload', s.key, 'text', v => { s.key = v.trim() }))
         props.appendChild(field('Nome (em Camadas)', s.name || '', 'text', v => { if (v.trim()) s.name = v.trim(); else delete s.name }))
         props.appendChild(pair(field('X', s.x, 'number', v => { s.x = Number(v) || 0 }), field('Y', s.y, 'number', v => { s.y = Number(v) || 0 })))
+        if (def.line && s.type === 'shape') {
+            // the free shape is resized by scaling its points
+            const scalePts = (w, h) => {
+                const k = [w / Math.max(1, s.w), h / Math.max(1, s.h)]
+                s.props.points = linePoints(s).map(pt => [Math.round(pt[0] * k[0]), Math.round(pt[1] * k[1])])
+                normalizeLine(s)
+            }
+            props.appendChild(pair(field('Largura', s.w, 'number', v => scalePts(Math.max(10, Number(v) || 10), s.h)), field('Altura', s.h, 'number', v => scalePts(s.w, Math.max(10, Number(v) || 10)))))
+        }
         if (def.line) {
             props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga.'))
         } else {
@@ -915,7 +924,7 @@ export function createEditor (root, opts) {
         const sym = createSymbol(it.type, 0, 0, it.variant)
         const def = SYMBOLS[it.type]
         const theme = (o.getTheme && o.getTheme()) === 'classic' ? 'classic' : 'isa101'
-        const vb = def.line ? [-4, -20, sym.w + 8, 40] : [-4, -4, sym.w + 8, sym.h + 8]
+        const vb = def.line && sym.h <= 1 ? [-4, -20, sym.w + 8, 40] : [-4, -4, sym.w + 8, sym.h + 8]
         return '<svg xmlns="http://www.w3.org/2000/svg" class="hmi-root hmi-theme-' + theme + ' hmi-transparent" viewBox="' + vb.join(' ') + '" preserveAspectRatio="xMidYMid meet">' +
             renderSymbol(sym, def.preview, { editor: true, values: {} }) + '</svg>'
     }

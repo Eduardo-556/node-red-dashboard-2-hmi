@@ -2488,6 +2488,498 @@ ${[
 .hmi-root .hmi-oee-alarm .hmi-oee-arc { stroke: var(--hmi-alarm); }
 `;
 	//#endregion
+	//#region ui/symbols/machine.js
+	var MACHINE_SHAPES = [
+		[
+			"gear",
+			"Engrenagem",
+			120,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"sprocket",
+			"Coroa / pinhão de corrente",
+			120,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"pulley",
+			"Polia",
+			120,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"wheel",
+			"Roda",
+			120,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"beltDrive",
+			"Transmissão por correia",
+			320,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"chainDrive",
+			"Transmissão por corrente",
+			320,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"gearbox",
+			"Redutor",
+			180,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"coupling",
+			"Acoplamento",
+			200,
+			70,
+			"",
+			"Mecânica"
+		],
+		[
+			"spring",
+			"Mola",
+			200,
+			50,
+			"",
+			"Mecânica"
+		],
+		[
+			"screw",
+			"Fuso",
+			320,
+			40,
+			"",
+			"Mecânica"
+		],
+		[
+			"linearGuide",
+			"Guia linear com carro",
+			320,
+			60,
+			"",
+			"Mecânica"
+		],
+		[
+			"rack",
+			"Cremalheira",
+			320,
+			40,
+			"",
+			"Mecânica"
+		],
+		[
+			"link",
+			"Braço / elo",
+			220,
+			50,
+			"",
+			"Mecânica"
+		],
+		[
+			"pivot",
+			"Pino / articulação",
+			40,
+			40,
+			"",
+			"Mecânica"
+		],
+		[
+			"nozzle",
+			"Bico",
+			60,
+			100,
+			"",
+			"Mecânica"
+		],
+		[
+			"drum",
+			"Tambor / cilindro deitado",
+			260,
+			100,
+			"",
+			"Mecânica"
+		],
+		[
+			"cylinder3d",
+			"Cilindro em pé",
+			120,
+			180,
+			"",
+			"Mecânica"
+		],
+		[
+			"cone",
+			"Cone",
+			140,
+			140,
+			"",
+			"Mecânica"
+		],
+		[
+			"box3d",
+			"Caixa 3D",
+			180,
+			140,
+			"",
+			"Mecânica"
+		],
+		[
+			"plateHoles",
+			"Chapa com furos",
+			200,
+			120,
+			"",
+			"Mecânica"
+		],
+		[
+			"slot",
+			"Rasgo / oblongo",
+			200,
+			70,
+			"",
+			"Mecânica"
+		],
+		[
+			"mesh",
+			"Grade / tela de proteção",
+			240,
+			160,
+			"",
+			"Mecânica"
+		],
+		[
+			"door",
+			"Porta",
+			120,
+			200,
+			"",
+			"Mecânica"
+		],
+		[
+			"window",
+			"Visor / janela",
+			160,
+			110,
+			"",
+			"Mecânica"
+		],
+		[
+			"ring",
+			"Anel",
+			140,
+			140
+		],
+		[
+			"semicircle",
+			"Meio círculo",
+			200,
+			100
+		],
+		[
+			"quarter",
+			"Quarto de círculo",
+			140,
+			140
+		],
+		[
+			"pentagon",
+			"Pentágono",
+			140,
+			134
+		],
+		[
+			"octagon",
+			"Octógono",
+			140,
+			140
+		],
+		[
+			"star",
+			"Estrela",
+			140,
+			134
+		],
+		[
+			"cross",
+			"Cruz",
+			140,
+			140
+		],
+		[
+			"chevron",
+			"Seta larga",
+			200,
+			100
+		]
+	];
+	var ROUND_SHAPES = [
+		"gear",
+		"sprocket",
+		"pulley",
+		"wheel"
+	];
+	function machinePath(shape, w, h, H) {
+		const { f, poly, box } = H;
+		const m = Math.min(w, h);
+		const cx = w / 2;
+		const cy = h / 2;
+		const circle = (cls, x, y, r) => `<circle class="${cls}" cx="${f(x)}" cy="${f(y)}" r="${f(Math.max(0, r))}"/>`;
+		const ellipse = (cls, x, y, rx, ry) => `<ellipse class="${cls}" cx="${f(x)}" cy="${f(y)}" rx="${f(Math.max(0, rx))}" ry="${f(Math.max(0, ry))}"/>`;
+		const path = (cls, d, extra) => `<path class="${cls}" d="${d}"${extra || ""}/>`;
+		const ring = (x, y, r) => `M${f(x + r)} ${f(y)}A${f(r)} ${f(r)} 0 1 0 ${f(x - r)} ${f(y)}A${f(r)} ${f(r)} 0 1 0 ${f(x + r)} ${f(y)}Z`;
+		const EO = " fill-rule=\"evenodd\"";
+		function teeth(x, y, r, n, depth, round) {
+			const r0 = r * (1 - depth);
+			let d = "";
+			for (let i = 0; i < n; i++) {
+				const a = i * 2 * Math.PI / n;
+				const s = Math.PI / n;
+				const pts = round ? [
+					[r0, a - s * .5],
+					[r, a - s * .25],
+					[r, a + s * .25],
+					[r0, a + s * .5],
+					[r0, a + s * 1.5]
+				] : [
+					[r0, a - s * .55],
+					[r, a - s * .32],
+					[r, a + s * .32],
+					[r0, a + s * .55],
+					[r0, a + s * 1.45]
+				];
+				for (const [k, [rr, aa]] of pts.entries()) d += (i === 0 && k === 0 ? "M" : "L") + f(x + rr * Math.cos(aa)) + " " + f(y + rr * Math.sin(aa));
+			}
+			return d + "Z";
+		}
+		function gear(x, y, r, round) {
+			const n = Math.max(8, Math.min(40, Math.round(r / (round ? 4.5 : 6))));
+			return path("hmi-body", teeth(x, y, r, n, round ? .14 : .18, round) + ring(x, y, r * .2), EO) + circle("hmi-detail", x, y, r * .55) + circle("hmi-detail", x, y, r * .32);
+		}
+		function pulley(x, y, r) {
+			return circle("hmi-body", x, y, r) + circle("hmi-detail", x, y, r * .84) + path("hmi-body", ring(x, y, r * .34) + ring(x, y, r * .14), EO) + [
+				0,
+				1,
+				2,
+				3
+			].map((i) => circle("hmi-detail", x + Math.cos(i * Math.PI / 2 + Math.PI / 4) * r * .58, y + Math.sin(i * Math.PI / 2 + Math.PI / 4) * r * .58, r * .1)).join("");
+		}
+		function drive(chain) {
+			const bt = Math.max(3, h * .06);
+			const R1 = h / 2 - bt / 2;
+			const R2 = R1 * .6;
+			const c1 = R1 + bt / 2;
+			const c2 = w - R2 - bt / 2;
+			const d = Math.max(1, c2 - c1);
+			const a = Math.asin(Math.max(-1, Math.min(1, (R1 - R2) / d)));
+			const s = Math.sin(a);
+			const c = Math.cos(a);
+			const p1t = [c1 + R1 * s, cy - R1 * c];
+			const p2t = [c2 + R2 * s, cy - R2 * c];
+			const p2b = [c2 + R2 * s, cy + R2 * c];
+			const p1b = [c1 + R1 * s, cy + R1 * c];
+			const belt = `M${f(p1t[0])} ${f(p1t[1])}L${f(p2t[0])} ${f(p2t[1])}A${f(R2)} ${f(R2)} 0 0 1 ${f(p2b[0])} ${f(p2b[1])}L${f(p1b[0])} ${f(p1b[1])}A${f(R1)} ${f(R1)} 0 1 1 ${f(p1t[0])} ${f(p1t[1])}Z`;
+			return (chain ? gear(c1, cy, R1 - bt * .2, true) + gear(c2, cy, R2 - bt * .2, true) : pulley(c1, cy, R1 - bt / 2) + pulley(c2, cy, R2 - bt / 2)) + path("hmi-strap", belt, ` style="stroke-width:${f(bt)}${chain ? `;stroke-dasharray:${f(bt * .9)} ${f(bt * .45)};stroke-linecap:butt` : ""}"`);
+		}
+		switch (shape) {
+			case "gear": return gear(cx, cy, m / 2, false);
+			case "sprocket": return gear(cx, cy, m / 2, true);
+			case "pulley": return pulley(cx, cy, m / 2);
+			case "wheel": {
+				const r = m / 2;
+				let spokes = "";
+				for (let i = 0; i < 5; i++) {
+					const a = i * 2 * Math.PI / 5 - Math.PI / 2;
+					spokes += `M${f(cx + Math.cos(a) * r * .2)} ${f(cy + Math.sin(a) * r * .2)}L${f(cx + Math.cos(a) * r * .7)} ${f(cy + Math.sin(a) * r * .7)}`;
+				}
+				return path("hmi-body", ring(cx, cy, r) + ring(cx, cy, r * .74), EO) + circle("hmi-detail", cx, cy, r * .7) + path("hmi-detail", spokes, " style=\"stroke-width:3\"") + circle("hmi-body", cx, cy, r * .2);
+			}
+			case "beltDrive": return drive(false);
+			case "chainDrive": return drive(true);
+			case "gearbox": {
+				const bx = w * .18;
+				const bw = w * .64;
+				const fins = Array.from({ length: 4 }, (x, i) => `M${f(bx + bw * (.2 + i * .2))} ${f(h * .12)}V${f(h * .88)}`).join("");
+				return box(0, h * .3, bx + 2, h * .16) + box(bx + bw - 2, h * .58, w - bx - bw + 2, h * .16) + `<rect class="hmi-body" x="${f(bx)}" y="0" width="${f(bw)}" height="${f(h)}" rx="${f(m * .08)}"/>` + path("hmi-detail", fins) + circle("hmi-detail", bx + bw * .2, h * .38, m * .08) + circle("hmi-detail", bx + bw * .8, h * .66, m * .08);
+			}
+			case "coupling": {
+				const hw = w * .16;
+				const bolts = [
+					.25,
+					.5,
+					.75
+				].map((k) => circle("hmi-detail", cx, h * k, Math.max(1.5, h * .05))).join("");
+				return box(0, h * .38, w, h * .24) + box(cx - hw - 2, h * .08, hw, h * .84) + box(cx + 2, h * .08, hw, h * .84) + box(cx - hw * 1.6, h * .25, hw * .6, h * .5) + box(cx + hw + 2, h * .25, hw * .6, h * .5) + bolts;
+			}
+			case "spring": {
+				const pw = Math.max(4, w * .04);
+				const n = Math.max(4, Math.round((w - pw * 2) / Math.max(8, h * .4)));
+				const step = (w - pw * 2) / n;
+				let d = `M${f(pw)} ${f(cy)}`;
+				for (let i = 0; i < n; i++) d += `L${f(pw + step * (i + .25))} ${f(h * .08)}L${f(pw + step * (i + .75))} ${f(h * .92)}`;
+				d += `L${f(w - pw)} ${f(cy)}`;
+				return path("hmi-strap hmi-coil", d, ` style="stroke-width:${f(Math.max(2, h * .08))}"`) + box(0, 0, pw, h) + box(w - pw, 0, pw, h);
+			}
+			case "screw": {
+				const e = Math.max(6, w * .05);
+				const t = h * .36;
+				const pitch = Math.max(6, h * .35);
+				let d = "";
+				for (let x = e + pitch * .5; x < w - e; x += pitch) d += `M${f(x)} ${f(cy - t / 2)}L${f(x + pitch * .5)} ${f(cy + t / 2)}`;
+				return box(e, cy - t / 2, w - 2 * e, t) + path("hmi-detail", d) + box(0, h * .12, e, h * .76) + box(w - e, h * .12, e, h * .76);
+			}
+			case "linearGuide": {
+				const rh = h * .38;
+				const cw = Math.min(w * .3, h * 2.2);
+				const x = (w - cw) / 2;
+				return box(0, h - rh, w, rh) + path("hmi-detail", `M0 ${f(h - rh * .5)}H${f(w)}`) + `<rect class="hmi-body" x="${f(x)}" y="0" width="${f(cw)}" height="${f(h - rh * .4)}" rx="3"/>` + [.25, .75].map((k) => circle("hmi-detail", x + cw * k, h * .25, Math.max(1.5, h * .07))).join("");
+			}
+			case "rack": {
+				const bh = h * .55;
+				const pitch = Math.max(6, h * .5);
+				const pts = [[0, h], [0, h - bh]];
+				for (let x = 0; x + pitch <= w + .01; x += pitch) pts.push([x + pitch * .2, h - bh], [x + pitch * .35, 0], [x + pitch * .65, 0], [x + pitch * .8, h - bh]);
+				pts.push([w, h - bh], [w, h]);
+				return poly(pts);
+			}
+			case "link": {
+				const r = h / 2;
+				const bar = `M${f(r)} ${f(cy - h * .25)}H${f(w - r)}V${f(cy + h * .25)}H${f(r)}Z`;
+				return path("hmi-body", ring(r, cy, r) + ring(w - r, cy, r), "") + path("hmi-body", bar) + path("hmi-body", ring(r, cy, r * .4) + ring(w - r, cy, r * .4), EO + " style=\"fill:var(--hmi-bg)\"");
+			}
+			case "pivot": return circle("hmi-body", cx, cy, m / 2) + path("hmi-detail", `M${f(cx - m * .3)} ${f(cy)}H${f(cx + m * .3)}M${f(cx)} ${f(cy - m * .3)}V${f(cy + m * .3)}`);
+			case "nozzle": return poly([
+				[0, 0],
+				[w, 0],
+				[w, h * .35],
+				[w * .62, h * .85],
+				[w * .62, h],
+				[w * .38, h],
+				[w * .38, h * .85],
+				[0, h * .35]
+			]) + path("hmi-detail", `M0 ${f(h * .15)}H${f(w)}`);
+			case "drum": {
+				const e = Math.min(w * .12, h * .25);
+				return path("hmi-body", `M${f(e)} 0H${f(w - e)}A${f(e)} ${f(h / 2)} 0 0 1 ${f(w - e)} ${f(h)}H${f(e)}A${f(e)} ${f(h / 2)} 0 0 1 ${f(e)} 0Z`) + ellipse("hmi-detail", w - e, cy, e, h / 2);
+			}
+			case "cylinder3d": {
+				const e = Math.min(h * .12, w * .25);
+				return path("hmi-body", `M0 ${f(e)}V${f(h - e)}A${f(w / 2)} ${f(e)} 0 0 0 ${f(w)} ${f(h - e)}V${f(e)}A${f(w / 2)} ${f(e)} 0 0 0 0 ${f(e)}Z`) + ellipse("hmi-body hmi-shade", cx, e, w / 2, e);
+			}
+			case "cone": {
+				const e = Math.min(h * .12, w * .2);
+				return path("hmi-body", `M${f(cx)} 0L${f(w)} ${f(h - e)}A${f(w / 2)} ${f(e)} 0 0 1 0 ${f(h - e)}Z`) + path("hmi-detail", `M0 ${f(h - e)}A${f(w / 2)} ${f(e)} 0 0 0 ${f(w)} ${f(h - e)}`);
+			}
+			case "box3d": {
+				const d = Math.min(w, h) * .25;
+				return poly([
+					[0, d],
+					[w - d, d],
+					[w - d, h],
+					[0, h]
+				]) + `<polygon class="hmi-body hmi-shade" points="${f(0)},${f(d)} ${f(d)},0 ${f(w)},0 ${f(w - d)},${f(d)}"/><polygon class="hmi-body hmi-shade2" points="${f(w - d)},${f(d)} ${f(w)},0 ${f(w)},${f(h - d)} ${f(w - d)},${f(h)}"/>`;
+			}
+			case "plateHoles": {
+				const r = Math.max(2, m * .07);
+				const k = r * 2.4;
+				return path("hmi-body", `M0 0H${f(w)}V${f(h)}H0Z` + ring(k, k, r) + ring(w - k, k, r) + ring(k, h - k, r) + ring(w - k, h - k, r), EO);
+			}
+			case "slot": {
+				const r = h / 2;
+				const ri = r * .45;
+				return path("hmi-body", `M${f(r)} 0H${f(w - r)}A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)}H${f(r)}A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0ZM${f(r)} ${f(cy - ri)}H${f(w - r)}A${f(ri)} ${f(ri)} 0 0 1 ${f(w - r)} ${f(cy + ri)}H${f(r)}A${f(ri)} ${f(ri)} 0 0 1 ${f(r)} ${f(cy - ri)}Z`, EO);
+			}
+			case "mesh": {
+				const s = Math.max(10, m / 8);
+				let d = "";
+				for (let x = s; x < w - 2; x += s) d += `M${f(x)} 4V${f(h - 4)}`;
+				for (let y = s; y < h - 2; y += s) d += `M4 ${f(y)}H${f(w - 4)}`;
+				return `<rect class="hmi-body hmi-hollow" x="0" y="0" width="${f(w)}" height="${f(h)}"/>` + path("hmi-detail hmi-thin", d) + `<rect class="hmi-body hmi-hollow" x="2" y="2" width="${f(w - 4)}" height="${f(h - 4)}" style="stroke-width:4"/>`;
+			}
+			case "door": {
+				const hw = Math.max(4, w * .06);
+				return box(0, 0, w, h) + box(-hw * .4, h * .12, hw, h * .1) + box(-hw * .4, h * .78, hw, h * .1) + `<rect class="hmi-detail" x="${f(w * .12)}" y="${f(h * .06)}" width="${f(w * .76)}" height="${f(h * .88)}"/><rect class="hmi-body" x="${f(w * .78)}" y="${f(h * .45)}" width="${f(Math.max(3, w * .06))}" height="${f(h * .12)}" rx="2"/>`;
+			}
+			case "window": {
+				const p = Math.max(5, m * .1);
+				return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}" rx="${f(p * .6)}"/><rect class="hmi-glass" x="${f(p)}" y="${f(p)}" width="${f(w - 2 * p)}" height="${f(h - 2 * p)}" rx="${f(p * .3)}"/>` + path("hmi-detail hmi-thin", `M${f(p * 2)} ${f(h - p * 2)}L${f(w * .45)} ${f(p * 2)}M${f(w * .3)} ${f(h - p * 2)}L${f(w * .6)} ${f(p * 2)}`);
+			}
+			case "ring": return path("hmi-body", `M${f(w)} ${f(cy)}A${f(w / 2)} ${f(h / 2)} 0 1 0 0 ${f(cy)}A${f(w / 2)} ${f(h / 2)} 0 1 0 ${f(w)} ${f(cy)}ZM${f(cx + w * .3)} ${f(cy)}A${f(w * .3)} ${f(h * .3)} 0 1 0 ${f(cx - w * .3)} ${f(cy)}A${f(w * .3)} ${f(h * .3)} 0 1 0 ${f(cx + w * .3)} ${f(cy)}Z`, EO);
+			case "semicircle": return path("hmi-body", `M0 ${f(h)}A${f(w / 2)} ${f(h)} 0 0 1 ${f(w)} ${f(h)}Z`);
+			case "quarter": return path("hmi-body", `M0 ${f(h)}V0A${f(w)} ${f(h)} 0 0 1 ${f(w)} ${f(h)}Z`);
+			case "pentagon":
+			case "octagon":
+			case "star": {
+				const n = shape === "octagon" ? 8 : 5;
+				const pts = [];
+				const k = shape === "star" ? 2 : 1;
+				for (let i = 0; i < n * k; i++) {
+					const a = -Math.PI / 2 + i * Math.PI * 2 / (n * k) + (shape === "octagon" ? Math.PI / 8 : 0);
+					const r = shape === "star" && i % 2 ? .4 : 1;
+					pts.push([cx + Math.cos(a) * w / 2 * r, cy + Math.sin(a) * h / 2 * r + (shape === "octagon" ? 0 : h * .05)]);
+				}
+				return poly(pts);
+			}
+			case "cross": {
+				const t = .32;
+				return poly([
+					[w * (.5 - t / 2), 0],
+					[w * .66, 0],
+					[w * .66, h * (.5 - t / 2)],
+					[w, h * (.5 - t / 2)],
+					[w, h * .66],
+					[w * .66, h * .66],
+					[w * .66, h],
+					[w * (.5 - t / 2), h],
+					[w * (.5 - t / 2), h * .66],
+					[0, h * .66],
+					[0, h * (.5 - t / 2)],
+					[w * (.5 - t / 2), h * (.5 - t / 2)]
+				]);
+			}
+			case "chevron": return poly([
+				[0, 0],
+				[w * .7, 0],
+				[w, h / 2],
+				[w * .7, h],
+				[0, h],
+				[w * .3, h / 2]
+			]);
+			default: return "";
+		}
+	}
+	var MACHINE_CSS = `
+.hmi-root .hmi-frame .hmi-strap { fill: none; stroke: var(--hmi-stroke); stroke-linejoin: round; stroke-linecap: round; }
+.hmi-root .hmi-frame.hmi-tone-fixed .hmi-strap { stroke: var(--hmi-tone-stroke); }
+.hmi-root .hmi-frame .hmi-shade { filter: brightness(1.12); }
+.hmi-root .hmi-frame .hmi-shade2 { filter: brightness(.85); }
+.hmi-root .hmi-frame .hmi-hollow { fill: none !important; }
+.hmi-root .hmi-frame .hmi-thin { stroke-width: 1; }
+.hmi-root .hmi-frame .hmi-glass { fill: var(--hmi-bg); stroke: var(--hmi-stroke); stroke-width: 1; opacity: .85; }
+.hmi-root .hmi-frame .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
+.hmi-root .hmi-frame.hmi-turning .hmi-spin { animation: hmi-spin 3s linear infinite; }
+.hmi-root .hmi-frame.hmi-turning.hmi-ccw .hmi-spin { animation-name: hmi-spin-ccw; }
+.hmi-root .hmi-shape .hmi-hit { fill: none; stroke: transparent; stroke-width: 12; }
+`;
+	//#endregion
 	//#region ui/symbols/index.js
 	var THEMES = {
 		isa101: "ISA-101",
@@ -2812,7 +3304,8 @@ ${[
 			140,
 			"metal",
 			"Estruturas"
-		]
+		],
+		...MACHINE_SHAPES
 	];
 	var TONES = [
 		["equip", "Equipamento (tema)"],
@@ -3127,6 +3620,17 @@ ${[
 					type: "text"
 				},
 				{
+					key: "spin",
+					label: "Girar quando a chave ligar",
+					type: "select",
+					options: [
+						["no", "Não"],
+						["cw", "Sentido horário"],
+						["ccw", "Anti-horário"]
+					],
+					when: (p) => ROUND_SHAPES.includes(p.shape)
+				},
+				{
 					key: "level",
 					label: "Encher pelo valor da chave",
 					type: "select",
@@ -3195,6 +3699,66 @@ ${[
 					tone: tone || "equip"
 				}
 			})),
+			render: renderFrame
+		},
+		shape: {
+			label: "Forma livre",
+			group: "Formas",
+			w: 160,
+			h: 120,
+			preview: 60,
+			line: true,
+			defaults: {
+				tone: "equip",
+				label: "",
+				smooth: "no",
+				points: [
+					[40, 0],
+					[160, 0],
+					[160, 120],
+					[0, 120],
+					[0, 40]
+				],
+				level: "no",
+				min: 0,
+				max: 100,
+				levelColor: "level",
+				showValue: "no",
+				unit: "%",
+				decimals: 0
+			},
+			fields: [
+				{
+					key: "smooth",
+					label: "Cantos",
+					type: "select",
+					options: [["no", "Retos"], ["yes", "Curvas suaves"]]
+				},
+				{
+					key: "tone",
+					label: "Tom",
+					type: "select",
+					options: TONES,
+					refresh: true
+				},
+				{
+					key: "fill",
+					label: "Cor de preenchimento",
+					type: "color",
+					when: (p) => p.tone === "custom"
+				},
+				{
+					key: "stroke",
+					label: "Cor da borda",
+					type: "color",
+					when: (p) => p.tone === "custom"
+				},
+				{
+					key: "label",
+					label: "Legenda",
+					type: "text"
+				}
+			],
 			render: renderFrame
 		},
 		line: {
@@ -3938,6 +4502,7 @@ ${[
 	var CATEGORIES = [
 		"Formas",
 		"Estruturas",
+		"Mecânica",
 		"Equipamentos",
 		"Processo",
 		"Fábrica",
@@ -4724,10 +5289,14 @@ ${[
 				const hw = Math.max(3, w * .04);
 				return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}" rx="3"/><path class="hmi-detail" d="M${f(w / 2)} 4V${f(h - 4)}"/><rect class="hmi-detail" x="${f(w / 2 - hw * 2.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/><rect class="hmi-detail" x="${f(w / 2 + hw * 1.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/>`;
 			}
-			default: return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`;
+			default: return machinePath(shape, w, h, {
+				f,
+				poly,
+				box
+			}) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`;
 		}
 	}
-	function frameLevel(sym, value, opts) {
+	function frameLevel(sym, value, opts, body) {
 		const p = sym.props || {};
 		const dir = [
 			"up",
@@ -4772,12 +5341,31 @@ ${[
 			"alarm",
 			"material"
 		].includes(p.levelColor) ? p.levelColor : "level";
-		let out = k > 0 ? `<clipPath id="${id}"><rect x="${f(r[0])}" y="${f(r[1])}" width="${f(r[2])}" height="${f(r[3])}"/></clipPath><g class="hmi-shape-level hmi-lc-${color}" clip-path="url(#${id})">${framePath(p.shape, w, h).replace(/hmi-body|hmi-detail/g, "hmi-level")}</g>` : "";
+		let out = k > 0 ? `<clipPath id="${id}"><rect x="${f(r[0])}" y="${f(r[1])}" width="${f(r[2])}" height="${f(r[3])}"/></clipPath><g class="hmi-shape-level hmi-lc-${color}" clip-path="url(#${id})">${body.replace(/hmi-body|hmi-detail/g, "hmi-level")}</g>` : "";
 		if (p.showValue === "yes") {
 			const text = v === null ? "—" : formatValue(v, p.decimals, opts && opts.locale) + (p.unit ? " " + p.unit : "");
 			out += `<text class="hmi-shape-value" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(18, w * .14, h * .3)))}">${escapeXml(text)}</text>`;
 		}
 		return out;
+	}
+	function shapePath(sym) {
+		const pts = linePoints(sym);
+		if (pts.length < 3) return "";
+		let d;
+		if ((sym.props || {}).smooth === "yes") {
+			const n = pts.length;
+			const P = (i) => pts[(i + n) % n];
+			d = "M" + f(P(0)[0]) + " " + f(P(0)[1]);
+			for (let i = 0; i < n; i++) {
+				const p0 = P(i - 1);
+				const p1 = P(i);
+				const p2 = P(i + 1);
+				const p3 = P(i + 2);
+				d += "C" + f(p1[0] + (p2[0] - p0[0]) / 6) + " " + f(p1[1] + (p2[1] - p0[1]) / 6) + " " + f(p2[0] - (p3[0] - p1[0]) / 6) + " " + f(p2[1] - (p3[1] - p1[1]) / 6) + " " + f(p2[0]) + " " + f(p2[1]);
+			}
+			d += "Z";
+		} else d = "M" + pts.map((pt) => f(pt[0]) + " " + f(pt[1])).join("L") + "Z";
+		return `<path class="hmi-body" d="${d}"/><path class="hmi-hit" d="${d}"/>`;
 	}
 	function renderFrame(sym, value, opts) {
 		const p = sym.props || {};
@@ -4796,7 +5384,17 @@ ${[
 			}
 			style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`;
 		}
-		return `<g class="hmi-frame hmi-tone-${fixed ? "fixed" : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${frameLevel(sym, value, opts)}${label}</g>`;
+		const free = sym.type === "shape";
+		let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h);
+		const level = frameLevel(sym, value, opts, body);
+		let turning = "";
+		if (!free && ROUND_SHAPES.includes(p.shape) && (p.spin === "cw" || p.spin === "ccw")) {
+			const cx = f(sym.w / 2);
+			const cy = f(sym.h / 2);
+			body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`;
+			if (onState(value, p) === true) turning = " hmi-turning" + (p.spin === "ccw" ? " hmi-ccw" : "");
+		}
+		return `<g class="hmi-frame${free ? " hmi-shape" : ""} hmi-tone-${fixed ? "fixed" : tone}${turning}"${style}>${defs}${body}${level}${label}</g>`;
 	}
 	function linePoints(sym) {
 		return (sym.props && Array.isArray(sym.props.points) ? sym.props.points : []).filter((pt) => Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])).map((pt) => [Number(pt[0]), Number(pt[1])]);
@@ -5139,7 +5737,7 @@ ${[
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS;
+` + MORE_CSS + CHART_CSS + MACHINE_CSS;
 	Object.assign(SYMBOLS, moreSymbols({
 		f,
 		num,
@@ -5166,6 +5764,15 @@ ${[
 		escapeXml,
 		formatValue
 	}));
+	SYMBOLS.shape.fields.push(...SYMBOLS.frame.fields.filter((fd) => [
+		"level",
+		"min",
+		"max",
+		"levelColor",
+		"showValue",
+		"unit",
+		"decimals"
+	].includes(fd.key)));
 	function injectStyles(doc) {
 		const d = doc || (typeof document !== "undefined" ? document : null);
 		if (!d || d.getElementById("hmi-symbols-style")) return;
@@ -5900,6 +6507,14 @@ ${[
 			}), field("Y", s.y, "number", (v) => {
 				s.y = Number(v) || 0;
 			})));
+			if (def.line && s.type === "shape") {
+				const scalePts = (w, h) => {
+					const k = [w / Math.max(1, s.w), h / Math.max(1, s.h)];
+					s.props.points = linePoints(s).map((pt) => [Math.round(pt[0] * k[0]), Math.round(pt[1] * k[1])]);
+					normalizeLine(s);
+				};
+				props.appendChild(pair(field("Largura", s.w, "number", (v) => scalePts(Math.max(10, Number(v) || 10), s.h)), field("Altura", s.h, "number", (v) => scalePts(s.w, Math.max(10, Number(v) || 10)))));
+			}
 			if (def.line) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Arraste os pontos brancos. Puxe o ponto azul do meio para criar uma curva; duplo clique num ponto apaga."));
 			else {
 				props.appendChild(pair(field("Largura", s.w, "number", (v) => {
@@ -6437,7 +7052,7 @@ ${[
 			const sym = createSymbol(it.type, 0, 0, it.variant);
 			const def = SYMBOLS[it.type];
 			const theme = (o.getTheme && o.getTheme()) === "classic" ? "classic" : "isa101";
-			const vb = def.line ? [
+			const vb = def.line && sym.h <= 1 ? [
 				-4,
 				-20,
 				sym.w + 8,

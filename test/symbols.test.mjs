@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (['frame', 'stack', 'image', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
+        if (['frame', 'shape', 'stack', 'image', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor
@@ -288,4 +288,28 @@ test('editor helpers: symbol search, blocks and layer names', async () => {
     assert.ok(!b.symbols[0].locked)
     assert.strictEqual(layerName({ type: 'tag', props: { title: 'RPM' } }), 'RPM')
     assert.strictEqual(layerName({ type: 'tag', name: 'Rolo 1', props: { title: 'RPM' } }), 'Rolo 1')
+})
+
+test('machine parts, free shape and turning wheels', () => {
+    const shapes = SYMBOLS.frame.variants.filter(v => v.category === 'Mecânica').map(v => v.props.shape)
+    assert.ok(shapes.length >= 20 && shapes.includes('gear') && shapes.includes('beltDrive'))
+    assert.ok(paletteItems('Mecânica').length === shapes.length)
+    for (const v of SYMBOLS.frame.variants) {
+        const s = createSymbol('frame', 0, 0, SYMBOLS.frame.variants.indexOf(v))
+        const out = renderSymbol(s, undefined)
+        assert.ok(!/NaN|undefined/.test(out), v.label)
+        assert.ok(out.includes('hmi-body'), v.label)
+    }
+    const g = createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === 'gear'))
+    assert.ok(!renderSymbol(g, 1).includes('hmi-spin'))
+    g.props.spin = 'ccw'
+    assert.ok(renderSymbol(g, 1).includes('hmi-turning hmi-ccw'))
+    assert.ok(renderSymbol(g, 0).includes('hmi-spin') && !renderSymbol(g, 0).includes('hmi-turning'))
+    const f = createSymbol('shape', 0, 0)
+    assert.ok(SYMBOLS.shape.line)
+    assert.match(renderSymbol(f, undefined), /<path class="hmi-body" d="M40 0L160 0L160 120L0 120L0 40Z"/)
+    f.props.smooth = 'yes'
+    assert.ok(/d="M40 0C/.test(renderSymbol(f, undefined)))
+    f.props.level = 'up'
+    assert.ok(renderSymbol(f, 50).includes('hmi-shape-level'))
 })

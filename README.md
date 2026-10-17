@@ -45,6 +45,14 @@ Em **Escala do valor**, o símbolo mostra `valor × multiplicar ÷ dividir + som
 
 No **Texto** (e no subtítulo do **KPI**), `{chave}` vira o valor daquela chave do payload, e `{chave:1}` mostra com 1 casa decimal. Ex.: `Lote {lote} – {pecas} pç` mostra `Lote A12 – 1.450 pç`. No editor, chave sem valor aparece como `{chave}`.
 
+### Formas para desenhar máquinas
+
+- **Mecânica** (menu próprio): engrenagem, coroa de corrente, polia, roda, transmissão por correia e por corrente, redutor, acoplamento, mola, fuso, guia linear com carro, cremalheira, braço/elo, pino, bico, tambor, cilindro em pé, cone, caixa 3D, chapa com furos, rasgo, grade de proteção, porta e visor. Engrenagem, coroa, polia e roda podem **girar quando a chave ligar** (horário ou anti-horário).
+- **Formas** ganhou anel, meio círculo, quarto de círculo, pentágono, octógono, estrela, cruz e seta larga.
+- **Forma livre**: um polígono com pontos que você arrasta. Puxe o ponto azul do meio de um lado para criar um ponto novo; duplo clique apaga um ponto. **Cantos: curvas suaves** arredonda o desenho. Largura e altura mudam o tamanho mantendo o desenho. Também enche pelo valor da chave.
+
+Todas usam os mesmos tons do **Corpo** (tema, escuro, metal, cor personalizada...).
+
 ### Encher qualquer forma
 
 Qualquer forma de **Formas** (silo, funil, círculo, forma livre...) pode encher pelo valor da chave: em **Encher pelo valor da chave** escolha de baixo para cima, de cima para baixo ou para os lados, e o vazio/cheio. Dá para mostrar o valor no meio e trocar a cor do nível.
@@ -152,7 +160,7 @@ Alarms (ISA-18.2 style): the canvas tracks every fault key, lo/hi limit, alarm b
 
 Per symbol: **scale** (`raw × factor ÷ divisor + offset`, reversed for typed setpoints) and **rules** (when a key is on/off/=/≠/>/< a value: red, yellow, blue, green, dimmed, blinking or hidden; copy one or all rules and paste them into other symbols or the whole selection). Every on/off symbol has **Invert signal** (normally closed sensors, active-low inputs). **Image** symbol: your own SVG/PNG/JPG (up to 400 KB, stored in the flow) or a URL, with an optional second image for the on state.
 
-Text with `{key}` placeholders (several keys in one line), any shape filled by a value, charts (bar chart with goal line, donut, OEE = availability × performance × quality). Editor: symbol search, zoom and pan, smart guides, lock, layers panel (search, lock, hide in editor), and **blocks**: save a selection and reuse it on any screen (stored in the browser, export/import as JSON). Examples: paint line, conveyors (both simulated) and a Schneider M221 screen using node-red-contrib-schneider-modbus-tags.
+Machine parts (gears and pulleys that turn while a key is on, belt and chain drives, gearbox, coupling, spring, lead screw, linear guide, rack, link, 3D boxes and cylinders, guards, doors), more geometric shapes and a **free shape** (polygon with draggable points, straight or smooth). Text with `{key}` placeholders (several keys in one line), any shape filled by a value, charts (bar chart with goal line, donut, OEE = availability × performance × quality). Editor: symbol search, zoom and pan, smart guides, lock, layers panel (search, lock, hide in editor), and **blocks**: save a selection and reuse it on any screen (stored in the browser, export/import as JSON). Examples: paint line, conveyors (both simulated) and a Schneider M221 screen using node-red-contrib-schneider-modbus-tags.
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

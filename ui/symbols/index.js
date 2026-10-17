@@ -1,5 +1,6 @@
 import { moreSymbols, MORE_CSS } from './more.js'
 import { chartSymbols, CHART_CSS } from './charts.js'
+import { MACHINE_SHAPES, ROUND_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
 
 // Symbol library shared by the Node-RED editor (drag-and-drop preview) and the
 // dashboard widget. Every symbol draws itself as SVG markup in its own box
@@ -61,7 +62,9 @@ const SHAPES = [
     ['stand', 'Suporte com pés', 240, 120, '', 'Estruturas'],
     ['basePlate', 'Chapa de base / sapata', 160, 24, '', 'Estruturas'],
     ['beamSide', 'Viga aço (slitter)', 400, 30, 'steel', 'Estruturas'],
-    ['pedestal', 'Pedestal metal (slitter)', 120, 140, 'metal', 'Estruturas']
+    ['pedestal', 'Pedestal metal (slitter)', 120, 140, 'metal', 'Estruturas'],
+    // machine parts (palette category "Mecânica") and more geometric shapes
+    ...MACHINE_SHAPES
 ]
 const TONES = [
     ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
@@ -179,6 +182,7 @@ export const SYMBOLS = {
             { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
             { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
             { key: 'label', label: 'Legenda', type: 'text' },
+            { key: 'spin', label: 'Girar quando a chave ligar', type: 'select', options: [['no', 'Não'], ['cw', 'Sentido horário'], ['ccw', 'Anti-horário']], when: p => ROUND_SHAPES.includes(p.shape) },
             { key: 'level', label: 'Encher pelo valor da chave', type: 'select', options: [['no', 'Não'], ['up', 'De baixo para cima'], ['down', 'De cima para baixo'], ['right', 'Da esquerda para a direita'], ['left', 'Da direita para a esquerda']], refresh: true },
             { key: 'min', label: 'Vazio (mín.)', type: 'number', when: p => p.level && p.level !== 'no' },
             { key: 'max', label: 'Cheio (máx.)', type: 'number', when: p => p.level && p.level !== 'no' },
@@ -188,6 +192,23 @@ export const SYMBOLS = {
             { key: 'decimals', label: 'Casas decimais', type: 'number', when: p => p.level && p.level !== 'no' && p.showValue === 'yes' }
         ],
         variants: SHAPES.map(([shape, label, w, h, tone, group]) => ({ label, w, h, category: group, props: { shape, tone: tone || 'equip' } })),
+        render: renderFrame
+    },
+    shape: {
+        label: 'Forma livre',
+        group: 'Formas',
+        w: 160,
+        h: 120,
+        preview: 60,
+        line: true,
+        defaults: { tone: 'equip', label: '', smooth: 'no', points: [[40, 0], [160, 0], [160, 120], [0, 120], [0, 40]], level: 'no', min: 0, max: 100, levelColor: 'level', showValue: 'no', unit: '%', decimals: 0 },
+        fields: [
+            { key: 'smooth', label: 'Cantos', type: 'select', options: [['no', 'Retos'], ['yes', 'Curvas suaves']] },
+            { key: 'tone', label: 'Tom', type: 'select', options: TONES, refresh: true },
+            { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
+            { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
+            { key: 'label', label: 'Legenda', type: 'text' }
+        ],
         render: renderFrame
     },
     line: {
@@ -463,7 +484,7 @@ export const SYMBOLS = {
 
 // Palette: categories in the order they appear in the editor. Symbols with
 // variants show one entry per variant (e.g. every frame shape).
-export const CATEGORIES = ['Formas', 'Estruturas', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Gráficos', 'Estados', 'Comandos']
+export const CATEGORIES = ['Formas', 'Estruturas', 'Mecânica', 'Equipamentos', 'Processo', 'Fábrica', 'Elétrica', 'Linhas', 'Valores', 'Gráficos', 'Estados', 'Comandos']
 export function paletteItems (category) {
     const out = []
     for (const [type, def] of Object.entries(SYMBOLS)) {
@@ -1193,12 +1214,12 @@ function framePath (shape, w, h) {
             `<rect class="hmi-detail" x="${f(w / 2 - hw * 2.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/>` +
             `<rect class="hmi-detail" x="${f(w / 2 + hw * 1.5)}" y="${f(h / 2 - 12)}" width="${f(hw)}" height="24" rx="1"/>`
     }
-    default: return `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`
+    default: return machinePath(shape, w, h, { f, poly, box }) || `<rect class="hmi-body" x="0" y="0" width="${f(w)}" height="${f(h)}"/>`
     }
 }
 
 // level inside any shape: the shape drawn again with the level colour, clipped to the filled part
-function frameLevel (sym, value, opts) {
+function frameLevel (sym, value, opts, body) {
     const p = sym.props || {}
     const dir = ['up', 'down', 'right', 'left'].includes(p.level) ? p.level : null
     if (!dir) return ''
@@ -1215,13 +1236,35 @@ function frameLevel (sym, value, opts) {
     const color = ['ok', 'warn', 'alarm', 'material'].includes(p.levelColor) ? p.levelColor : 'level'
     let out = k > 0
         ? `<clipPath id="${id}"><rect x="${f(r[0])}" y="${f(r[1])}" width="${f(r[2])}" height="${f(r[3])}"/></clipPath>` +
-            `<g class="hmi-shape-level hmi-lc-${color}" clip-path="url(#${id})">${framePath(p.shape, w, h).replace(/hmi-body|hmi-detail/g, 'hmi-level')}</g>`
+            `<g class="hmi-shape-level hmi-lc-${color}" clip-path="url(#${id})">${body.replace(/hmi-body|hmi-detail/g, 'hmi-level')}</g>`
         : ''
     if (p.showValue === 'yes') {
         const text = v === null ? '—' : formatValue(v, p.decimals, opts && opts.locale) + (p.unit ? ' ' + p.unit : '')
         out += `<text class="hmi-shape-value" x="${f(w / 2)}" y="${f(h / 2)}" font-size="${f(Math.max(10, Math.min(18, w * 0.14, h * 0.3)))}">${escapeXml(text)}</text>`
     }
     return out
+}
+
+// free shape: closed polygon through the points, straight or smooth
+function shapePath (sym) {
+    const pts = linePoints(sym)
+    if (pts.length < 3) return ''
+    let d
+    if ((sym.props || {}).smooth === 'yes') {
+        // closed Catmull-Rom curve as cubic béziers
+        const n = pts.length
+        const P = i => pts[(i + n) % n]
+        d = 'M' + f(P(0)[0]) + ' ' + f(P(0)[1])
+        for (let i = 0; i < n; i++) {
+            const p0 = P(i - 1)
+            const p1 = P(i)
+            const p2 = P(i + 1)
+            const p3 = P(i + 2)
+            d += 'C' + f(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + f(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + f(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + f(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + f(p2[0]) + ' ' + f(p2[1])
+        }
+        d += 'Z'
+    } else d = 'M' + pts.map(pt => f(pt[0]) + ' ' + f(pt[1])).join('L') + 'Z'
+    return `<path class="hmi-body" d="${d}"/><path class="hmi-hit" d="${d}"/>`
 }
 
 function renderFrame (sym, value, opts) {
@@ -1242,7 +1285,18 @@ function renderFrame (sym, value, opts) {
         }
         style = ` style="--hmi-tone-fill:${fill};--hmi-tone-stroke:${fixed[1]}"`
     }
-    return `<g class="hmi-frame hmi-tone-${fixed ? 'fixed' : tone}"${style}>${defs}${framePath(p.shape, sym.w, sym.h)}${frameLevel(sym, value, opts)}${label}</g>`
+    const free = sym.type === 'shape'
+    let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h)
+    const level = frameLevel(sym, value, opts, body)
+    let turning = ''
+    if (!free && ROUND_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
+        // turns around its centre while the key is on
+        const cx = f(sym.w / 2)
+        const cy = f(sym.h / 2)
+        body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`
+        if (onState(value, p) === true) turning = ' hmi-turning' + (p.spin === 'ccw' ? ' hmi-ccw' : '')
+    }
+    return `<g class="hmi-frame${free ? ' hmi-shape' : ''} hmi-tone-${fixed ? 'fixed' : tone}${turning}"${style}>${defs}${body}${level}${label}</g>`
 }
 
 export function linePoints (sym) {
@@ -1611,11 +1665,13 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS
+` + MORE_CSS + CHART_CSS + MACHINE_CSS
 
 // second batch of symbols, built from the helpers above
 Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
 Object.assign(SYMBOLS, chartSymbols({ f, num, escapeXml, formatValue }))
+// the free shape fills by value like the frame shapes
+SYMBOLS.shape.fields.push(...SYMBOLS.frame.fields.filter(fd => ['level', 'min', 'max', 'levelColor', 'showValue', 'unit', 'decimals'].includes(fd.key)))
 
 export function injectStyles (doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null)
