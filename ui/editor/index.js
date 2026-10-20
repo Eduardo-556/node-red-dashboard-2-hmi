@@ -29,7 +29,7 @@ const ICONS = {
     zoomin: '<circle cx="7" cy="7" r="5"/><path d="M11 11l4 4M4.5 7h5M7 4.5v5"/>',
     zoomout: '<circle cx="7" cy="7" r="5"/><path d="M11 11l4 4M4.5 7h5"/>'
 }
-const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página'], ['faceplate', 'Abrir faceplate (detalhes e comandos)']]
+const ACTIONS = [['none', 'Nada'], ['value', 'Enviar um valor'], ['toggle', 'Inverter (liga / desliga)'], ['pulse', 'Pulso (1 ao apertar, 0 ao soltar)'], ['input', 'Digitar um valor (ajuste)'], ['page', 'Ir para outra página'], ['screen', 'Ir para outra tela (deste canvas)'], ['faceplate', 'Abrir faceplate (detalhes e comandos)']]
 const clone = o => JSON.parse(JSON.stringify(o || []))
 let clipboard = null // shared by every editor on the page
 // copied rules; kept in localStorage too, so they reach the dashboard tab from the Node-RED editor
@@ -122,6 +122,15 @@ export function cleanBlockSymbols (list) {
         return c
     })
 }
+// screen names: unique, trimmed, at most 20
+export function cleanScreens (list) {
+    const out = []
+    for (const n of Array.isArray(list) ? list : []) {
+        const t = typeof n === 'string' ? n.trim().slice(0, 40) : ''
+        if (t && !out.includes(t) && out.length < 20) out.push(t)
+    }
+    return out
+}
 export function layerName (s) {
     const p = (s && s.props) || {}
     const def = SYMBOLS[s && s.type]
@@ -203,6 +212,10 @@ const CSS = `
 .hmi-ed-menu .hmi-ed-menurow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-bottom: 4px; border-bottom: 1px solid var(--hmi-ed-border); margin-bottom: 2px; }
 .hmi-ed-menu .hmi-ed-menurow input { height: 26px; padding: 2px 6px; font: inherit; font-size: 12px; border: 1px solid var(--hmi-ed-border); border-radius: 4px; flex: 1; min-width: 120px; }
 .hmi-ed-menu .hmi-ed-empty { grid-column: 1 / -1; font-size: 12px; opacity: .7; padding: 4px; }
+.hmi-ed-screens { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--hmi-ed-border); background: var(--hmi-ed-bg); }
+.hmi-ed-screens .hmi-ed-slabel { font-size: 12px; opacity: .7; margin-right: 2px; }
+.hmi-ed-screens .hmi-ed-stab { flex: none; border: 1px solid var(--hmi-ed-border); border-radius: 4px; padding: 3px 10px; }
+.hmi-ed-props .hmi-ed-nocolor { opacity: .35; }
 .hmi-ed-menu .hmi-ed-head { font-weight: 700; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
 .hmi-ed-item { position: relative; }
 .hmi-ed-item .hmi-ed-del { position: absolute; top: 1px; right: 3px; border: 0; background: none; cursor: pointer; opacity: .5; font-size: 13px; color: inherit; }
@@ -243,6 +256,11 @@ export function createEditor (root, opts) {
     const btnClass = 'hmi-ed-btn ' + (o.buttonClass || '')
     const ed = { symbols: clone(o.symbols), sel: null, multi: [], drag: null, history: [], future: [], zoom: 1, pan: { x: 0, y: 0 }, guides: [], hidden: new Set(), panel: 'props', filter: '' }
     ed.history.push(clone(ed.symbols))
+    // screens of this canvas (names); none = one screen. A symbol without "screen" is on the first one
+    ed.screens = cleanScreens(o.screens)
+    ed.screen = ed.screens[0] || ''
+    const here = s => !ed.screens.length || (s.screen || ed.screens[0]) === ed.screen
+    const onScreen = () => ed.symbols.filter(here)
 
     root.classList.add('hmi-ed')
     if (o.fill) root.classList.add('hmi-ed-fill')
@@ -320,8 +338,91 @@ export function createEditor (root, opts) {
     const props = el('div', { class: 'hmi-ed-props' })
     body.appendChild(stage)
     body.appendChild(props)
+    const screenBar = el('div', { class: 'hmi-ed-screens' })
     root.appendChild(toolbar)
+    root.appendChild(screenBar)
     root.appendChild(body)
+
+    // screen tabs: + Tela, rename and delete the one open
+    function showScreens () {
+        screenBar.innerHTML = ''
+        screenBar.appendChild(el('span', { class: 'hmi-ed-slabel' }, 'Telas:'))
+        const names = ed.screens.length ? ed.screens : ['Principal']
+        for (const n of names) {
+            const b = el('button', { type: 'button', class: 'hmi-ed-tab hmi-ed-stab' + ((ed.screen || 'Principal') === n ? ' hmi-ed-on' : ''), title: 'Abrir esta tela. Duplo clique renomeia.' }, n)
+            b.addEventListener('click', () => { if (ed.screens.length) { ed.screen = n; select([]); refresh() } })
+            b.addEventListener('dblclick', () => renameScreen())
+            screenBar.appendChild(b)
+        }
+        const mini = (label, title, fn) => {
+            const b = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title }, label)
+            b.addEventListener('click', fn)
+            screenBar.appendChild(b)
+        }
+        mini('+ Tela', 'Criar outra tela neste canvas (vira uma aba no dashboard)', addScreen)
+        if (ed.screens.length) {
+            mini('Renomear', 'Renomear a tela aberta', renameScreen)
+            if (ed.screens.length > 1) mini('Apagar tela', 'Apagar a tela aberta e os símbolos dela', deleteScreen)
+        }
+    }
+    // gives every symbol its screen name, so renaming or deleting the first screen is safe
+    function pinScreens () {
+        for (const m of ed.symbols) if (!m.screen || !ed.screens.includes(m.screen)) m.screen = ed.screens[0]
+    }
+    function askName (text, value) {
+        const raw = window.prompt(text, value || '')
+        if (raw === null) return null
+        const n = raw.trim().slice(0, 40)
+        if (!n) return null
+        if (ed.screens.includes(n) && n !== value) { msg.textContent = 'Já existe uma tela com esse nome.'; return null }
+        return n
+    }
+    function addScreen () {
+        if (!ed.screens.length) {
+            const first = askName('Nome da tela que já existe (a primeira):', 'Principal')
+            if (!first) return
+            ed.screens = [first]
+            pinScreens()
+        }
+        const n = askName('Nome da nova tela:', 'Tela ' + (ed.screens.length + 1))
+        if (!n) { screensChanged(); return }
+        ed.screens.push(n)
+        ed.screen = n
+        select([])
+        screensChanged()
+    }
+    function renameScreen () {
+        if (!ed.screens.length) return addScreen()
+        const old = ed.screen
+        const n = askName('Novo nome da tela "' + old + '":', old)
+        if (!n || n === old) return
+        pinScreens()
+        ed.screens = ed.screens.map(x => x === old ? n : x)
+        for (const m of ed.symbols) {
+            if (m.screen === old) m.screen = n
+            if (m.action && m.action.mode === 'screen' && m.action.value === old) m.action.value = n
+        }
+        ed.screen = n
+        screensChanged()
+    }
+    function deleteScreen () {
+        if (ed.screens.length < 2) return
+        const n = ed.screen
+        const count = onScreen().length
+        if (!window.confirm('Apagar a tela "' + n + '"' + (count ? ' e os ' + count + ' símbolo(s) dela' : '') + '?')) return
+        pinScreens()
+        ed.symbols = ed.symbols.filter(m => m.screen !== n)
+        ed.screens = ed.screens.filter(x => x !== n)
+        ed.screen = ed.screens[0]
+        select([])
+        screensChanged()
+    }
+    function screensChanged () {
+        showScreens()
+        refresh()
+        changed()
+        if (o.onChange) o.onChange(api)
+    }
 
     const view = () => {
         const v = (o.getView && o.getView()) || {}
@@ -425,7 +526,7 @@ export function createEditor (root, opts) {
         const values = { ...live, ...previews }
         for (const s of ed.symbols) {
             const def = SYMBOLS[s.type]
-            if (!def || ed.hidden.has(s.id)) continue
+            if (!def || ed.hidden.has(s.id) || !here(s)) continue
             // live values go through the symbol's scale; typed test values are already in screen units
             let value = s.preview !== undefined ? s.preview : (s.key ? previews[s.key] : def.preview)
             if (s.preview === undefined && s.key && !typed.has(s.key) && s.key in live) value = scaleValue(s, value)
@@ -522,7 +623,7 @@ export function createEditor (root, opts) {
             parent.appendChild(b)
         }
         const tabs = el('div', { class: 'hmi-ed-tabs' })
-        for (const [k, label] of [['props', 'Propriedades'], ['layers', 'Camadas (' + ed.symbols.length + ')']]) {
+        for (const [k, label] of [['props', 'Propriedades'], ['layers', 'Camadas (' + onScreen().length + ')']]) {
             const b = el('button', { type: 'button', class: 'hmi-ed-tab' + (ed.panel === k ? ' hmi-ed-on' : '') }, label)
             b.addEventListener('click', () => { ed.panel = k; showProps() })
             tabs.appendChild(b)
@@ -612,6 +713,20 @@ export function createEditor (root, opts) {
                 if (fd.refresh) setTimeout(showProps)
             }, fd.options))
         }
+        // own colours for on / off (empty = the theme's)
+        if ((def.defaults && 'onWhen' in def.defaults) || ['frame', 'shape'].includes(s.type)) {
+            const colorField = (label, k) => {
+                const f = field(label, s.props[k] || '#888888', 'color', v => { s.props[k] = v })
+                const input = f.querySelector('input')
+                if (!s.props[k]) input.classList.add('hmi-ed-nocolor')
+                input.addEventListener('input', () => input.classList.remove('hmi-ed-nocolor'))
+                const clear = el('button', { type: 'button', class: btnClass + ' hmi-ed-small', title: 'Voltar à cor do tema' }, 'Tema')
+                clear.addEventListener('click', () => { delete s.props[k]; draw(); changed(); showProps() })
+                f.appendChild(clear)
+                return f
+            }
+            props.appendChild(pair(colorField('Cor ligado', 'colorOn'), colorField('Cor desligado', 'colorOff')))
+        }
         if (def.defaults && 'priority' in def.defaults) {
             props.appendChild(field('Na lista de alarmes', s.props.alarmList === 'no' ? 'no' : 'yes', 'select', v => { s.props.alarmList = v }, [['yes', 'Sim'], ['no', 'Não']]))
         }
@@ -667,6 +782,10 @@ export function createEditor (root, opts) {
                 props.appendChild(pair(field('Saída mínima', act.opMin ?? '0', 'number', v => setAct('opMin', v)), field('Saída máxima', act.opMax ?? '100', 'number', v => setAct('opMax', v))))
                 props.appendChild(field('Auto/Manual: tópico', act.modeTopic || '', 'text', v => setAct('modeTopic', v.trim())))
                 props.appendChild(pair(field('valor Auto', act.autoValue ?? '1', 'text', v => setAct('autoValue', v)), field('valor Manual', act.manValue ?? '0', 'text', v => setAct('manValue', v))))
+            } else if (act.mode === 'screen') {
+                const names = ed.screens.length ? ed.screens : ['Principal']
+                props.appendChild(field('Tela', act.value, 'select', v => setAct('value', v), [['', '(escolha)'], ...names.map(n => [n, n])]))
+                if (!ed.screens.length) props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Crie outras telas com "+ Tela", acima do desenho.'))
             } else if (act.mode === 'page') {
                 const pages = (o.getPages && o.getPages()) || []
                 const pf = pages.length
@@ -674,21 +793,21 @@ export function createEditor (root, opts) {
                     : field('Página (caminho, ex. /linha2)', act.value, 'text', v => setAct('value', v.trim()))
                 props.appendChild(pf)
             }
-            if (!['page', 'faceplate'].includes(act.mode)) {
+            if (!['page', 'screen', 'faceplate'].includes(act.mode)) {
                 const t = field('Tópico (vazio = chave do payload)', act.topic, 'text', v => setAct('topic', v))
                 t.querySelector('input').placeholder = s.key || ''
                 props.appendChild(t)
             }
-            if (['value', 'toggle', 'page', 'faceplate'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
-            if (act.mode !== 'page') props.appendChild(field('Pedir senha', act.pin || 'no', 'select', v => setAct('pin', v), [['no', 'Não'], ['yes', 'Sim (a senha do nó)']]))
-            if (act.mode !== 'page') {
+            if (['value', 'toggle', 'page', 'screen', 'faceplate'].includes(act.mode)) props.appendChild(field('Pedir confirmação', act.confirm || 'no', 'select', v => setAct('confirm', v), [['no', 'Não'], ['yes', 'Sim']]))
+            if (!['page', 'screen'].includes(act.mode)) props.appendChild(field('Pedir senha', act.pin || 'no', 'select', v => setAct('pin', v), [['no', 'Não'], ['yes', 'Sim (a senha do nó)']]))
+            if (!['page', 'screen'].includes(act.mode)) {
                 const il = field('Intertravamento: chaves que precisam estar ligadas', act.interlock || '', 'text', v => setAct('interlock', v.trim()))
                 il.querySelector('input').placeholder = 'ex.: permissivo, !emergencia'
                 props.appendChild(il)
                 props.appendChild(field('Motivo mostrado quando bloqueado', act.interlockText || '', 'text', v => setAct('interlockText', v)))
                 props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'Separe por vírgula; "!" na frente exige a chave desligada. O Node-RED recusa o comando enquanto faltar alguma, e o símbolo mostra um cadeado.'))
             }
-            if (act.mode !== 'page') props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
+            if (!['page', 'screen'].includes(act.mode)) props.appendChild(el('div', { class: 'hmi-ed-hint' }, 'A mensagem sai pela saída do nó: msg.topic e msg.payload.'))
         }
     }
 
@@ -816,8 +935,8 @@ export function createEditor (root, opts) {
         const fill = () => {
             list.innerHTML = ''
             const q = plain(ed.filter).trim()
-            const rows = [...ed.symbols].reverse().filter(m => !q || plain(layerName(m) + ' ' + m.key + ' ' + m.type).includes(q))
-            if (!rows.length) list.appendChild(el('div', { class: 'hmi-ed-hint' }, ed.symbols.length ? 'Nada encontrado.' : 'A tela está vazia.'))
+            const rows = onScreen().reverse().filter(m => !q || plain(layerName(m) + ' ' + m.key + ' ' + m.type).includes(q))
+            if (!rows.length) list.appendChild(el('div', { class: 'hmi-ed-hint' }, onScreen().length ? 'Nada encontrado.' : 'A tela está vazia.'))
             for (const m of rows) {
                 const row = el('div', { class: 'hmi-ed-layer' + (ed.multi.includes(m.id) ? ' hmi-ed-on' : '') + (ed.hidden.has(m.id) ? ' hmi-ed-off' : ''), 'data-layer': m.id })
                 const eye = el('button', { type: 'button', class: 'hmi-ed-lbtn' + (ed.hidden.has(m.id) ? '' : ' hmi-ed-on'), title: 'Mostrar / esconder só no editor' }, '👁')
@@ -874,7 +993,7 @@ export function createEditor (root, opts) {
         const xs = [0, v.w / 2, v.w]
         const ys = [0, v.h / 2, v.h]
         for (const m of ed.symbols) {
-            if (moving.has(m.id) || ed.hidden.has(m.id)) continue
+            if (moving.has(m.id) || ed.hidden.has(m.id) || !here(m)) continue
             const b = box(m)
             xs.push(b.x, b.x + b.w / 2, b.x + b.w)
             ys.push(b.y, b.y + b.h / 2, b.y + b.h)
@@ -900,6 +1019,7 @@ export function createEditor (root, opts) {
         const s = createSymbol(type, 0, 0, isFinite(variant) ? variant : -1)
         s.x = snap(cx - s.w / 2)
         s.y = snap(cy - s.h / 2)
+        if (ed.screens.length) s.screen = ed.screen
         ed.symbols.push(s)
         select([s.id])
         refresh()
@@ -927,6 +1047,8 @@ export function createEditor (root, opts) {
             delete c.locked
             // copies form their own group, not join the original's
             if (x.group) c.group = groups[x.group] || (groups[x.group] = newGroupId())
+            if (ed.screens.length) c.screen = ed.screen
+            else delete c.screen
             return c
         })
         ed.symbols.push(...out)
@@ -1358,7 +1480,7 @@ export function createEditor (root, opts) {
             d.cur = p
             const r = marquee(d)
             const hits = ed.symbols.filter(m => {
-                if (m.locked || ed.hidden.has(m.id)) return false
+                if (m.locked || ed.hidden.has(m.id) || !here(m)) return false
                 const b = box(m)
                 return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y
             }).flatMap(m => groupOf(m.id))
@@ -1471,7 +1593,7 @@ export function createEditor (root, opts) {
             else if (k === 'c' && ed.multi.length) clipboard = clone(selection())
             else if (k === 'v' && clipboard) clipboard = paste(clipboard) || clipboard
             else if (k === 'd') duplicate()
-            else if (k === 'a') { select(ed.symbols.map(m => m.id)); refresh() } else if (k === 'g' && e.shiftKey) ungroup()
+            else if (k === 'a') { select(onScreen().map(m => m.id)); refresh() } else if (k === 'g' && e.shiftKey) ungroup()
             else if (k === 'g') group()
             else if (k === 'l' && ed.multi.length) setLocked(!selection().every(m => m.locked))
             else if (k === '0') { ed.zoom = 1; ed.pan = { x: 0, y: 0 }; draw() } else if (k === '=' || k === '+') zoomBy(1.25)
@@ -1510,12 +1632,14 @@ export function createEditor (root, opts) {
     gridBox.addEventListener('change', draw)
 
     Object.assign(api, {
-        getSymbols: () => clone(ed.symbols),
+        getSymbols: () => { if (ed.screens.length) pinScreens(); return clone(ed.symbols) },
+        getScreens: () => [...ed.screens],
         redraw: draw,
         setMessage: (text) => { msg.textContent = text || '' },
         toggleFull: () => { root.classList.toggle('hmi-ed-full'); draw() },
         destroy: () => { document.removeEventListener('pointerdown', outside, true); root.innerHTML = '' }
     })
+    showScreens()
     refresh()
     return api
 }

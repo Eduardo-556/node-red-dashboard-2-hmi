@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.4
+
+Novidades:
+
+- **Várias telas no mesmo canvas**: barra Telas no editor (+ Tela, Renomear, Apagar tela), abas no topo do dashboard, ação de clique **Ir para outra tela** e `msg.ui_update.screen`.
+- Opção **Movimento** do nó: sempre que ligado (padrão), só no tema Clássico ou nunca. Correias, correntes, polias, engrenagens, rodas, esteiras, ventiladores, rolos e o fluxo das linhas agora andam também no ISA-101.
+- Transmissão por correia e por corrente: as polias giram e a correia corre. Novas engrenagens, polias e rodas já vêm girando.
+- **Cor ligado / Cor desligado** em todo símbolo que liga e desliga, nas formas e nas linhas.
+- Linhas: **sentido do fluxo** invertido e **espessura** em pixels.
+- Cilindro: **quando ativo o pistão avança ou recua** (a cor segue o ativo). Peças que se movem: **quando a chave ligar a peça** avança ou recua.
+- **Inverter sinal** em todas as formas do Corpo (fim de curso, sensores, boia).
+
 ## 0.1.3
 
 Novidades:

@@ -2319,10 +2319,10 @@ var HmiEditor = (function(exports) {
 .hmi-root .hmi-sub-label { fill: var(--hmi-text-dim); font-size: 12px; font-weight: 600; }
 .hmi-root .hmi-sub-value { fill: var(--hmi-text); font-size: 11px; font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-eq .hmi-spin, .hmi-root .hmi-eq .hmi-stir, .hmi-root .hmi-eq .hmi-arm { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin { animation: hmi-spin 1.4s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin.hmi-ccw { animation: hmi-spin-ccw 1.4s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-stir { animation: hmi-stir .8s ease-in-out infinite alternate; }
-.hmi-root.hmi-theme-classic .hmi-robot.hmi-on .hmi-arm { animation: hmi-arm 2.4s ease-in-out infinite alternate; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-spin { animation: hmi-spin 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin.hmi-ccw, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-spin.hmi-ccw { animation: hmi-spin-ccw 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-stir, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-stir { animation: hmi-stir .8s ease-in-out infinite alternate; }
+.hmi-root.hmi-theme-classic .hmi-robot.hmi-on .hmi-arm, .hmi-root.hmi-anim-always .hmi-robot.hmi-on .hmi-arm { animation: hmi-arm 2.4s ease-in-out infinite alternate; }
 .hmi-root .hmi-eq .hmi-led, .hmi-root .hmi-eq .hmi-led-rect { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-eq.hmi-on .hmi-led, .hmi-root .hmi-eq.hmi-on .hmi-led-rect { fill: var(--hmi-ok); }
 .hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-led-arc { fill: var(--hmi-warn); }
@@ -2472,6 +2472,11 @@ var HmiEditor = (function(exports) {
 .hmi-kp-key { min-height: 52px; font-size: 22px; font-weight: 700; border-radius: 6px; border: 1px solid var(--fp-line); background: var(--fp-btn); color: var(--fp-text); cursor: pointer; touch-action: manipulation; }
 .hmi-kp-key:active { filter: brightness(.85); }
 .hmi-kp-fn { font-size: 18px; color: var(--fp-dim); }
+.hmi-screen-nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 0 6px 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+.hmi-screen-tab { font: inherit; font-size: 15px; font-weight: 600; padding: 8px 18px; min-height: 40px; border: 1px solid #8a939d; border-radius: 4px; background: #e6e8ea; color: #222; cursor: pointer; }
+.hmi-screen-tab.hmi-screen-on { background: #5b6670; border-color: #5b6670; color: #fff; }
+.hmi-nav-classic .hmi-screen-tab { background: #2b2f36; border-color: #4a515b; color: #dfe3e8; }
+.hmi-nav-classic .hmi-screen-tab.hmi-screen-on { background: #1e88e5; border-color: #1e88e5; color: #fff; }
 .hmi-notice { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3100; background: #d71920; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 @keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
 @keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }
@@ -3099,6 +3104,7 @@ ${[
 		"pulley",
 		"wheel"
 	];
+	var DRIVE_SHAPES = ["beltDrive", "chainDrive"];
 	function machinePath(shape, w, h, H) {
 		const { f, poly, box } = H;
 		const m = Math.min(w, h);
@@ -3159,7 +3165,11 @@ ${[
 			const p2b = [c2 + R2 * s, cy + R2 * c];
 			const p1b = [c1 + R1 * s, cy + R1 * c];
 			const belt = `M${f(p1t[0])} ${f(p1t[1])}L${f(p2t[0])} ${f(p2t[1])}A${f(R2)} ${f(R2)} 0 0 1 ${f(p2b[0])} ${f(p2b[1])}L${f(p1b[0])} ${f(p1b[1])}A${f(R1)} ${f(R1)} 0 1 1 ${f(p1t[0])} ${f(p1t[1])}Z`;
-			return (chain ? gear(c1, cy, R1 - bt * .2, true) + gear(c2, cy, R2 - bt * .2, true) : pulley(c1, cy, R1 - bt / 2) + pulley(c2, cy, R2 - bt / 2)) + path("hmi-strap", belt, ` style="stroke-width:${f(bt)}${chain ? `;stroke-dasharray:${f(bt * .9)} ${f(bt * .45)};stroke-linecap:butt` : ""}"`);
+			const turn = (x, body) => `<g transform="translate(${f(x)},${f(cy)})"><g class="hmi-spin"><g transform="translate(${f(-x)},${f(-cy)})">${body}</g></g></g>`;
+			const wheels = chain ? turn(c1, gear(c1, cy, R1 - bt * .2, true)) + turn(c2, gear(c2, cy, R2 - bt * .2, true)) : turn(c1, pulley(c1, cy, R1 - bt / 2)) + turn(c2, pulley(c2, cy, R2 - bt / 2));
+			const period = 16 / Math.max(1, Math.round(16 / (bt * 1.35)));
+			const marks = chain ? "" : path("hmi-belt-marks hmi-move", belt, ` style="stroke-width:${f(Math.max(1, bt * .35))};stroke-dasharray:4 12"`);
+			return wheels + path("hmi-strap" + (chain ? " hmi-move" : ""), belt, ` style="stroke-width:${f(bt)}${chain ? `;stroke-dasharray:${f(period * .67)} ${f(period * .33)};stroke-linecap:butt` : ""}"`) + marks;
 		}
 		switch (shape) {
 			case "gear": return gear(cx, cy, m / 2, false);
@@ -3338,6 +3348,8 @@ ${[
 .hmi-root .hmi-frame .hmi-glass { fill: var(--hmi-bg); stroke: var(--hmi-stroke); stroke-width: 1; opacity: .85; }
 .hmi-root .hmi-frame .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
 .hmi-root .hmi-frame.hmi-turning .hmi-spin { animation: hmi-spin 3s linear infinite; }
+.hmi-root .hmi-frame .hmi-belt-marks { fill: none; stroke: var(--hmi-bg); opacity: .7; }
+.hmi-root .hmi-frame.hmi-on.hmi-ccw .hmi-move { animation-direction: reverse; }
 .hmi-root .hmi-frame.hmi-turning.hmi-ccw .hmi-spin { animation-name: hmi-spin-ccw; }
 .hmi-root .hmi-shape .hmi-hit { fill: none; stroke: transparent; stroke-width: 12; }
 `;
@@ -4635,7 +4647,11 @@ ${[
 		...MACHINE_SHAPES,
 		...MACHINE2_SHAPES
 	];
-	var SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND];
+	var SPIN_SHAPES = [
+		...ROUND_SHAPES,
+		...MACHINE2_ROUND,
+		...DRIVE_SHAPES
+	];
 	var isMotion = (p) => p.motion === "value" && MACHINE2_ANALOG.includes(p.shape);
 	var TONES = [
 		["equip", "Equipamento (tema)"],
@@ -4910,6 +4926,7 @@ ${[
 				shape: "chamfer",
 				tone: "equip",
 				label: "",
+				spin: "cw",
 				level: "no",
 				min: 0,
 				max: 100,
@@ -4951,7 +4968,7 @@ ${[
 				},
 				{
 					key: "spin",
-					label: "Girar quando a chave ligar",
+					label: "Girar / correr quando a chave ligar",
 					type: "select",
 					options: [
 						["no", "Não"],
@@ -4960,6 +4977,14 @@ ${[
 					],
 					when: (p) => SPIN_SHAPES.includes(p.shape)
 				},
+				{
+					key: "reverse",
+					label: "Quando a chave ligar a peça",
+					type: "select",
+					options: [["no", "Avança / desce / fecha"], ["yes", "Recua / sobe / abre"]],
+					when: (p) => MACHINE2_ANALOG.includes(p.shape)
+				},
+				INVERT_FIELD,
 				{
 					key: "motion",
 					label: "A peça se move",
@@ -5161,10 +5186,21 @@ ${[
 					label: "Animar fluxo",
 					type: "select",
 					options: [
-						["auto", "Só no tema Clássico"],
+						["auto", "Como o canvas manda"],
 						["always", "Sempre"],
 						["never", "Nunca"]
 					]
+				},
+				{
+					key: "flowDir",
+					label: "Sentido do fluxo",
+					type: "select",
+					options: [["fwd", "Do primeiro ao último ponto"], ["rev", "Invertido (do último ao primeiro)"]]
+				},
+				{
+					key: "width",
+					label: "Espessura da linha (px, vazio = padrão)",
+					type: "number"
 				}
 			],
 			render: renderLine
@@ -5518,7 +5554,8 @@ ${[
 			defaults: {
 				label: "",
 				onWhen: "nonzero",
-				threshold: 0
+				threshold: 0,
+				onDir: "advance"
 			},
 			fields: [
 				{
@@ -5528,12 +5565,18 @@ ${[
 				},
 				{
 					key: "onWhen",
-					label: "Avançado quando",
+					label: "Ativo quando",
 					type: "select",
 					options: ON_FIELDS[0].options
 				},
 				ON_FIELDS[1],
-				INVERT_FIELD
+				INVERT_FIELD,
+				{
+					key: "onDir",
+					label: "Quando ativo o pistão",
+					type: "select",
+					options: [["advance", "Avança"], ["retract", "Recua"]]
+				}
 			],
 			render: renderCylinder
 		},
@@ -6326,9 +6369,10 @@ ${[
 		const w = sym.w;
 		const h = sym.h;
 		const on = onState(value, p);
+		const out = p.onDir === "retract" ? on === false : on === true;
 		const bx = w * .55;
 		const rodY = h / 2 - h * .09;
-		const rodEnd = on ? w - 8 : w * .66;
+		const rodEnd = out ? w - 8 : w * .66;
 		return `<g class="hmi-cylinder ${stateClass(on)}"><rect class="hmi-rod" x="${f(bx - 4)}" y="${f(rodY)}" width="${f(rodEnd - bx + 4)}" height="${f(h * .18)}"/><rect class="hmi-rod-end" x="${f(rodEnd)}" y="${f(h * .22)}" width="8" height="${f(h * .56)}" rx="1"/><rect class="hmi-body" x="1" y="${f(h * .12)}" width="${f(bx - 1)}" height="${f(h * .76)}" rx="2"/><path class="hmi-detail" d="M${f(bx * .12)} ${f(h * .12)}V${f(h * .88)}M${f(bx * .88)} ${f(h * .12)}V${f(h * .88)}"/>` + labelBelow(p, w, h) + "</g>";
 	}
 	function renderFan(sym, value, opts) {
@@ -6753,16 +6797,23 @@ ${[
 			if (max === null || max <= min) max = min + 100;
 			if (v !== null) pos = Math.max(0, Math.min(1, (v - min) / (max - min)));
 		}
-		let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, on, pos);
+		const back = p.reverse === "yes" && MACHINE2_ANALOG.includes(p.shape);
+		const moved = back && on !== null ? !on : on;
+		if (back && pos !== null) pos = 1 - pos;
+		let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, moved, pos);
 		const level = frameLevel(sym, value, opts, body);
 		let turning = "";
-		if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === "cw" || p.spin === "ccw")) {
+		if (!free && DRIVE_SHAPES.includes(p.shape) && (p.spin === "cw" || p.spin === "ccw")) {
+			if (on === true) turning = " hmi-turning" + (p.spin === "ccw" ? " hmi-ccw" : "");
+		} else if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === "cw" || p.spin === "ccw")) {
 			const cx = f(sym.w / 2);
 			const cy = f(sym.h / 2);
 			body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`;
 			if (on === true) turning = " hmi-turning" + (p.spin === "ccw" ? " hmi-ccw" : "");
 		}
-		return `<g class="hmi-frame${free ? " hmi-shape" : ""} hmi-tone-${fixed ? "fixed" : tone}${turning}${on === true ? " hmi-on" : ""}${p.darken === "yes" ? " hmi-darken" : ""}${p.presence === "ghost" && on === false ? " hmi-ghost" : ""}"${style}>${defs}${body}${level}${label}</g>`;
+		const own = on === true ? p.colorOn : p.colorOff;
+		if (HEX.test(own)) style = (style ? style.slice(0, -1) + ";" : " style=\"") + `--hmi-own:${own}"`;
+		return `<g class="hmi-frame${free ? " hmi-shape" : ""} hmi-tone-${fixed ? "fixed" : tone}${turning}${on === true ? " hmi-on" : ""}${p.darken === "yes" ? " hmi-darken" : ""}${p.presence === "ghost" && on === false ? " hmi-ghost" : ""}${HEX.test(own) ? " hmi-own" : ""}"${style}>${defs}${body}${level}${label}</g>`;
 	}
 	function linePoints(sym) {
 		return (sym.props && Array.isArray(sym.props.points) ? sym.props.points : []).filter((pt) => Array.isArray(pt) && isFinite(pt[0]) && isFinite(pt[1])).map((pt) => [Number(pt[0]), Number(pt[1])]);
@@ -6779,7 +6830,13 @@ ${[
 			"signal"
 		].includes(p.style) ? p.style : "strip";
 		const flow = ["always", "never"].includes(p.flow) ? p.flow : "auto";
-		return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}"><path class="hmi-hit" d="${d}"/><path class="hmi-path" d="${d}"/><path class="hmi-flowpath" d="${d}"/></g>`;
+		const width = num(p.width);
+		const wd = width !== null && width > 0 ? Math.min(80, width) : null;
+		const own = on === true ? p.colorOn : p.colorOff;
+		const pathStyle = (wd ? `stroke-width:${f(wd)};` : "") + (HEX.test(own) ? `stroke:${own};` : "");
+		const flowStyle = wd ? ` style="stroke-width:${f(Math.max(1.6, wd * .25))}"` : "";
+		const hitStyle = wd && wd > 8 ? ` style="stroke-width:${f(wd + 8)}"` : "";
+		return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}${p.flowDir === "rev" ? " hmi-flow-rev" : ""}"><path class="hmi-hit" d="${d}"${hitStyle}/><path class="hmi-path" d="${d}"${pathStyle ? ` style="${pathStyle}"` : ""}/><path class="hmi-flowpath" d="${d}"${flowStyle}/></g>`;
 	}
 	function renderKpi(sym, value, opts) {
 		const p = sym.props || {};
@@ -6883,7 +6940,13 @@ ${[
 		const cls = "hmi-symbol" + fx.classes.map((c) => " " + c).join("") + (fx.hide ? " hmi-rule-hidden" : "");
 		const rot = Number(sym.rot) || 0;
 		const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : "");
-		return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, o)}</g>`;
+		const p = sym.props || {};
+		let vars = "";
+		if (!def.line && sym.type !== "frame" && sym.type !== "shape") {
+			if (HEX.test(p.colorOn)) vars += `--hmi-equip-on:${p.colorOn};--hmi-ok:${p.colorOn};`;
+			if (HEX.test(p.colorOff)) vars += `--hmi-equip:${p.colorOff};`;
+		}
+		return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}"${vars ? ` style="${vars}"` : ""}>${def.render(sym, value, o)}</g>`;
 	}
 	var STYLE_ID = "hmi-symbols-style";
 	var CSS = `
@@ -6914,7 +6977,7 @@ ${[
 .hmi-root .hmi-reel .hmi-hub { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-reel .hmi-axle { fill: var(--hmi-stroke); }
 .hmi-root .hmi-reel .hmi-spin, .hmi-root .hmi-roller .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-spin { animation: hmi-spin 2.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-reel.hmi-on .hmi-spin { animation: hmi-spin 2.4s linear infinite; }
 .hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-axle { fill: var(--hmi-ok); }
 .hmi-root .hmi-tag-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-tag-title { fill: var(--hmi-text-dim); font-weight: 600; letter-spacing: .5px; }
@@ -6939,8 +7002,8 @@ ${[
 .hmi-root .hmi-roller .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller .hmi-mark { stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
-.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin, .hmi-root.hmi-anim-always .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin, .hmi-root.hmi-anim-always .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
 .hmi-root .hmi-motor .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-motor .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-motor.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
@@ -6989,8 +7052,8 @@ ${[
 .hmi-root .hmi-idler { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-belt { fill: none; stroke: var(--hmi-material); stroke-width: 2; stroke-dasharray: 10 6; }
 .hmi-root .hmi-dir { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt { animation: hmi-belt 0.8s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-rev .hmi-belt { animation: hmi-belt 0.8s linear infinite reverse; }
+.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt, .hmi-root.hmi-anim-always .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt { animation: hmi-belt 0.8s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-rev .hmi-belt, .hmi-root.hmi-anim-always .hmi-conveyor.hmi-on.hmi-rev .hmi-belt { animation: hmi-belt 0.8s linear infinite reverse; }
 .hmi-root .hmi-rod { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-rod-end { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-fan .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 2; }
@@ -7001,8 +7064,8 @@ ${[
 .hmi-root .hmi-knife.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-knife .hmi-edge { fill: none; stroke: var(--hmi-tag-bg); stroke-width: 1.5; }
 .hmi-root .hmi-fan .hmi-spin, .hmi-root .hmi-knife .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-fan.hmi-on .hmi-spin { animation: hmi-spin 0.9s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-knife.hmi-on .hmi-spin { animation: hmi-spin 0.5s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-fan.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-fan.hmi-on .hmi-spin { animation: hmi-spin 0.9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-knife.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-knife.hmi-on .hmi-spin { animation: hmi-spin 0.5s linear infinite; }
 .hmi-root .hmi-coil { fill: none; stroke: var(--hmi-stroke); stroke-width: 2; stroke-linejoin: round; }
 .hmi-root .hmi-heater.hmi-on .hmi-coil { stroke: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-heater.hmi-on .hmi-coil { stroke: var(--hmi-warn); }
@@ -7072,7 +7135,11 @@ ${[
 .hmi-root .hmi-line.hmi-ls-signal .hmi-path { stroke: var(--hmi-line); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .hmi-root .hmi-line.hmi-ls-pipe.hmi-on .hmi-path { stroke: var(--hmi-equip-on); }
 .hmi-root .hmi-line .hmi-flowpath { stroke: var(--hmi-bg); stroke-width: 1.6; stroke-dasharray: 3 21; opacity: 0; }
-.hmi-root.hmi-theme-classic .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath, .hmi-root .hmi-line.hmi-on.hmi-flow-always .hmi-flowpath { opacity: .85; animation: hmi-flow .8s linear infinite; }
+.hmi-root .hmi-line.hmi-flow-rev .hmi-flowpath, .hmi-root .hmi-line.hmi-ls-conveyor.hmi-flow-rev .hmi-path { animation-direction: reverse !important; }
+.hmi-root.hmi-theme-classic .hmi-line.hmi-ls-conveyor.hmi-on:not(.hmi-flow-never) .hmi-path, .hmi-root.hmi-anim-always .hmi-line.hmi-ls-conveyor.hmi-on:not(.hmi-flow-never) .hmi-path, .hmi-root .hmi-line.hmi-ls-conveyor.hmi-on.hmi-flow-always .hmi-path { animation: hmi-belt .8s linear infinite; }
+.hmi-root .hmi-frame.hmi-own .hmi-body { fill: var(--hmi-own) !important; }
+.hmi-root.hmi-anim-never *:not(.hmi-blink):not(.hmi-rule-blink):not(.hmi-ov-wait):not(.hmi-al-flash), .hmi-root.hmi-anim-classic.hmi-theme-isa101 *:not(.hmi-blink):not(.hmi-rule-blink):not(.hmi-ov-wait):not(.hmi-al-flash) { animation: none !important; }
+.hmi-root.hmi-theme-classic .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath, .hmi-root .hmi-line.hmi-on.hmi-flow-always .hmi-flowpath, .hmi-root.hmi-anim-always .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath { opacity: .85; animation: hmi-flow .8s linear infinite; }
 .hmi-root .hmi-kpi-card { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-kpi text { text-anchor: start; }
 .hmi-root .hmi-kpi-title { fill: var(--hmi-text-dim); font-weight: 700; letter-spacing: .5px; }
@@ -7359,6 +7426,7 @@ ${[
 		["pulse", "Pulso (1 ao apertar, 0 ao soltar)"],
 		["input", "Digitar um valor (ajuste)"],
 		["page", "Ir para outra página"],
+		["screen", "Ir para outra tela (deste canvas)"],
 		["faceplate", "Abrir faceplate (detalhes e comandos)"]
 	];
 	var clone = (o) => JSON.parse(JSON.stringify(o || []));
@@ -7464,6 +7532,14 @@ ${[
 			return c;
 		});
 	}
+	function cleanScreens(list) {
+		const out = [];
+		for (const n of Array.isArray(list) ? list : []) {
+			const t = typeof n === "string" ? n.trim().slice(0, 40) : "";
+			if (t && !out.includes(t) && out.length < 20) out.push(t);
+		}
+		return out;
+	}
 	function layerName(s) {
 		const p = s && s.props || {};
 		const def = SYMBOLS[s && s.type];
@@ -7544,6 +7620,10 @@ ${[
 .hmi-ed-menu .hmi-ed-menurow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-bottom: 4px; border-bottom: 1px solid var(--hmi-ed-border); margin-bottom: 2px; }
 .hmi-ed-menu .hmi-ed-menurow input { height: 26px; padding: 2px 6px; font: inherit; font-size: 12px; border: 1px solid var(--hmi-ed-border); border-radius: 4px; flex: 1; min-width: 120px; }
 .hmi-ed-menu .hmi-ed-empty { grid-column: 1 / -1; font-size: 12px; opacity: .7; padding: 4px; }
+.hmi-ed-screens { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--hmi-ed-border); background: var(--hmi-ed-bg); }
+.hmi-ed-screens .hmi-ed-slabel { font-size: 12px; opacity: .7; margin-right: 2px; }
+.hmi-ed-screens .hmi-ed-stab { flex: none; border: 1px solid var(--hmi-ed-border); border-radius: 4px; padding: 3px 10px; }
+.hmi-ed-props .hmi-ed-nocolor { opacity: .35; }
 .hmi-ed-menu .hmi-ed-head { font-weight: 700; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
 .hmi-ed-item { position: relative; }
 .hmi-ed-item .hmi-ed-del { position: absolute; top: 1px; right: 3px; border: 0; background: none; cursor: pointer; opacity: .5; font-size: 13px; color: inherit; }
@@ -7595,6 +7675,10 @@ ${[
 			filter: ""
 		};
 		ed.history.push(clone(ed.symbols));
+		ed.screens = cleanScreens(o.screens);
+		ed.screen = ed.screens[0] || "";
+		const here = (s) => !ed.screens.length || (s.screen || ed.screens[0]) === ed.screen;
+		const onScreen = () => ed.symbols.filter(here);
 		root.classList.add("hmi-ed");
 		if (o.fill) root.classList.add("hmi-ed-fill");
 		root.innerHTML = "";
@@ -7698,8 +7782,108 @@ ${[
 		const props = el("div", { class: "hmi-ed-props" });
 		body.appendChild(stage);
 		body.appendChild(props);
+		const screenBar = el("div", { class: "hmi-ed-screens" });
 		root.appendChild(toolbar);
+		root.appendChild(screenBar);
 		root.appendChild(body);
+		function showScreens() {
+			screenBar.innerHTML = "";
+			screenBar.appendChild(el("span", { class: "hmi-ed-slabel" }, "Telas:"));
+			const names = ed.screens.length ? ed.screens : ["Principal"];
+			for (const n of names) {
+				const b = el("button", {
+					type: "button",
+					class: "hmi-ed-tab hmi-ed-stab" + ((ed.screen || "Principal") === n ? " hmi-ed-on" : ""),
+					title: "Abrir esta tela. Duplo clique renomeia."
+				}, n);
+				b.addEventListener("click", () => {
+					if (ed.screens.length) {
+						ed.screen = n;
+						select([]);
+						refresh();
+					}
+				});
+				b.addEventListener("dblclick", () => renameScreen());
+				screenBar.appendChild(b);
+			}
+			const mini = (label, title, fn) => {
+				const b = el("button", {
+					type: "button",
+					class: btnClass + " hmi-ed-small",
+					title
+				}, label);
+				b.addEventListener("click", fn);
+				screenBar.appendChild(b);
+			};
+			mini("+ Tela", "Criar outra tela neste canvas (vira uma aba no dashboard)", addScreen);
+			if (ed.screens.length) {
+				mini("Renomear", "Renomear a tela aberta", renameScreen);
+				if (ed.screens.length > 1) mini("Apagar tela", "Apagar a tela aberta e os símbolos dela", deleteScreen);
+			}
+		}
+		function pinScreens() {
+			for (const m of ed.symbols) if (!m.screen || !ed.screens.includes(m.screen)) m.screen = ed.screens[0];
+		}
+		function askName(text, value) {
+			const raw = window.prompt(text, value || "");
+			if (raw === null) return null;
+			const n = raw.trim().slice(0, 40);
+			if (!n) return null;
+			if (ed.screens.includes(n) && n !== value) {
+				msg.textContent = "Já existe uma tela com esse nome.";
+				return null;
+			}
+			return n;
+		}
+		function addScreen() {
+			if (!ed.screens.length) {
+				const first = askName("Nome da tela que já existe (a primeira):", "Principal");
+				if (!first) return;
+				ed.screens = [first];
+				pinScreens();
+			}
+			const n = askName("Nome da nova tela:", "Tela " + (ed.screens.length + 1));
+			if (!n) {
+				screensChanged();
+				return;
+			}
+			ed.screens.push(n);
+			ed.screen = n;
+			select([]);
+			screensChanged();
+		}
+		function renameScreen() {
+			if (!ed.screens.length) return addScreen();
+			const old = ed.screen;
+			const n = askName("Novo nome da tela \"" + old + "\":", old);
+			if (!n || n === old) return;
+			pinScreens();
+			ed.screens = ed.screens.map((x) => x === old ? n : x);
+			for (const m of ed.symbols) {
+				if (m.screen === old) m.screen = n;
+				if (m.action && m.action.mode === "screen" && m.action.value === old) m.action.value = n;
+			}
+			ed.screen = n;
+			screensChanged();
+		}
+		function deleteScreen() {
+			if (ed.screens.length < 2) return;
+			const n = ed.screen;
+			const count = onScreen().length;
+			if (!window.confirm("Apagar a tela \"" + n + "\"" + (count ? " e os " + count + " símbolo(s) dela" : "") + "?")) return;
+			pinScreens();
+			ed.symbols = ed.symbols.filter((m) => m.screen !== n);
+			ed.screens = ed.screens.filter((x) => x !== n);
+			ed.screen = ed.screens[0];
+			select([]);
+			screensChanged();
+		}
+		function screensChanged() {
+			showScreens();
+			refresh();
+			changed();
+			if (o.onChange) o.onChange(api);
+		}
 		const view = () => {
 			const v = o.getView && o.getView() || {};
 			return {
@@ -7820,7 +8004,7 @@ ${[
 			};
 			for (const s of ed.symbols) {
 				const def = SYMBOLS[s.type];
-				if (!def || ed.hidden.has(s.id)) continue;
+				if (!def || ed.hidden.has(s.id) || !here(s)) continue;
 				let value = s.preview !== void 0 ? s.preview : s.key ? previews[s.key] : def.preview;
 				if (s.preview === void 0 && s.key && !typed.has(s.key) && s.key in live) value = scaleValue(s, value);
 				out += renderSymbol(s, value, {
@@ -7915,7 +8099,7 @@ ${[
 				parent.appendChild(b);
 			};
 			const tabs = el("div", { class: "hmi-ed-tabs" });
-			for (const [k, label] of [["props", "Propriedades"], ["layers", "Camadas (" + ed.symbols.length + ")"]]) {
+			for (const [k, label] of [["props", "Propriedades"], ["layers", "Camadas (" + onScreen().length + ")"]]) {
 				const b = el("button", {
 					type: "button",
 					class: "hmi-ed-tab" + (ed.panel === k ? " hmi-ed-on" : "")
@@ -8107,6 +8291,30 @@ ${[
 					if (fd.refresh) setTimeout(showProps);
 				}, fd.options));
 			}
+			if (def.defaults && "onWhen" in def.defaults || ["frame", "shape"].includes(s.type)) {
+				const colorField = (label, k) => {
+					const f = field(label, s.props[k] || "#888888", "color", (v) => {
+						s.props[k] = v;
+					});
+					const input = f.querySelector("input");
+					if (!s.props[k]) input.classList.add("hmi-ed-nocolor");
+					input.addEventListener("input", () => input.classList.remove("hmi-ed-nocolor"));
+					const clear = el("button", {
+						type: "button",
+						class: btnClass + " hmi-ed-small",
+						title: "Voltar à cor do tema"
+					}, "Tema");
+					clear.addEventListener("click", () => {
+						delete s.props[k];
+						draw();
+						changed();
+						showProps();
+					});
+					f.appendChild(clear);
+					return f;
+				};
+				props.appendChild(pair(colorField("Cor ligado", "colorOn"), colorField("Cor desligado", "colorOff")));
+			}
 			if (def.defaults && "priority" in def.defaults) props.appendChild(field("Na lista de alarmes", s.props.alarmList === "no" ? "no" : "yes", "select", (v) => {
 				s.props.alarmList = v;
 			}, [["yes", "Sim"], ["no", "Não"]]));
@@ -8182,12 +8390,20 @@ ${[
 					props.appendChild(pair(field("Saída mínima", act.opMin ?? "0", "number", (v) => setAct("opMin", v)), field("Saída máxima", act.opMax ?? "100", "number", (v) => setAct("opMax", v))));
 					props.appendChild(field("Auto/Manual: tópico", act.modeTopic || "", "text", (v) => setAct("modeTopic", v.trim())));
 					props.appendChild(pair(field("valor Auto", act.autoValue ?? "1", "text", (v) => setAct("autoValue", v)), field("valor Manual", act.manValue ?? "0", "text", (v) => setAct("manValue", v))));
+				} else if (act.mode === "screen") {
+					const names = ed.screens.length ? ed.screens : ["Principal"];
+					props.appendChild(field("Tela", act.value, "select", (v) => setAct("value", v), [["", "(escolha)"], ...names.map((n) => [n, n])]));
+					if (!ed.screens.length) props.appendChild(el("div", { class: "hmi-ed-hint" }, "Crie outras telas com \"+ Tela\", acima do desenho."));
 				} else if (act.mode === "page") {
 					const pages = o.getPages && o.getPages() || [];
 					const pf = pages.length ? field("Página", act.value, "select", (v) => setAct("value", v), [["", "(escolha)"], ...pages]) : field("Página (caminho, ex. /linha2)", act.value, "text", (v) => setAct("value", v.trim()));
 					props.appendChild(pf);
 				}
-				if (!["page", "faceplate"].includes(act.mode)) {
+				if (![
+					"page",
+					"screen",
+					"faceplate"
+				].includes(act.mode)) {
 					const t = field("Tópico (vazio = chave do payload)", act.topic, "text", (v) => setAct("topic", v));
 					t.querySelector("input").placeholder = s.key || "";
 					props.appendChild(t);
@@ -8196,17 +8412,18 @@ ${[
 					"value",
 					"toggle",
 					"page",
+					"screen",
 					"faceplate"
 				].includes(act.mode)) props.appendChild(field("Pedir confirmação", act.confirm || "no", "select", (v) => setAct("confirm", v), [["no", "Não"], ["yes", "Sim"]]));
-				if (act.mode !== "page") props.appendChild(field("Pedir senha", act.pin || "no", "select", (v) => setAct("pin", v), [["no", "Não"], ["yes", "Sim (a senha do nó)"]]));
-				if (act.mode !== "page") {
+				if (!["page", "screen"].includes(act.mode)) props.appendChild(field("Pedir senha", act.pin || "no", "select", (v) => setAct("pin", v), [["no", "Não"], ["yes", "Sim (a senha do nó)"]]));
+				if (!["page", "screen"].includes(act.mode)) {
 					const il = field("Intertravamento: chaves que precisam estar ligadas", act.interlock || "", "text", (v) => setAct("interlock", v.trim()));
 					il.querySelector("input").placeholder = "ex.: permissivo, !emergencia";
 					props.appendChild(il);
 					props.appendChild(field("Motivo mostrado quando bloqueado", act.interlockText || "", "text", (v) => setAct("interlockText", v)));
 					props.appendChild(el("div", { class: "hmi-ed-hint" }, "Separe por vírgula; \"!\" na frente exige a chave desligada. O Node-RED recusa o comando enquanto faltar alguma, e o símbolo mostra um cadeado."));
 				}
-				if (act.mode !== "page") props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
+				if (!["page", "screen"].includes(act.mode)) props.appendChild(el("div", { class: "hmi-ed-hint" }, "A mensagem sai pela saída do nó: msg.topic e msg.payload."));
 			}
 		}
 		function ruleFields(s, smallBtn) {
@@ -8379,8 +8596,8 @@ ${[
 			const fill = () => {
 				list.innerHTML = "";
 				const q = plain(ed.filter).trim();
-				const rows = [...ed.symbols].reverse().filter((m) => !q || plain(layerName(m) + " " + m.key + " " + m.type).includes(q));
-				if (!rows.length) list.appendChild(el("div", { class: "hmi-ed-hint" }, ed.symbols.length ? "Nada encontrado." : "A tela está vazia."));
+				const rows = onScreen().reverse().filter((m) => !q || plain(layerName(m) + " " + m.key + " " + m.type).includes(q));
+				if (!rows.length) list.appendChild(el("div", { class: "hmi-ed-hint" }, onScreen().length ? "Nada encontrado." : "A tela está vazia."));
 				for (const m of rows) {
 					const row = el("div", {
 						class: "hmi-ed-layer" + (ed.multi.includes(m.id) ? " hmi-ed-on" : "") + (ed.hidden.has(m.id) ? " hmi-ed-off" : ""),
@@ -8483,7 +8700,7 @@ ${[
 				v.h
 			];
 			for (const m of ed.symbols) {
-				if (moving.has(m.id) || ed.hidden.has(m.id)) continue;
+				if (moving.has(m.id) || ed.hidden.has(m.id) || !here(m)) continue;
 				const b = box(m);
 				xs.push(b.x, b.x + b.w / 2, b.x + b.w);
 				ys.push(b.y, b.y + b.h / 2, b.y + b.h);
@@ -8531,6 +8748,7 @@ ${[
 			const s = createSymbol(type, 0, 0, isFinite(variant) ? variant : -1);
 			s.x = snap(cx - s.w / 2);
 			s.y = snap(cy - s.h / 2);
+			if (ed.screens.length) s.screen = ed.screen;
 			ed.symbols.push(s);
 			select([s.id]);
 			refresh();
@@ -8561,6 +8779,8 @@ ${[
 				});
 				delete c.locked;
 				if (x.group) c.group = groups[x.group] || (groups[x.group] = newGroupId());
+				if (ed.screens.length) c.screen = ed.screen;
+				else delete c.screen;
 				return c;
 			});
 			ed.symbols.push(...out);
@@ -9147,7 +9367,7 @@ ${[
 				d.cur = p;
 				const r = marquee(d);
 				const hits = ed.symbols.filter((m) => {
-					if (m.locked || ed.hidden.has(m.id)) return false;
+					if (m.locked || ed.hidden.has(m.id) || !here(m)) return false;
 					const b = box(m);
 					return b.x < r.x + r.w && b.x + b.w > r.x && b.y < r.y + r.h && b.y + b.h > r.y;
 				}).flatMap((m) => groupOf(m.id));
@@ -9265,7 +9485,7 @@ ${[
 				else if (k === "v" && clipboard) clipboard = paste(clipboard) || clipboard;
 				else if (k === "d") duplicate();
 				else if (k === "a") {
-					select(ed.symbols.map((m) => m.id));
+					select(onScreen().map((m) => m.id));
 					refresh();
 				} else if (k === "g" && e.shiftKey) ungroup();
 				else if (k === "g") group();
@@ -9336,7 +9556,11 @@ ${[
 		}, { passive: false });
 		gridBox.addEventListener("change", draw);
 		Object.assign(api, {
-			getSymbols: () => clone(ed.symbols),
+			getSymbols: () => {
+				if (ed.screens.length) pinScreens();
+				return clone(ed.symbols);
+			},
+			getScreens: () => [...ed.screens],
 			redraw: draw,
 			setMessage: (text) => {
 				msg.textContent = text || "";
@@ -9350,6 +9574,7 @@ ${[
 				root.innerHTML = "";
 			}
 		});
+		showScreens();
 		refresh();
 		return api;
 	}

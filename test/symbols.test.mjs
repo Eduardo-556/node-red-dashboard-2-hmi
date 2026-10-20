@@ -301,6 +301,9 @@ test('machine parts, free shape and turning wheels', () => {
         assert.ok(out.includes('hmi-body'), v.label)
     }
     const g = createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === 'gear'))
+    // new wheels turn by default; "Não" keeps them still
+    assert.ok(renderSymbol(g, 1).includes('hmi-turning'))
+    g.props.spin = 'no'
     assert.ok(!renderSymbol(g, 1).includes('hmi-spin'))
     g.props.spin = 'ccw'
     assert.ok(renderSymbol(g, 1).includes('hmi-turning hmi-ccw'))
@@ -381,4 +384,66 @@ test('ready-made machine blocks', async () => {
         for (const s of filled) assert.ok(!/NaN|undefined/.test(renderSymbol(s, 1)), b.name + ' ' + s.type)
     }
     assert.strictEqual(fillBlock(list[0], { tag: 'Y1' }).find(s => s.props.shape === 'pneuCyl').key, 'Y1.avancado')
+})
+
+test('line flow direction, width and own colours', () => {
+    const l = createSymbol('line', 0, 0, 1)
+    l.key = 'k'
+    assert.ok(!renderSymbol(l, 1).includes('hmi-flow-rev'))
+    l.props.flowDir = 'rev'
+    l.props.width = 14
+    l.props.colorOn = '#00aa00'
+    l.props.colorOff = '#555555'
+    const on = renderSymbol(l, 1)
+    assert.ok(on.includes('hmi-flow-rev') && on.includes('stroke-width:14;stroke:#00aa00;') && on.includes('stroke-width:22'))
+    assert.ok(renderSymbol(l, 0).includes('stroke:#555555;'))
+    l.props.colorOn = 'red;}<script>'
+    assert.ok(!renderSymbol(l, 1).includes('script'))
+    const m = createSymbol('motor', 0, 0)
+    m.props.colorOn = '#ff8800'
+    m.props.colorOff = '#222222'
+    assert.ok(renderSymbol(m, 1).includes('style="--hmi-equip-on:#ff8800;--hmi-ok:#ff8800;--hmi-equip:#222222;"'))
+    const fr = createSymbol('frame', 0, 0)
+    fr.props.colorOn = '#123456'
+    assert.ok(renderSymbol(fr, 1).includes('--hmi-own:#123456') && renderSymbol(fr, 1).includes('hmi-own'))
+    assert.ok(!renderSymbol(fr, 0).includes('hmi-own'))
+})
+
+test('cylinder and machine parts can retract when active; frames invert the signal', () => {
+    const c = createSymbol('cylinder', 0, 0)
+    const rod = out => Number(out.match(/class="hmi-rod-end" x="([\d.]+)"/)[1])
+    const outPos = rod(renderSymbol(c, 1))
+    const inPos = rod(renderSymbol(c, 0))
+    assert.ok(outPos > inPos)
+    c.props.onDir = 'retract'
+    assert.strictEqual(rod(renderSymbol(c, 1)), inPos)
+    assert.strictEqual(rod(renderSymbol(c, 0)), outPos)
+    assert.ok(renderSymbol(c, 1).includes('hmi-on'))
+    const make = shape => createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === shape))
+    const p = make('pneuCyl')
+    const end = out => Number(out.match(/<circle class="hmi-body" cx="([\d.]+)"/)[1])
+    const a1 = end(renderSymbol(p, 1))
+    const a0 = end(renderSymbol(p, 0))
+    p.props.reverse = 'yes'
+    assert.strictEqual(end(renderSymbol(p, 1)), a0)
+    assert.ok(renderSymbol(p, 1).includes('hmi-on'))
+    p.props.motion = 'value'
+    assert.strictEqual(end(renderSymbol(p, 100)), a0)
+    assert.strictEqual(end(renderSymbol(p, 0)), a1)
+    const ls = make('limitSwitch')
+    assert.ok(SYMBOLS.frame.fields.some(x => x.key === 'invert'))
+    ls.props.invert = 'yes'
+    assert.ok(renderSymbol(ls, 0).includes('hmi-on') && !renderSymbol(ls, 1).includes('hmi-on'))
+})
+
+test('belt and chain drives turn their wheels and run the belt', () => {
+    const make = shape => createSymbol('frame', 0, 0, SYMBOLS.frame.variants.findIndex(v => v.props.shape === shape))
+    for (const shape of ['beltDrive', 'chainDrive']) {
+        const d = make(shape)
+        const on = renderSymbol(d, 1)
+        assert.strictEqual((on.match(/class="hmi-spin"/g) || []).length, 2, shape)
+        assert.ok(on.includes('hmi-turning') && on.includes('hmi-move'), shape)
+        assert.ok(!renderSymbol(d, 0).includes('hmi-turning'), shape)
+        assert.ok(SYMBOLS.frame.fields.find(x => x.key === 'spin').when(d.props), shape)
+    }
 })

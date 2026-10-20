@@ -1295,10 +1295,10 @@ export const MORE_CSS = `
 .hmi-root .hmi-sub-label { fill: var(--hmi-text-dim); font-size: 12px; font-weight: 600; }
 .hmi-root .hmi-sub-value { fill: var(--hmi-text); font-size: 11px; font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-eq .hmi-spin, .hmi-root .hmi-eq .hmi-stir, .hmi-root .hmi-eq .hmi-arm { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin { animation: hmi-spin 1.4s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin.hmi-ccw { animation: hmi-spin-ccw 1.4s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-stir { animation: hmi-stir .8s ease-in-out infinite alternate; }
-.hmi-root.hmi-theme-classic .hmi-robot.hmi-on .hmi-arm { animation: hmi-arm 2.4s ease-in-out infinite alternate; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-spin { animation: hmi-spin 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-spin.hmi-ccw, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-spin.hmi-ccw { animation: hmi-spin-ccw 1.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-stir, .hmi-root.hmi-anim-always .hmi-eq.hmi-on .hmi-stir { animation: hmi-stir .8s ease-in-out infinite alternate; }
+.hmi-root.hmi-theme-classic .hmi-robot.hmi-on .hmi-arm, .hmi-root.hmi-anim-always .hmi-robot.hmi-on .hmi-arm { animation: hmi-arm 2.4s ease-in-out infinite alternate; }
 .hmi-root .hmi-eq .hmi-led, .hmi-root .hmi-eq .hmi-led-rect { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-eq.hmi-on .hmi-led, .hmi-root .hmi-eq.hmi-on .hmi-led-rect { fill: var(--hmi-ok); }
 .hmi-root.hmi-theme-classic .hmi-eq.hmi-on .hmi-led-arc { fill: var(--hmi-warn); }
@@ -1448,6 +1448,11 @@ export const MORE_CSS = `
 .hmi-kp-key { min-height: 52px; font-size: 22px; font-weight: 700; border-radius: 6px; border: 1px solid var(--fp-line); background: var(--fp-btn); color: var(--fp-text); cursor: pointer; touch-action: manipulation; }
 .hmi-kp-key:active { filter: brightness(.85); }
 .hmi-kp-fn { font-size: 18px; color: var(--fp-dim); }
+.hmi-screen-nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 0 6px 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; }
+.hmi-screen-tab { font: inherit; font-size: 15px; font-weight: 600; padding: 8px 18px; min-height: 40px; border: 1px solid #8a939d; border-radius: 4px; background: #e6e8ea; color: #222; cursor: pointer; }
+.hmi-screen-tab.hmi-screen-on { background: #5b6670; border-color: #5b6670; color: #fff; }
+.hmi-nav-classic .hmi-screen-tab { background: #2b2f36; border-color: #4a515b; color: #dfe3e8; }
+.hmi-nav-classic .hmi-screen-tab.hmi-screen-on { background: #1e88e5; border-color: #1e88e5; color: #fff; }
 .hmi-notice { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3100; background: #d71920; color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3); font-family: "Segoe UI", Roboto, Arial, sans-serif; }
 @keyframes hmi-stir { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
 @keyframes hmi-arm { from { transform: rotate(-6deg); } to { transform: rotate(5deg); } }

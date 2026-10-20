@@ -187,3 +187,12 @@ test('trend history is kept per trend key and window', () => {
     assert.deepStrictEqual(t.snapshot().rpm, [[9000, 120], [12000, 130]])
     assert.strictEqual(createTrendHistory([]).size, 0)
 })
+
+test('screens are kept when saving from the dashboard', () => {
+    const { cleanSymbols, cleanScreens } = require('../nodes/admin')
+    assert.deepStrictEqual(cleanScreens(['Principal', ' Alarmes ', 'Principal', '', 3, 'x'.repeat(60)]), ['Principal', 'Alarmes', 'x'.repeat(40)])
+    assert.deepStrictEqual(cleanScreens('x'), [])
+    const out = cleanSymbols([{ id: 'a', type: 'tag', screen: 'Alarmes' }, { id: 'b', type: 'tag', screen: 5 }])
+    assert.strictEqual(out[0].screen, 'Alarmes')
+    assert.strictEqual(out[1].screen, undefined)
+})

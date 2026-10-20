@@ -1,15 +1,18 @@
 <template>
     <div class="hmi-canvas-wrapper">
+        <div v-if="showNav" :class="['hmi-screen-nav', 'hmi-nav-' + theme]">
+            <button v-for="n in screens" :key="n" type="button" :class="['hmi-screen-tab', { 'hmi-screen-on': n === current }]" @click="openScreen(n)">{{ n }}</button>
+        </div>
         <svg
             xmlns="http://www.w3.org/2000/svg"
-            :class="['hmi-root', 'hmi-theme-' + theme, { 'hmi-offline': offline, 'hmi-transparent': transparent, 'hmi-bg-dashboard': cfg('background') === 'dashboard', 'hmi-disabled': disabled }]"
+            :class="['hmi-root', 'hmi-theme-' + theme, 'hmi-anim-' + anim, { 'hmi-offline': offline, 'hmi-transparent': transparent, 'hmi-bg-dashboard': cfg('background') === 'dashboard', 'hmi-disabled': disabled }]"
             :style="svgStyle"
             :viewBox="'0 0 ' + viewW + ' ' + viewH"
             preserveAspectRatio="xMidYMid meet"
         >
             <rect class="hmi-bg" x="0" y="0" :width="viewW" :height="viewH" />
             <g
-                v-for="s in symbols"
+                v-for="s in shown"
                 :key="s.id"
                 :class="[{ 'hmi-clickable': clickable(s), 'hmi-pressed': pressed === s.id }, qualityClass(s)]"
                 @click="click(s, $event)"
@@ -138,6 +141,8 @@ export default {
             timer: null,
             beat: null,
             fitHeight: 0,
+            // screen open on this page (several screens in one canvas)
+            screen: '',
             edit: null,
             editor: null,
             pressed: null,
@@ -146,6 +151,21 @@ export default {
     },
     computed: {
         symbols () { return Array.isArray(this.props.symbols) ? this.props.symbols : [] },
+        screens () {
+            const out = []
+            for (const n of Array.isArray(this.props.screens) ? this.props.screens : []) if (typeof n === 'string' && n && !out.includes(n)) out.push(n)
+            return out
+        },
+        current () { return this.screens.includes(this.screen) ? this.screen : (this.screens[0] || '') },
+        // the symbols of the screen open now
+        shown () {
+            if (this.screens.length < 2) return this.symbols
+            const first = this.screens[0]
+            return this.symbols.filter(s => ((s.screen && this.screens.includes(s.screen)) ? s.screen : first) === this.current)
+        },
+        showNav () { return !this.editing && this.screens.length > 1 && this.cfg('screenNav') !== 'none' },
+        flowScreen () { return this.cfg('screen') },
+        anim () { return ['classic', 'never'].includes(this.cfg('animate')) ? this.cfg('animate') : 'always' },
         viewW () { return Number(this.cfg('viewW')) || 1280 },
         viewH () { return Number(this.cfg('viewH')) || 720 },
         theme () { return this.cfg('theme') === 'classic' ? 'classic' : 'isa101' },
@@ -183,7 +203,7 @@ export default {
                 }
             }
             let out = ''
-            for (const s of this.symbols) {
+            for (const s of this.shown) {
                 const st = {}
                 let any = false
                 if (bySym[s.id]) { st.alarm = bySym[s.id]; any = true }
@@ -251,7 +271,13 @@ export default {
             return this.cfg('fit') === 'screen' && this.fitHeight > 0 ? { height: this.fitHeight + 'px' } : {}
         }
     },
+    watch: {
+        // the flow can open a screen: msg.ui_update = { screen: "Alarmes" }
+        flowScreen (v) { if (typeof v === 'string' && v) this.screen = v },
+        showNav () { this.$nextTick(this.fit) }
+    },
     created () {
+        if (typeof this.cfg('screen') === 'string') this.screen = this.cfg('screen')
         injectStyles()
         this.$dataTracker(this.id, this.onInput, this.onLoad)
         const q = new URLSearchParams(window.location.search)
@@ -306,7 +332,8 @@ export default {
         },
         fit () {
             if (this.cfg('fit') !== 'screen' || !this.$el || !this.$el.getBoundingClientRect) return
-            const top = this.$el.getBoundingClientRect().top + window.scrollY
+            const svg = this.$el.querySelector('svg.hmi-root') || this.$el
+            const top = svg.getBoundingClientRect().top + window.scrollY
             this.fitHeight = Math.max(200, window.innerHeight - top - 12)
         },
         apply (msg) {
@@ -414,7 +441,7 @@ export default {
             if (s.type === 'alarmList') return true
             const m = s.action && s.action.mode
             // going to another page and looking at a faceplate work for everybody
-            if (m === 'page' || m === 'faceplate') return true
+            if (m === 'page' || m === 'screen' || m === 'faceplate') return true
             return this.canCommand && ['value', 'toggle', 'pulse', 'input'].includes(m)
         },
         emit (msg) {
@@ -452,6 +479,10 @@ export default {
             if (!this.clickable(s) || !s.action || s.action.mode === 'pulse') return
             const name = (s.props && (s.props.text || s.props.label || s.props.title)) || s.key || ''
             if (s.action.mode === 'faceplate') { this.faceplate = s; return }
+            if (s.action.mode === 'screen') {
+                if (s.action.confirm === 'yes' && !window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
+                return this.openScreen(s.action.value)
+            }
             if (s.action.mode === 'page') {
                 if (s.action.confirm === 'yes' && !window.confirm('Confirmar' + (name ? ': ' + name : '') + '?')) return
                 return this.goTo(s.action.value)
@@ -534,6 +565,12 @@ export default {
             this.noticeTimer = setTimeout(() => { this.notice = '' }, 4000)
         },
         // another dashboard page (its path, e.g. /linha2) or a full address
+        openScreen (name) {
+            if (!this.screens.includes(name)) return
+            this.letGo()
+            this.faceplate = null
+            this.screen = name
+        },
         goTo (target) {
             const t = String(target || '').trim()
             if (!t) return
@@ -582,6 +619,7 @@ export default {
             this.editor = createEditor(this.$refs.editor, {
                 title: 'Editando: ' + (this.props.name || 'hmi canvas'),
                 symbols: this.symbols,
+                screens: this.screens,
                 getValues: () => vm.values,
                 fill: true,
                 getView: () => ({ w: vm.viewW, h: vm.viewH }),
@@ -601,7 +639,7 @@ export default {
                 const res = await fetch(this.edit.admin.replace(/\/?$/, '/') + encodeURIComponent(this.id) + '/symbols', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ key: this.edit.key, symbols: ed.getSymbols() })
+                    body: JSON.stringify({ key: this.edit.key, symbols: ed.getSymbols(), screens: ed.getScreens() })
                 })
                 if (res.status === 401) return ed.setMessage('Sem permissão: entre no editor do Node-RED e abra de novo')
                 const out = await res.json().catch(() => ({}))

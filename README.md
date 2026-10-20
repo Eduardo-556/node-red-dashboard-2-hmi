@@ -165,12 +165,29 @@ O editor lista os ids do desenho. Scripts, eventos e links para fora do desenho 
 - **ISA-101** (padrão): cinza e plano, cor só para condição anormal e alarme. Equipamento ligado fica cinza escuro, parado fica claro. O alarme usa cor, forma e número da prioridade.
 - **Clássico**: escuro, no estilo dos painéis em SVG feitos à mão, com bobinas girando.
 
+### Várias telas no mesmo canvas
+
+Acima do desenho fica a barra **Telas**: **+ Tela** cria outra tela (Principal, Mecânica, Alarmes...), duplo clique ou **Renomear** muda o nome, **Apagar tela** tira a tela e os símbolos dela. No dashboard as telas viram abas no topo (opção **Telas** do nó: abas ou sem abas). Para trocar de tela por um botão, use a ação **Ir para outra tela (deste canvas)**. O fluxo também abre uma tela: `msg.ui_update = { screen: "Alarmes" }`.
+
+### Movimento e cores
+
+- **Movimento** (opção do nó): **Sempre que ligado** faz correias, correntes, polias, engrenagens, rodas, roscas, esteiras, ventiladores, rolos e o fluxo das linhas andarem quando a chave liga, nos dois temas. **Só no tema Clássico** deixa o ISA-101 parado; **Nunca** desliga tudo (o piscar de alarme continua).
+- Transmissão por correia e por corrente: as polias giram e a correia corre. Novas engrenagens, polias e rodas já vêm com **Girar / correr quando a chave ligar** = horário.
+- **Cor ligado** e **Cor desligado** em todo símbolo que liga e desliga, nas formas e nas linhas. **Tema** volta à cor do tema.
+- Linhas: **Sentido do fluxo** (do primeiro ao último ponto ou invertido) e **Espessura da linha** em pixels.
+- Cilindro e pistão: **Quando ativo o pistão** avança ou recua. A cor segue o "ativo", a haste vai para o lado escolhido. Nas peças que se movem (cilindro pneumático, garra, pórtico, guilhotina...) a opção é **Quando a chave ligar a peça**: avança/desce/fecha ou recua/sobe/abre, e também vale para a posição pelo valor.
+- **Inverter sinal** agora existe em todas as formas do Corpo (fim de curso, sensores, boia...), para contato NF ou entrada ativa em 0.
+
+![Movimento e cores](https://raw.githubusercontent.com/Eduardo-556/node-red-dashboard-2-hmi/main/docs/img/movimento-cores.png)
+
 ### Opções do canvas
 
 | Opção | Para quê |
 |---|---|
 | Show in | Página inteira ou dentro de um grupo. |
 | Screen | Tamanho da tela em pixels (o sistema de coordenadas dos símbolos). |
+| Movimento | **Sempre que ligado** (padrão), **Só no tema Clássico** ou **Nunca**. |
+| Telas | **Abas no topo** quando o canvas tem mais de uma tela, ou **Sem abas** (troca só por botão ou pelo fluxo). |
 | Background | **Cor do tema**, **Transparente** (aparece o fundo da página do dashboard) ou **Cor do Dashboard** (segue o tema claro/escuro do Dashboard). |
 | Fit | **Caber na tela**: a tela inteira aparece sem rolar. **Largura toda**: ocupa a largura e a altura acompanha. |
 | Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
@@ -179,7 +196,7 @@ O editor lista os ids do desenho. Scripts, eventos e links para fora do desenho 
 | Confirmação | Segundos esperando o CLP devolver o valor de um comando (0 desliga). |
 | Comandar / Reconhecer / Suprimir | Quem pode (nomes separados por vírgula; vazio = todos, `-` = ninguém). |
 
-`msg.ui_update` muda em funcionamento: `theme`, `background`, `viewW`, `viewH`, `fit`, `locale`, `offlineAfter`, `staleAfter`, `alarmSound`.
+`msg.ui_update` muda em funcionamento: `theme`, `animate` (`always`, `classic`, `never`), `screen` (abre a tela em todas as páginas), `background`, `viewW`, `viewH`, `fit`, `locale`, `offlineAfter`, `staleAfter`, `alarmSound`.
 
 ### Exemplo
 
@@ -221,6 +238,8 @@ Security and operation (0.1.1): page clicks go to the node through a small Dashb
 Machine parts (0.1.2): four new palette menus for the **Corpo** symbol, **Pneumática** (cylinders, 5/2 valve, FRL, gripper, vacuum cup...), **Sensores** (photo eye, proximity, light curtain, laser scanner, camera, e-stop, beacon...), **Manuseio** (servo, gearmotor, rotary table, gantry, SCARA, delta, scissor lift...) and **Produção** (screw conveyor, extruder, injection machine, guillotine, saw, filler, capper, labeler, wrapper, bottles, pallets...). With a key they show state: rod out, gripper closed, beam cut, blade down, mold closed, beacon lit.
 
 Machine parts (0.1.3): 20 moving parts can follow a **position value** (min..max) instead of on/off, a part can go **ghost** when its key is off (no part / empty pallet), and the **Blocos** menu has **ready-made assemblies** (cylinder with valve and limit switches, conveyor with sensor and diverter, filling station, press with light curtain, pick and place gantry) whose keys use the name asked on drop. New example `envase`.
+
+0.1.4: **several screens in one canvas** (Telas bar in the editor, tabs on the dashboard, "Ir para outra tela" click action, `msg.ui_update.screen`), **motion** setting (always / only Classic / never) so belts, chains, pulleys, gears, fans, rollers and line flow move in the ISA-101 theme too, belt and chain drives turn their pulleys, **own on/off colours** on every on/off symbol, shape and line, line **flow direction** and **thickness**, cylinder **advance or retract when active** (colour follows "active"), and **invert signal** on every Corpo shape (limit switches, sensors).
 
 Themes: **ISA-101** (default; grey and flat, colour only for abnormal states and alarms, alarms coded by colour, shape and priority number) and **Classic** (dark, animated reels).
 

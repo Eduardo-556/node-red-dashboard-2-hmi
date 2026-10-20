@@ -4,7 +4,7 @@ export { cleanSvg, parseSvg, parseBinds } from './svgimport.js'
 export { renderOverlay, interlockOf } from './overlay.js'
 import { moreSymbols, MORE_CSS } from './more.js'
 import { chartSymbols, CHART_CSS } from './charts.js'
-import { MACHINE_SHAPES, ROUND_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
+import { MACHINE_SHAPES, ROUND_SHAPES, DRIVE_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
 import { MACHINE2_SHAPES, MACHINE2_ROUND, MACHINE2_ANALOG, MACHINE2_CSS, machine2Path } from './machine2.js'
 
 // Symbol library shared by the Node-RED editor (drag-and-drop preview) and the
@@ -73,7 +73,7 @@ const SHAPES = [
     // pneumatics, sensors, handling and production parts
     ...MACHINE2_SHAPES
 ]
-const SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND]
+const SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND, ...DRIVE_SHAPES]
 const isMotion = p => p.motion === 'value' && MACHINE2_ANALOG.includes(p.shape)
 const TONES = [
     ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
@@ -184,14 +184,16 @@ export const SYMBOLS = {
         w: 240,
         h: 300,
         preview: 60,
-        defaults: { shape: 'chamfer', tone: 'equip', label: '', level: 'no', min: 0, max: 100, levelColor: 'level', showValue: 'no', unit: '%', decimals: 0 },
+        defaults: { shape: 'chamfer', tone: 'equip', label: '', spin: 'cw', level: 'no', min: 0, max: 100, levelColor: 'level', showValue: 'no', unit: '%', decimals: 0 },
         fields: [
             { key: 'shape', label: 'Forma', type: 'select', options: SHAPES.filter(([k], i) => SHAPES.findIndex(x => x[0] === k) === i).map(([k, l]) => [k, l]) },
             { key: 'tone', label: 'Tom', type: 'select', options: TONES, refresh: true },
             { key: 'fill', label: 'Cor de preenchimento', type: 'color', when: p => p.tone === 'custom' },
             { key: 'stroke', label: 'Cor da borda', type: 'color', when: p => p.tone === 'custom' },
             { key: 'label', label: 'Legenda', type: 'text' },
-            { key: 'spin', label: 'Girar quando a chave ligar', type: 'select', options: [['no', 'Não'], ['cw', 'Sentido horário'], ['ccw', 'Anti-horário']], when: p => SPIN_SHAPES.includes(p.shape) },
+            { key: 'spin', label: 'Girar / correr quando a chave ligar', type: 'select', options: [['no', 'Não'], ['cw', 'Sentido horário'], ['ccw', 'Anti-horário']], when: p => SPIN_SHAPES.includes(p.shape) },
+            { key: 'reverse', label: 'Quando a chave ligar a peça', type: 'select', options: [['no', 'Avança / desce / fecha'], ['yes', 'Recua / sobe / abre']], when: p => MACHINE2_ANALOG.includes(p.shape) },
+            INVERT_FIELD,
             { key: 'motion', label: 'A peça se move', type: 'select', options: [['onoff', 'Liga/desliga pela chave'], ['value', 'Pela posição: valor entre mín. e máx.']], when: p => MACHINE2_ANALOG.includes(p.shape), refresh: true },
             { key: 'darken', label: 'Escurecer quando a chave ligar', type: 'select', options: [['no', 'Não'], ['yes', 'Sim']] },
             { key: 'presence', label: 'Quando a chave desligar', type: 'select', options: [['show', 'Continuar igual'], ['ghost', 'Ficar apagado (sem peça / sem produto)']] },
@@ -240,7 +242,9 @@ export const SYMBOLS = {
         fields: [
             { key: 'style', label: 'Tipo', type: 'select', options: [['strip', 'Chapa / material'], ['pipe', 'Tubulação'], ['conveyor', 'Esteira'], ['signal', 'Sinal / ligação']] },
             ...ON_FIELDS,
-            { key: 'flow', label: 'Animar fluxo', type: 'select', options: [['auto', 'Só no tema Clássico'], ['always', 'Sempre'], ['never', 'Nunca']] }
+            { key: 'flow', label: 'Animar fluxo', type: 'select', options: [['auto', 'Como o canvas manda'], ['always', 'Sempre'], ['never', 'Nunca']] },
+            { key: 'flowDir', label: 'Sentido do fluxo', type: 'select', options: [['fwd', 'Do primeiro ao último ponto'], ['rev', 'Invertido (do último ao primeiro)']] },
+            { key: 'width', label: 'Espessura da linha (px, vazio = padrão)', type: 'number' }
         ],
         render: renderLine
     },
@@ -372,8 +376,9 @@ export const SYMBOLS = {
         w: 160,
         h: 40,
         preview: 1,
-        defaults: { label: '', onWhen: 'nonzero', threshold: 0 },
-        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'onWhen', label: 'Avançado quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1], INVERT_FIELD],
+        defaults: { label: '', onWhen: 'nonzero', threshold: 0, onDir: 'advance' },
+        fields: [{ key: 'label', label: 'Legenda', type: 'text' }, { key: 'onWhen', label: 'Ativo quando', type: 'select', options: ON_FIELDS[0].options }, ON_FIELDS[1], INVERT_FIELD,
+            { key: 'onDir', label: 'Quando ativo o pistão', type: 'select', options: [['advance', 'Avança'], ['retract', 'Recua']] }],
         render: renderCylinder
     },
     fan: {
@@ -937,9 +942,11 @@ function renderCylinder (sym, value) {
     const w = sym.w
     const h = sym.h
     const on = onState(value, p)
+    // the colour follows "active"; the rod goes out or in as chosen
+    const out = p.onDir === 'retract' ? on === false : on === true
     const bx = w * 0.55
     const rodY = h / 2 - h * 0.09
-    const rodEnd = on ? w - 8 : w * 0.66
+    const rodEnd = out ? w - 8 : w * 0.66
     return `<g class="hmi-cylinder ${stateClass(on)}">` +
         `<rect class="hmi-rod" x="${f(bx - 4)}" y="${f(rodY)}" width="${f(rodEnd - bx + 4)}" height="${f(h * 0.18)}"/>` +
         `<rect class="hmi-rod-end" x="${f(rodEnd)}" y="${f(h * 0.22)}" width="8" height="${f(h * 0.56)}" rx="1"/>` +
@@ -1309,17 +1316,27 @@ function renderFrame (sym, value, opts) {
         if (max === null || max <= min) max = min + 100
         if (v !== null) pos = Math.max(0, Math.min(1, (v - min) / (max - min)))
     }
-    let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, on, pos)
+    // "recua quando liga": the drawing moves the other way, the colour still follows the key
+    const back = p.reverse === 'yes' && MACHINE2_ANALOG.includes(p.shape)
+    const moved = back && on !== null ? !on : on
+    if (back && pos !== null) pos = 1 - pos
+    let body = free ? shapePath(sym) : framePath(p.shape, sym.w, sym.h, moved, pos)
     const level = frameLevel(sym, value, opts, body)
     let turning = ''
-    if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
+    if (!free && DRIVE_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
+        // belt and chain drives turn their own wheels
+        if (on === true) turning = ' hmi-turning' + (p.spin === 'ccw' ? ' hmi-ccw' : '')
+    } else if (!free && SPIN_SHAPES.includes(p.shape) && (p.spin === 'cw' || p.spin === 'ccw')) {
         // turns around its centre while the key is on
         const cx = f(sym.w / 2)
         const cy = f(sym.h / 2)
         body = `<g transform="translate(${cx},${cy})"><g class="hmi-spin"><g transform="translate(-${cx},-${cy})">${body}</g></g></g>`
         if (on === true) turning = ' hmi-turning' + (p.spin === 'ccw' ? ' hmi-ccw' : '')
     }
-    return `<g class="hmi-frame${free ? ' hmi-shape' : ''} hmi-tone-${fixed ? 'fixed' : tone}${turning}${on === true ? ' hmi-on' : ''}${p.darken === 'yes' ? ' hmi-darken' : ''}${p.presence === 'ghost' && on === false ? ' hmi-ghost' : ''}"${style}>${defs}${body}${level}${label}</g>`
+    // own colour for on / off paints the body
+    const own = on === true ? p.colorOn : p.colorOff
+    if (HEX.test(own)) style = (style ? style.slice(0, -1) + ';' : ' style="') + `--hmi-own:${own}"`
+    return `<g class="hmi-frame${free ? ' hmi-shape' : ''} hmi-tone-${fixed ? 'fixed' : tone}${turning}${on === true ? ' hmi-on' : ''}${p.darken === 'yes' ? ' hmi-darken' : ''}${p.presence === 'ghost' && on === false ? ' hmi-ghost' : ''}${HEX.test(own) ? ' hmi-own' : ''}"${style}>${defs}${body}${level}${label}</g>`
 }
 
 export function linePoints (sym) {
@@ -1335,8 +1352,15 @@ function renderLine (sym, value, opts) {
     const on = onState(value, p)
     const style = ['pipe', 'conveyor', 'signal'].includes(p.style) ? p.style : 'strip'
     const flow = ['always', 'never'].includes(p.flow) ? p.flow : 'auto'
-    return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}">` +
-        `<path class="hmi-hit" d="${d}"/><path class="hmi-path" d="${d}"/><path class="hmi-flowpath" d="${d}"/></g>`
+    // own thickness and colours
+    const width = num(p.width)
+    const wd = width !== null && width > 0 ? Math.min(80, width) : null
+    const own = on === true ? p.colorOn : p.colorOff
+    const pathStyle = (wd ? `stroke-width:${f(wd)};` : '') + (HEX.test(own) ? `stroke:${own};` : '')
+    const flowStyle = wd ? ` style="stroke-width:${f(Math.max(1.6, wd * 0.25))}"` : ''
+    const hitStyle = wd && wd > 8 ? ` style="stroke-width:${f(wd + 8)}"` : ''
+    return `<g class="hmi-line hmi-ls-${style} ${stateClass(on)} hmi-flow-${flow}${p.flowDir === 'rev' ? ' hmi-flow-rev' : ''}">` +
+        `<path class="hmi-hit" d="${d}"${hitStyle}/><path class="hmi-path" d="${d}"${pathStyle ? ` style="${pathStyle}"` : ''}/><path class="hmi-flowpath" d="${d}"${flowStyle}/></g>`
 }
 
 function renderKpi (sym, value, opts) {
@@ -1464,7 +1488,14 @@ export function renderSymbol (sym, value, opts) {
     const cls = 'hmi-symbol' + fx.classes.map(c => ' ' + c).join('') + (fx.hide ? ' hmi-rule-hidden' : '')
     const rot = Number(sym.rot) || 0
     const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : '')
-    return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}">${def.render(sym, value, o)}</g>`
+    // own colours for on / off: the theme colours are swapped inside this symbol only
+    const p = sym.props || {}
+    let vars = ''
+    if (!def.line && sym.type !== 'frame' && sym.type !== 'shape') {
+        if (HEX.test(p.colorOn)) vars += `--hmi-equip-on:${p.colorOn};--hmi-ok:${p.colorOn};`
+        if (HEX.test(p.colorOff)) vars += `--hmi-equip:${p.colorOff};`
+    }
+    return `<g class="${cls}" data-id="${escapeXml(sym.id)}" transform="${tf}"${vars ? ` style="${vars}"` : ''}>${def.render(sym, value, o)}</g>`
 }
 
 export const STYLE_ID = 'hmi-symbols-style'
@@ -1497,7 +1528,7 @@ export const CSS = `
 .hmi-root .hmi-reel .hmi-hub { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-reel .hmi-axle { fill: var(--hmi-stroke); }
 .hmi-root .hmi-reel .hmi-spin, .hmi-root .hmi-roller .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-spin { animation: hmi-spin 2.4s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-reel.hmi-on .hmi-spin { animation: hmi-spin 2.4s linear infinite; }
 .hmi-root.hmi-theme-classic .hmi-reel.hmi-on .hmi-axle { fill: var(--hmi-ok); }
 .hmi-root .hmi-tag-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-tag-title { fill: var(--hmi-text-dim); font-weight: 600; letter-spacing: .5px; }
@@ -1522,8 +1553,8 @@ export const CSS = `
 .hmi-root .hmi-roller .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller .hmi-mark { stroke: var(--hmi-stroke); stroke-width: 1.5; }
 .hmi-root .hmi-roller.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
-.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-cw .hmi-spin, .hmi-root.hmi-anim-always .hmi-roller.hmi-on.hmi-cw .hmi-spin { animation: hmi-spin .9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-roller.hmi-on.hmi-ccw .hmi-spin, .hmi-root.hmi-anim-always .hmi-roller.hmi-on.hmi-ccw .hmi-spin { animation: hmi-spin-ccw .9s linear infinite; }
 .hmi-root .hmi-motor .hmi-body { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 2; }
 .hmi-root .hmi-motor .hmi-foot { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-motor.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
@@ -1572,8 +1603,8 @@ export const CSS = `
 .hmi-root .hmi-idler { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-belt { fill: none; stroke: var(--hmi-material); stroke-width: 2; stroke-dasharray: 10 6; }
 .hmi-root .hmi-dir { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt { animation: hmi-belt 0.8s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-rev .hmi-belt { animation: hmi-belt 0.8s linear infinite reverse; }
+.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt, .hmi-root.hmi-anim-always .hmi-conveyor.hmi-on.hmi-fwd .hmi-belt { animation: hmi-belt 0.8s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-conveyor.hmi-on.hmi-rev .hmi-belt, .hmi-root.hmi-anim-always .hmi-conveyor.hmi-on.hmi-rev .hmi-belt { animation: hmi-belt 0.8s linear infinite reverse; }
 .hmi-root .hmi-rod { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-rod-end { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-fan .hmi-body { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 2; }
@@ -1584,8 +1615,8 @@ export const CSS = `
 .hmi-root .hmi-knife.hmi-on .hmi-body { fill: var(--hmi-equip-on); }
 .hmi-root .hmi-knife .hmi-edge { fill: none; stroke: var(--hmi-tag-bg); stroke-width: 1.5; }
 .hmi-root .hmi-fan .hmi-spin, .hmi-root .hmi-knife .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
-.hmi-root.hmi-theme-classic .hmi-fan.hmi-on .hmi-spin { animation: hmi-spin 0.9s linear infinite; }
-.hmi-root.hmi-theme-classic .hmi-knife.hmi-on .hmi-spin { animation: hmi-spin 0.5s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-fan.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-fan.hmi-on .hmi-spin { animation: hmi-spin 0.9s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-knife.hmi-on .hmi-spin, .hmi-root.hmi-anim-always .hmi-knife.hmi-on .hmi-spin { animation: hmi-spin 0.5s linear infinite; }
 .hmi-root .hmi-coil { fill: none; stroke: var(--hmi-stroke); stroke-width: 2; stroke-linejoin: round; }
 .hmi-root .hmi-heater.hmi-on .hmi-coil { stroke: var(--hmi-tag-bg); }
 .hmi-root.hmi-theme-classic .hmi-heater.hmi-on .hmi-coil { stroke: var(--hmi-warn); }
@@ -1655,7 +1686,11 @@ export const CSS = `
 .hmi-root .hmi-line.hmi-ls-signal .hmi-path { stroke: var(--hmi-line); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .hmi-root .hmi-line.hmi-ls-pipe.hmi-on .hmi-path { stroke: var(--hmi-equip-on); }
 .hmi-root .hmi-line .hmi-flowpath { stroke: var(--hmi-bg); stroke-width: 1.6; stroke-dasharray: 3 21; opacity: 0; }
-.hmi-root.hmi-theme-classic .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath, .hmi-root .hmi-line.hmi-on.hmi-flow-always .hmi-flowpath { opacity: .85; animation: hmi-flow .8s linear infinite; }
+.hmi-root .hmi-line.hmi-flow-rev .hmi-flowpath, .hmi-root .hmi-line.hmi-ls-conveyor.hmi-flow-rev .hmi-path { animation-direction: reverse !important; }
+.hmi-root.hmi-theme-classic .hmi-line.hmi-ls-conveyor.hmi-on:not(.hmi-flow-never) .hmi-path, .hmi-root.hmi-anim-always .hmi-line.hmi-ls-conveyor.hmi-on:not(.hmi-flow-never) .hmi-path, .hmi-root .hmi-line.hmi-ls-conveyor.hmi-on.hmi-flow-always .hmi-path { animation: hmi-belt .8s linear infinite; }
+.hmi-root .hmi-frame.hmi-own .hmi-body { fill: var(--hmi-own) !important; }
+.hmi-root.hmi-anim-never *:not(.hmi-blink):not(.hmi-rule-blink):not(.hmi-ov-wait):not(.hmi-al-flash), .hmi-root.hmi-anim-classic.hmi-theme-isa101 *:not(.hmi-blink):not(.hmi-rule-blink):not(.hmi-ov-wait):not(.hmi-al-flash) { animation: none !important; }
+.hmi-root.hmi-theme-classic .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath, .hmi-root .hmi-line.hmi-on.hmi-flow-always .hmi-flowpath, .hmi-root.hmi-anim-always .hmi-line.hmi-on.hmi-flow-auto .hmi-flowpath { opacity: .85; animation: hmi-flow .8s linear infinite; }
 .hmi-root .hmi-kpi-card { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-kpi text { text-anchor: start; }
 .hmi-root .hmi-kpi-title { fill: var(--hmi-text-dim); font-weight: 700; letter-spacing: .5px; }

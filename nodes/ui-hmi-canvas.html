@@ -65,6 +65,7 @@
         }
         const editor = H.createEditor(root, {
             symbols: node.symbols,
+            screens: node.screens,
             buttonClass: 'red-ui-button',
             getView: () => ({ w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() }),
             getTheme: () => $('#node-input-theme').val(),
@@ -120,6 +121,9 @@
             viewH: { value: 720, required: true, validate: RED.validators.number() },
             theme: { value: 'isa101' },
             background: { value: 'theme' },
+            animate: { value: 'always' },
+            screens: { value: [] },
+            screenNav: { value: 'tabs' },
             offlineAfter: { value: 10, validate: RED.validators.number(true) },
             locale: { value: 'pt-BR' },
             alarms: { value: 'on' },
@@ -162,7 +166,10 @@
         },
         oneditsave: function () {
             const ed = this._hmiEditor
-            if (ed) this.symbols = ed.getSymbols()
+            if (ed) {
+                this.symbols = ed.getSymbols()
+                this.screens = ed.getScreens()
+            }
             delete this._hmiEditor
             if ($('#node-input-scope').val() === 'group') $('#node-input-page').val('_ADD_')
             else $('#node-input-group').val('_ADD_')
@@ -213,6 +220,21 @@
         <select id="node-input-theme" style="width: 200px">
             <option value="isa101">ISA-101</option>
             <option value="classic">Clássico</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-animate"><i class="fa fa-refresh"></i> Movimento</label>
+        <select id="node-input-animate" style="width: 260px">
+            <option value="always">Sempre que ligado (correias, polias, fluxo)</option>
+            <option value="classic">Só no tema Clássico (ISA-101 parado)</option>
+            <option value="never">Nunca</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-screenNav"><i class="fa fa-columns"></i> Telas</label>
+        <select id="node-input-screenNav" style="width: 260px">
+            <option value="tabs">Abas no topo (quando houver mais de uma)</option>
+            <option value="none">Sem abas (só botões "Ir para outra tela")</option>
         </select>
     </div>
     <div class="form-row">
@@ -302,7 +324,7 @@
         <dt class="optional">enabled <span class="property-type">boolean</span></dt>
         <dd><code>false</code> turns every command of the canvas off (view only); Node-RED also refuses them.</dd>
         <dt class="optional">ui_update <span class="property-type">object</span></dt>
-        <dd>Changes settings while running: <code>theme</code>, <code>background</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
+        <dd>Changes settings while running: <code>theme</code>, <code>animate</code> (always / classic / never), <code>screen</code> (opens that screen on every page), <code>background</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
         <dt class="optional">_hmiAck <span class="property-type">string</span></dt>
         <dd>Acknowledges alarms from the flow: an alarm id, <code>"symbol:&lt;id&gt;"</code> or <code>"all"</code>.</dd>
     </dl>

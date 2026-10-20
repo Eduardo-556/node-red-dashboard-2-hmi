@@ -16,6 +16,16 @@ const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueK
     // PID / regulator: process value, setpoint, output and auto/manual
     'pvKey', 'spKey', 'opKey', 'pidUnit', 'spTopic', 'spMin', 'spMax', 'opTopic', 'opMin', 'opMax', 'modeTopic', 'autoValue', 'manValue']
 
+// screen names of a canvas: unique strings, at most 20
+function cleanScreens (list) {
+    const out = []
+    for (const n of Array.isArray(list) ? list : []) {
+        const t = typeof n === 'string' ? n.trim().slice(0, 40) : ''
+        if (t && !out.includes(t) && out.length < 20) out.push(t)
+    }
+    return out
+}
+
 function cleanSymbols (list) {
     if (!Array.isArray(list)) return null
     const out = []
@@ -37,6 +47,7 @@ function cleanSymbols (list) {
         const a = s.action
         if (typeof s.group === 'string' && s.group) clean.group = s.group.slice(0, 64)
         if (typeof s.name === 'string' && s.name) clean.name = s.name.slice(0, 80)
+        if (typeof s.screen === 'string' && s.screen) clean.screen = s.screen.slice(0, 40)
         if (s.locked === true) clean.locked = true
         const sc = s.scale
         if (sc && typeof sc === 'object') clean.scale = { factor: String(sc.factor ?? ''), divisor: String(sc.divisor ?? ''), offset: String(sc.offset ?? '') }
@@ -138,6 +149,7 @@ module.exports = function setupAdmin (RED) {
             const target = flows.find(n => n.id === id && n.type === 'ui-hmi-canvas')
             if (!target) return res.status(404).json({ error: 'Canvas not found', code: 'NOT_FOUND' })
             target.symbols = symbols
+            if (body.screens !== undefined) target.screens = cleanScreens(body.screens)
             const saved = await adminRequest(RED, req, 'POST', { flows, rev: current.json.rev })
             if (saved.status !== 200) {
                 return res.status(saved.status).json({ error: (saved.json && saved.json.message) || 'Deploy failed', code: 'POST_FAILED' })
@@ -151,3 +163,4 @@ module.exports = function setupAdmin (RED) {
 }
 
 module.exports.cleanSymbols = cleanSymbols
+module.exports.cleanScreens = cleanScreens

@@ -39,6 +39,8 @@ export const MACHINE_SHAPES = [
 
 // shapes drawn as a circle that can turn while the key is on
 export const ROUND_SHAPES = ['gear', 'sprocket', 'pulley', 'wheel']
+// belt and chain drives: the wheels turn inside the drawing and the belt runs
+export const DRIVE_SHAPES = ['beltDrive', 'chainDrive']
 
 export function machinePath (shape, w, h, H) {
     const { f, poly, box } = H
@@ -90,8 +92,14 @@ export function machinePath (shape, w, h, H) {
         const p2b = [c2 + R2 * s, cy + R2 * c]
         const p1b = [c1 + R1 * s, cy + R1 * c]
         const belt = `M${f(p1t[0])} ${f(p1t[1])}L${f(p2t[0])} ${f(p2t[1])}A${f(R2)} ${f(R2)} 0 0 1 ${f(p2b[0])} ${f(p2b[1])}L${f(p1b[0])} ${f(p1b[1])}A${f(R1)} ${f(R1)} 0 1 1 ${f(p1t[0])} ${f(p1t[1])}Z`
-        const wheels = chain ? gear(c1, cy, R1 - bt * 0.2, true) + gear(c2, cy, R2 - bt * 0.2, true) : pulley(c1, cy, R1 - bt / 2) + pulley(c2, cy, R2 - bt / 2)
-        return wheels + path('hmi-strap', belt, ` style="stroke-width:${f(bt)}${chain ? `;stroke-dasharray:${f(bt * 0.9)} ${f(bt * 0.45)};stroke-linecap:butt` : ''}"`)
+        // each wheel turns around its own centre while the frame turns
+        const turn = (x, body) => `<g transform="translate(${f(x)},${f(cy)})"><g class="hmi-spin"><g transform="translate(${f(-x)},${f(-cy)})">${body}</g></g></g>`
+        const wheels = chain ? turn(c1, gear(c1, cy, R1 - bt * 0.2, true)) + turn(c2, gear(c2, cy, R2 - bt * 0.2, true)) : turn(c1, pulley(c1, cy, R1 - bt / 2)) + turn(c2, pulley(c2, cy, R2 - bt / 2))
+        // the belt runs with marks on it; the chain's links are the marks
+        // dash periods divide 16, the distance the hmi-belt animation moves, so the loop has no jump
+        const period = 16 / Math.max(1, Math.round(16 / (bt * 1.35)))
+        const marks = chain ? '' : path('hmi-belt-marks hmi-move', belt, ` style="stroke-width:${f(Math.max(1, bt * 0.35))};stroke-dasharray:4 12"`)
+        return wheels + path('hmi-strap' + (chain ? ' hmi-move' : ''), belt, ` style="stroke-width:${f(bt)}${chain ? `;stroke-dasharray:${f(period * 0.67)} ${f(period * 0.33)};stroke-linecap:butt` : ''}"`) + marks
     }
     switch (shape) {
     case 'gear': return gear(cx, cy, m / 2, false)
@@ -248,6 +256,8 @@ export const MACHINE_CSS = `
 .hmi-root .hmi-frame .hmi-glass { fill: var(--hmi-bg); stroke: var(--hmi-stroke); stroke-width: 1; opacity: .85; }
 .hmi-root .hmi-frame .hmi-spin { transform-box: view-box; transform-origin: 0 0; }
 .hmi-root .hmi-frame.hmi-turning .hmi-spin { animation: hmi-spin 3s linear infinite; }
+.hmi-root .hmi-frame .hmi-belt-marks { fill: none; stroke: var(--hmi-bg); opacity: .7; }
+.hmi-root .hmi-frame.hmi-on.hmi-ccw .hmi-move { animation-direction: reverse; }
 .hmi-root .hmi-frame.hmi-turning.hmi-ccw .hmi-spin { animation-name: hmi-spin-ccw; }
 .hmi-root .hmi-shape .hmi-hit { fill: none; stroke: transparent; stroke-width: 12; }
 `
