@@ -447,3 +447,19 @@ test('belt and chain drives turn their wheels and run the belt', () => {
         assert.ok(SYMBOLS.frame.fields.find(x => x.key === 'spin').when(d.props), shape)
     }
 })
+
+test('hour meter with hours, minutes and seconds in separate keys', () => {
+    const c = createSymbol('counter', 0, 0, 0)
+    c.key = 'hh'
+    c.props.src = 'split'
+    c.props.minKey = 'mm'
+    c.props.secKey = 'ss'
+    const vals = { hh: 1234, mm: 5, ss: 9 }
+    assert.ok(renderSymbol(c, 1234, { values: vals, locale: 'pt-BR' }).includes('1.234 h 05 min 09 s'))
+    c.props.secKey = ''
+    assert.ok(renderSymbol(c, 12, { values: { hh: 12, mm: 30 } }).includes('12 h 30 min<'))
+    assert.ok(renderSymbol(c, undefined, { values: {} }).includes('—'))
+    assert.ok(renderSymbol(c, 3, { values: { hh: 3 } }).includes('3 h 00 min'))
+    const f = SYMBOLS.counter.fields.find(x => x.key === 'minKey')
+    assert.ok(f.when(c.props) && !f.when({ kind: 'hours', src: 'h' }))
+})

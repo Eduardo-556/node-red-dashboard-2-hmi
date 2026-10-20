@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+Novidades:
+
+- Horímetro com **horas, minutos e segundos em chaves separadas** ("O CLP manda em: Horas, minutos e segundos separados"). A chave do símbolo é a das horas; os minutos e os segundos têm campo próprio (segundos opcional). Mostra `1.520 h 07 min 43 s`.
+
 ## 0.1.4
 
 Novidades:

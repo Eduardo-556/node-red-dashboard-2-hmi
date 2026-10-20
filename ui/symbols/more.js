@@ -650,8 +650,14 @@ export function moreSymbols (H) {
         const { w, h } = sym
         const v = num(value)
         let text
+        const vals = (opts && opts.values) || {}
+        const part = k => { const x = k ? num(vals[k]) : null; return x === null ? 0 : Math.max(0, Math.floor(x)) }
         if (v === null) text = '—'
-        else if (p.kind === 'hours' && (p.src === 's' || p.src === 'min')) {
+        else if (p.kind === 'hours' && p.src === 'split') {
+            // three PLC registers: hours (the symbol's key), minutes and seconds
+            text = formatValue(Math.floor(v), 0, opts.locale) + ' h ' + String(part(p.minKey)).padStart(2, '0') + ' min' +
+                (p.secKey ? ' ' + String(part(p.secKey)).padStart(2, '0') + ' s' : '')
+        } else if (p.kind === 'hours' && (p.src === 's' || p.src === 'min')) {
             const totalMin = Math.floor(p.src === 's' ? v / 60 : v)
             text = formatValue(Math.floor(totalMin / 60), 0, opts.locale) + ' h ' + String(totalMin % 60).padStart(2, '0') + ' min'
         } else text = formatValue(v, p.kind === 'hours' ? p.decimals : 0, opts.locale) + (p.kind === 'hours' ? ' h' : (p.unit ? ' ' + p.unit : ''))
@@ -1187,8 +1193,10 @@ export function moreSymbols (H) {
             fields: [
                 { key: 'kind', label: 'Tipo', type: 'select', options: [['hours', 'Horas'], ['count', 'Contagem']], refresh: true },
                 TITLE,
-                { key: 'src', label: 'O CLP manda em', type: 'select', options: [['h', 'Horas'], ['min', 'Minutos'], ['s', 'Segundos']], when: p => p.kind === 'hours' },
-                { ...DEC, when: p => p.kind === 'hours' },
+                { key: 'src', label: 'O CLP manda em', type: 'select', options: [['h', 'Horas'], ['min', 'Minutos'], ['s', 'Segundos'], ['split', 'Horas, minutos e segundos separados']], when: p => p.kind === 'hours', refresh: true },
+                { key: 'minKey', label: 'Chave dos minutos (a chave do símbolo é a das horas)', type: 'text', when: p => p.kind === 'hours' && p.src === 'split' },
+                { key: 'secKey', label: 'Chave dos segundos (vazio = não mostra)', type: 'text', when: p => p.kind === 'hours' && p.src === 'split' },
+                { ...DEC, when: p => p.kind === 'hours' && p.src !== 'split' },
                 { ...UNIT, when: p => p.kind !== 'hours' },
                 LABEL
             ],
