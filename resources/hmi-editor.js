@@ -3075,15 +3075,40 @@ ${[
 			const { w, h } = sym;
 			const on = onState(value, p);
 			const s = Math.min(w, h);
-			const ay = h * .44;
+			const gid = "hmi-wd-" + String(sym.id || "x").replace(/[^\w-]/g, "");
+			const tone = ["theme", "machine"].includes(p.tone) ? p.tone : "slitter";
+			const metal = tone === "slitter" ? `url(#${gid}-m)` : "";
+			const ay = h * .42;
+			const cx0 = w * .43;
+			const cx1 = w * .71;
+			const ch = h * .24;
 			const turns = [];
-			const cx0 = w * .44;
-			const cx1 = w * .7;
 			const step = Math.max(4, (cx1 - cx0) / Math.max(6, Math.round((cx1 - cx0) / 7)));
-			for (let x = cx0 + step / 2; x < cx1; x += step) turns.push(`M${f(x)} ${f(ay - h * .105)}V${f(ay + h * .105)}`);
-			const wire = p.wire === "no" ? "" : rect("hmi-wd-bucket", w * .4, h * .76, w * .12, h * .2, 2) + path("hmi-wd-bucket-rim", `M${f(w * .395)} ${f(h * .76)}H${f(w * .525)}`) + path("hmi-wd-wire", `M${f(w * .46)} ${f(h * .77)}L${f(w * .5)} ${f(ay + h * .11)}`);
-			const body = rect("hmi-wd-blue", w * .02, h * .3, w * .28, h * .66, 2) + rect("hmi-wd-steel", w * .145, h * .22, w * .03, h * .08) + rect("hmi-wd-beige", w * .05, h * .02, w * .22, h * .21, 2) + rect("hmi-wd-screen", w * .075, h * .045, w * .13, h * .11, 1) + circle("hmi-led", w * .105, h * .19, s * .022) + circle("hmi-wd-red", w * .235, h * .17, s * .03) + path("hmi-wd-line", `M${f(w * .06)} ${f(h * .42)}H${f(w * .26)}M${f(w * .06)} ${f(h * .8)}H${f(w * .26)}`) + rect("hmi-wd-blue", w * .32, h * .68, w * .04, h * .28) + rect("hmi-wd-blue", w * .88, h * .68, w * .04, h * .28) + rect("hmi-wd-blue", w * .3, h * .86, w * .66, h * .06) + rect("hmi-wd-steel", w * .3, h * .62, w * .66, h * .06, 1) + rect("hmi-wd-blue", w * .865, h * .54, w * .03, h * .08) + rect("hmi-wd-red", w * .84, h * .24, w * .08, h * .32, 2) + rect("hmi-wd-steel", w * .92, h * .37, w * .07, h * .07, 1) + path("hmi-wd-hose", `M${f(w * .955)} ${f(h * .44)}Q${f(w * .96)} ${f(h * .6)} ${f(w * .9)} ${f(h * .6)}`) + rect("hmi-wd-steel", w * .3, ay - h * .018, w * .54, h * .036) + rect("hmi-wd-red", w * .3, ay - h * .07, w * .06, h * .14, 2) + rect("hmi-wd-mandrel", w * .36, ay - h * .045, w * .44, h * .09, 2) + rect("hmi-wd-coil", cx0, ay - h * .11, cx1 - cx0, h * .22, 2) + `<g class="hmi-wd-turns-g${p.dir === "ccw" ? " hmi-ccw" : ""}">${path("hmi-wd-turns", turns.join(""))}</g>` + path("hmi-wd-dark", `M${f(w * .8)} ${f(ay - h * .045)}L${f(w * .84)} ${f(ay)}L${f(w * .8)} ${f(ay + h * .045)}Z`) + wire;
-			return `<g class="hmi-eq hmi-winder hmi-tone-${p.tone === "theme" ? "theme" : "machine"} ${stateClass(on)}${faultClass(p, opts)}">${body}${faultMark(p, opts, w)}${labelBelow(p, w, h)}</g>`;
+			for (let x = cx0 + step / 2; x < cx1; x += step) turns.push(`M${f(x)} ${f(ay - ch / 2 + 1)}V${f(ay + ch / 2 - 1)}`);
+			const fillM = metal ? ` style="fill:${metal}"` : "";
+			const R = (cls, x, y, ww, hh, rx) => rect(cls, x, y, ww, hh, rx, cls.includes("hmi-wd-metal") ? fillM : "");
+			const cabX = w * .02;
+			const cabW = w * .28;
+			const cx = cabX + cabW / 2;
+			const hw = w * .19;
+			const hx = cx - hw / 2;
+			const hy = h * .015;
+			const hh = h * .27;
+			const ix = s * .045;
+			const hmi = R("hmi-wd-dark", cx - w * .012, hy + hh, w * .024, h * .3 - hy - hh) + R("hmi-wd-box", hx, hy, hw, hh, 3) + rect("hmi-wd-screen", hx + hw * .1, hy + hh * .08, hw * .8, hh * .46, 1.5) + path("hmi-wd-ui", `M${f(hx + hw * .16)} ${f(hy + hh * .2)}H${f(hx + hw * .6)}M${f(hx + hw * .16)} ${f(hy + hh * .3)}H${f(hx + hw * .5)}`) + circle("hmi-led", hx + hw * .8, hy + hh * .22, s * .016) + rect("hmi-wd-bar", hx + hw * .16, hy + hh * .4, hw * .68, hh * .06, 1) + rect("hmi-wd-barfill", hx + hw * .16, hy + hh * .4, hw * .68 * (on ? .7 : .15), hh * .06, 1) + circle("hmi-wd-ering", hx + hw * .3, hy + hh * .76, ix * 1.15) + circle("hmi-wd-estop", hx + hw * .3, hy + hh * .76, ix * .78) + circle("hmi-wd-pot", hx + hw * .7, hy + hh * .76, ix * .85) + path("hmi-wd-potmark", `M${f(hx + hw * .7)} ${f(hy + hh * .76)}L${f(hx + hw * .7 + ix * .55)} ${f(hy + hh * .76 - ix * .55)}`) + path("hmi-wd-scale", `M${f(hx + hw * .7 - ix * 1.2)} ${f(hy + hh * .76 + ix * .9)}A${f(ix * 1.5)} ${f(ix * 1.5)} 0 1 1 ${f(hx + hw * .7 + ix * 1.2)} ${f(hy + hh * .76 + ix * .9)}`);
+			const railY = h * .8;
+			const sw = w * .07;
+			const travel = Math.max(0, cx1 - cx0 - sw);
+			const spreader = p.wire === "no" ? "" : R("hmi-wd-dark", w * .34, railY, w * .6, h * .035, 1) + rect("hmi-wd-stop", w * .34, railY - h * .02, w * .012, h * .075) + rect("hmi-wd-stop", w * .928, railY - h * .02, w * .012, h * .075) + `<g class="hmi-wd-spread" style="--wd-travel:${f(travel)}px"><g transform="translate(${f(cx0)},0)">` + path("hmi-wd-wire", `M${f(sw / 2)} ${f(railY - h * .07)}L${f(sw / 2)} ${f(ay + ch / 2)}`) + rect("hmi-wd-carriage", 0, railY - h * .08, sw, h * .09, 2) + circle("hmi-wd-guide", sw / 2, railY - h * .065, Math.max(1.5, s * .014)) + "</g></g>";
+			const defs = metal ? `<defs><linearGradient id="${gid}-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a737d"/><stop offset="1" stop-color="#4d555e"/></linearGradient><linearGradient id="${gid}-c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d08a4e"/><stop offset=".5" stop-color="#b87333"/><stop offset="1" stop-color="#7c4a20"/></linearGradient></defs>` : "";
+			const coilFill = metal ? ` style="fill:url(#${gid}-c)"` : "";
+			const body = defs + R("hmi-wd-metal hmi-wd-cab", cabX, h * .3, cabW, h * .66, 2) + path("hmi-wd-seam", `M${f(cabX + cabW * .08)} ${f(h * .36)}H${f(cabX + cabW * .92)}V${f(h * .9)}H${f(cabX + cabW * .08)}Z`) + path("hmi-wd-vent", [
+				0,
+				1,
+				2,
+				3
+			].map((i) => `M${f(cabX + cabW * .3)} ${f(h * (.74 + i * .035))}H${f(cabX + cabW * .7)}`).join("")) + hmi + R("hmi-wd-metal", w * .32, h * .66, w * .035, h * .3) + R("hmi-wd-metal", w * .9, h * .66, w * .035, h * .3) + R("hmi-wd-metal", w * .3, h * .9, w * .66, h * .05) + R("hmi-wd-dark", w * .3, h * .6, w * .66, h * .06, 1) + R("hmi-wd-metal", w * .865, h * .52, w * .03, h * .08) + R("hmi-wd-metal hmi-wd-tail", w * .84, h * .22, w * .08, h * .32, 2) + R("hmi-wd-dark", w * .92, h * .36, w * .06, h * .07, 1) + rect("hmi-wd-rod", w * .98, h * .385, w * .015, h * .02) + path("hmi-wd-hose", `M${f(w * .95)} ${f(h * .43)}Q${f(w * .96)} ${f(h * .58)} ${f(w * .9)} ${f(h * .58)}`) + R("hmi-wd-dark", w * .3, ay - h * .018, w * .54, h * .036) + R("hmi-wd-dark hmi-wd-chuck", w * .3, ay - h * .08, w * .055, h * .16, 2) + path("hmi-wd-jaw", `M${f(w * .315)} ${f(ay - h * .08)}V${f(ay + h * .08)}M${f(w * .34)} ${f(ay - h * .08)}V${f(ay + h * .08)}`) + rect("hmi-wd-mandrel", w * .355, ay - h * .045, w * .45, h * .09, 2) + `<rect class="hmi-wd-coil" x="${f(cx0)}" y="${f(ay - ch / 2)}" width="${f(cx1 - cx0)}" height="${f(ch)}" rx="3"${coilFill}/><g class="hmi-wd-turns-g${p.dir === "ccw" ? " hmi-ccw" : ""}">${path("hmi-wd-turns", turns.join(""))}</g>` + rect("hmi-wd-flange", cx0 - w * .008, ay - ch / 2 - h * .02, w * .008, ch + h * .04) + rect("hmi-wd-flange", cx1, ay - ch / 2 - h * .02, w * .008, ch + h * .04) + path("hmi-wd-centre", `M${f(w * .805)} ${f(ay - h * .04)}L${f(w * .84)} ${f(ay)}L${f(w * .805)} ${f(ay + h * .04)}Z`) + spreader;
+			return `<g class="hmi-eq hmi-winder hmi-tone-${tone} ${stateClass(on)}${faultClass(p, opts)}">${body}${faultMark(p, opts, w)}${labelBelow(p, w, h)}</g>`;
 		}
 		function renderStateChip(sym, value, opts) {
 			const p = sym.props || {};
@@ -3351,7 +3376,7 @@ ${[
 					invert: "no",
 					faultKey: "",
 					priority: "1",
-					tone: "machine",
+					tone: "slitter",
 					wire: "yes",
 					dir: "cw"
 				},
@@ -3362,11 +3387,15 @@ ${[
 						key: "tone",
 						label: "Cores",
 						type: "select",
-						options: [["machine", "Da máquina (azul e vermelho)"], ["theme", "Do tema"]]
+						options: [
+							["slitter", "Metal (como a slitter)"],
+							["machine", "Da máquina (azul e vermelho)"],
+							["theme", "Do tema"]
+						]
 					},
 					{
 						key: "wire",
-						label: "Balde com o fio",
+						label: "Espalhador do fio (corre de um lado para o outro girando)",
 						type: "select",
 						options: [["yes", "Sim"], ["no", "Não"]]
 					},
@@ -3600,37 +3629,67 @@ ${[
 .hmi-root .hmi-tl-tick { stroke: var(--hmi-line); stroke-width: 1; }
 .hmi-root .hmi-tl-hour, .hmi-root .hmi-tl-legend { fill: var(--hmi-text-dim); dominant-baseline: central; }
 .hmi-root .hmi-tl-label { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
-.hmi-root .hmi-winder .hmi-wd-blue { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root .hmi-winder .hmi-wd-red, .hmi-root .hmi-winder .hmi-wd-dark { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root .hmi-winder .hmi-wd-beige { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-metal, .hmi-root .hmi-winder .hmi-wd-box { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1.2; }
+.hmi-root .hmi-winder .hmi-wd-dark, .hmi-root .hmi-winder .hmi-wd-stop { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
 .hmi-root .hmi-winder .hmi-wd-screen { fill: var(--hmi-pit); stroke: var(--hmi-line); stroke-width: .8; }
-.hmi-root .hmi-winder .hmi-wd-steel { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-winder .hmi-wd-ui { fill: none; stroke: var(--hmi-text-dim); stroke-width: 1.4; stroke-linecap: round; }
+.hmi-root .hmi-winder .hmi-wd-bar { fill: var(--hmi-bg); }
+.hmi-root .hmi-winder .hmi-wd-barfill { fill: var(--hmi-info); }
+.hmi-root .hmi-winder .hmi-wd-ering { fill: #f2c200; stroke: #8a6d00; stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-estop { fill: #d71920; stroke: #7f0d10; stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-pot { fill: #1d2126; stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-potmark { fill: none; stroke: #e8edf1; stroke-width: 1.6; stroke-linecap: round; }
+.hmi-root .hmi-winder .hmi-wd-scale { fill: none; stroke: var(--hmi-text-dim); stroke-width: 1; stroke-dasharray: 2 2; }
+.hmi-root .hmi-winder .hmi-wd-seam { fill: none; stroke: var(--hmi-stroke); stroke-width: .8; opacity: .55; }
+.hmi-root .hmi-winder .hmi-wd-vent { fill: none; stroke: var(--hmi-dark); stroke-width: 2; stroke-linecap: round; }
+.hmi-root .hmi-winder .hmi-wd-jaw { fill: none; stroke: var(--hmi-stroke); stroke-width: 1; opacity: .7; }
+.hmi-root .hmi-winder .hmi-wd-rod { fill: var(--hmi-stroke); }
 .hmi-root .hmi-winder .hmi-wd-mandrel { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: .8; }
 .hmi-root .hmi-winder .hmi-wd-coil { fill: var(--hmi-material); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-flange { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: .8; }
 .hmi-root .hmi-winder .hmi-wd-turns { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.6; stroke-dasharray: 6 10; opacity: .7; }
-.hmi-root .hmi-winder .hmi-wd-line { fill: none; stroke: var(--hmi-stroke); stroke-width: .8; opacity: .6; }
+.hmi-root .hmi-winder .hmi-wd-centre { fill: var(--hmi-stroke); }
 .hmi-root .hmi-winder .hmi-wd-hose { fill: none; stroke: var(--hmi-info); stroke-width: 2; }
-.hmi-root .hmi-winder .hmi-wd-bucket { fill: var(--hmi-warn); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root .hmi-winder .hmi-wd-bucket-rim { fill: none; stroke: var(--hmi-stroke); stroke-width: 2; }
-.hmi-root .hmi-winder .hmi-wd-wire { fill: none; stroke: var(--hmi-text); stroke-width: 1.2; stroke-dasharray: 8 4; opacity: .8; }
-.hmi-root .hmi-winder.hmi-unknown .hmi-wd-blue { stroke-dasharray: 5 3; }
-.hmi-root .hmi-winder.hmi-fault .hmi-wd-blue { stroke: var(--hmi-alarm); stroke-width: 2.5; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-blue { fill: #1f5fbf; stroke: #123c7c; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-red { fill: #e2411d; stroke: #8f2410; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-beige { fill: #d8d0b0; stroke: #8f886d; }
+.hmi-root .hmi-winder .hmi-wd-carriage { fill: var(--hmi-warn); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-guide { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-wire { fill: none; stroke: var(--hmi-text); stroke-width: 1.4; stroke-dasharray: 8 4; opacity: .85; }
+.hmi-root .hmi-winder.hmi-unknown .hmi-wd-cab { stroke-dasharray: 5 3; }
+.hmi-root .hmi-winder.hmi-fault .hmi-wd-cab { stroke: var(--hmi-alarm); stroke-width: 2.5; }
+.hmi-root .hmi-winder.hmi-off .hmi-wd-barfill, .hmi-root .hmi-winder.hmi-unknown .hmi-wd-barfill { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-metal { stroke: #8a939d; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-box { fill: #2a2f36; stroke: #b5bfc8; }
+.hmi-root .hmi-winder.hmi-tone-slitter :is(.hmi-wd-dark, .hmi-wd-stop, .hmi-wd-flange) { fill: #3a4148; stroke: #7a838c; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-screen { fill: #111418; stroke: #66707a; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-ui { stroke: #38bdf8; opacity: .8; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-bar { fill: #1c2025; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-mandrel { fill: #c4d0db; stroke: #8a939d; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-coil { stroke: #6e4d2a; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-turns { stroke: #f0c79a; }
+.hmi-root .hmi-winder.hmi-tone-slitter :is(.hmi-wd-centre, .hmi-wd-rod) { fill: #a5b0ba; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-seam { stroke: #a5b0ba; opacity: .35; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-vent { stroke: #2f353b; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-hose { stroke: #2f80c8; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-carriage { fill: #f59e0b; stroke: #8a5a00; }
+.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-wire { stroke: #e8b27a; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-metal { fill: #1f5fbf; stroke: #123c7c; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-tail { fill: #e2411d; stroke: #8f2410; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-box { fill: #d8d0b0; stroke: #8f886d; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-chuck { fill: #e2411d; stroke: #8f2410; }
+.hmi-root .hmi-winder.hmi-tone-machine :is(.hmi-wd-dark, .hmi-wd-stop, .hmi-wd-flange) { fill: #3b4249; stroke: #1d2126; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-screen { fill: #263038; stroke: #59626c; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-steel { fill: #3b4249; stroke: #1d2126; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-dark { fill: #1d2126; stroke: #000; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-mandrel { fill: #eef2f5; stroke: #8a939d; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-coil { fill: #b98a55; stroke: #6e4d2a; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-turns { stroke: #f3e2c6; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-hose { stroke: #2f80c8; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-bucket { fill: #f2c200; stroke: #8a6d00; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-carriage { fill: #e2411d; stroke: #8f2410; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-wire { stroke: #d9dee3; }
-.hmi-root .hmi-winder.hmi-tone-machine.hmi-off .hmi-wd-coil, .hmi-root .hmi-winder.hmi-tone-machine.hmi-unknown .hmi-wd-coil { fill: #9c7a52; }
+.hmi-root .hmi-winder.hmi-off .hmi-wd-coil, .hmi-root .hmi-winder.hmi-unknown .hmi-wd-coil { filter: saturate(.55) brightness(.85); }
+.hmi-root .hmi-winder .hmi-wd-spread { transform-box: view-box; }
 .hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-wd-turns, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-wd-turns { animation: hmi-belt .45s linear infinite; }
 .hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-ccw .hmi-wd-turns, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-ccw .hmi-wd-turns { animation-direction: reverse; }
 .hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-wd-wire, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-wd-wire { animation: hmi-flow .8s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-wd-spread, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-wd-spread { animation: hmi-wd-traverse 2.6s ease-in-out infinite alternate; }
+@keyframes hmi-wd-traverse { from { transform: translateX(0); } to { transform: translateX(var(--wd-travel, 0px)); } }
 /* state colours last, so they win over the default fill of each part */
 ${Object.entries({
 		ok: "--hmi-ok",
@@ -7641,9 +7700,10 @@ ${Object.entries({
 	}
 	function fillKeys(str, opts) {
 		const o = opts || {};
-		return String(str || "").replace(/\{([^{}:]+)(?::(\d+))?\}/g, (m, k, d) => {
+		return String(str || "").replace(/\{([^{}:]+)(?::(\d+|t))?\}/g, (m, k, d) => {
 			const v = o.values ? o.values[k.trim()] : void 0;
 			if ((v === void 0 || v === null) && o.editor) return m;
+			if (d === "t") return v === void 0 || v === null || v === "" ? "—" : String(v);
 			return formatValue(v, d === void 0 ? "" : d, o.locale);
 		});
 	}
@@ -8131,7 +8191,7 @@ ${Object.entries({
 					sym("stateChip", 160, 0, "{{tag}}.estado", {}, [180, 34]),
 					sym("winder", 10, 44, "{{tag}}.girando", {}, [320, 140]),
 					sym("text", 0, 190, "", {
-						text: "{{{tag}}.operador} · {{{tag}}.projeto}",
+						text: "operador {{{tag}}.operador:t} · {{{tag}}.projeto}",
 						size: 13,
 						align: "start",
 						tone: "dim"

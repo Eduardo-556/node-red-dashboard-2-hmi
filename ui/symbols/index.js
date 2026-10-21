@@ -1382,9 +1382,11 @@ function renderKpi (sym, value, opts) {
 // {chave} or {chave:2} (decimals) is replaced by that key's value
 export function fillKeys (str, opts) {
     const o = opts || {}
-    return String(str || '').replace(/\{([^{}:]+)(?::(\d+))?\}/g, (m, k, d) => {
+    return String(str || '').replace(/\{([^{}:]+)(?::(\d+|t))?\}/g, (m, k, d) => {
         const v = o.values ? o.values[k.trim()] : undefined
         if ((v === undefined || v === null) && o.editor) return m
+        // {key:t} shows the value as typed: ids such as 2888 are not grouped as 2.888
+        if (d === 't') return v === undefined || v === null || v === '' ? '—' : String(v)
         return formatValue(v, d === undefined ? '' : d, o.locale)
     })
 }

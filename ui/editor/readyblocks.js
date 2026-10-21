@@ -80,7 +80,7 @@ export function readyBlocks () {
                 text(0, 0, '{{tag}}', 150),
                 sym('stateChip', 160, 0, '{{tag}}.estado', {}, [180, 34]),
                 sym('winder', 10, 44, '{{tag}}.girando', {}, [320, 140]),
-                sym('text', 0, 190, '', { text: '{{{tag}}.operador} · {{{tag}}.projeto}', size: 13, align: 'start', tone: 'dim' }, [340, 18]),
+                sym('text', 0, 190, '', { text: 'operador {{{tag}}.operador:t} · {{{tag}}.projeto}', size: 13, align: 'start', tone: 'dim' }, [340, 18]),
                 sym('tag', 0, 216, '{{tag}}.bobinas', { title: 'BOBINAS HOJE', decimals: 0 }, [106, 54]),
                 sym('tag', 117, 216, '{{tag}}.ocupacao', { title: 'OCUPAÇÃO', unit: '%', decimals: 0 }, [106, 54]),
                 sym('tag', 234, 216, '{{tag}}.ultima', { title: 'ÚLTIMA', decimals: 0 }, [106, 54]),

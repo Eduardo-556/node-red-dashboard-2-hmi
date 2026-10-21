@@ -464,16 +464,17 @@ test('hour meter with hours, minutes and seconds in separate keys', () => {
     assert.ok(f.when(c.props) && !f.when({ kind: 'hours', src: 'h' }))
 })
 
-test('winder spins its coil when on and keeps the machine colours', async () => {
+test('winder spins its coil, moves the spreader and draws the HMI with e-stop and pot', async () => {
     const w = createSymbol('winder', 0, 0)
     const on = renderSymbol(w, true)
-    assert.ok(on.includes('hmi-winder') && on.includes('hmi-on') && on.includes('hmi-tone-machine') && on.includes('hmi-wd-turns'))
+    assert.ok(on.includes('hmi-winder') && on.includes('hmi-on') && on.includes('hmi-tone-slitter') && on.includes('hmi-wd-turns'))
+    assert.ok(on.includes('hmi-wd-spread') && on.includes('--wd-travel') && on.includes('hmi-wd-estop') && on.includes('hmi-wd-pot'))
     assert.ok(renderSymbol(w, false).includes('hmi-off'))
     assert.ok(renderSymbol(w, undefined).includes('hmi-unknown'))
     w.props.wire = 'no'
     w.props.tone = 'theme'
     const t = renderSymbol(w, 1)
-    assert.ok(!t.includes('hmi-wd-bucket') && t.includes('hmi-tone-theme'))
+    assert.ok(!t.includes('hmi-wd-spread') && t.includes('hmi-tone-theme'))
 })
 
 test('status with several states picks text and colour by value', async () => {
@@ -549,4 +550,10 @@ test('bar chart and donut take a list of objects', () => {
     const o = renderSymbol(d, list, {})
     assert.ok(o.includes('Outros') && !o.includes('>H '))
     assert.strictEqual((o.match(/hmi-ch-arc/g) || []).length, 6)
+})
+
+test('text keys with :t keep ids as typed', async () => {
+    const { fillKeys } = await import('../ui/symbols/index.js')
+    assert.equal(fillKeys('op {o:t} · {q}', { values: { o: '2888', q: 1450 } }), 'op 2888 · 1.450')
+    assert.equal(fillKeys('op {o:t}', { values: {} }), 'op —')
 })

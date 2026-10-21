@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+Novidades:
+
+- **Bobinadeira** redesenhada no estilo metálico da slitter (nova cor padrão "Metal (como a slitter)"). A IHM fica num painel em cima do armário, com a tela no centro e o botão de emergência e o potenciômetro embaixo dela. O espalhador do fio corre de um lado para o outro ao longo da bobina enquanto ela gira.
+- Texto com `{chave:t}` mostra o valor como veio, sem separador de milhar (matrícula `2888` não vira `2.888`).
+
 ## 0.1.6
 
 Novidades:
