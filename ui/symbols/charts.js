@@ -36,7 +36,12 @@ export function chartSymbols (H) {
         const vals = (opts && opts.values) || {}
         if (!list.length && Array.isArray(value)) {
             const labels = String(p.labels || '').split(',').map(t => t.trim())
-            list = value.slice(0, 12).map((v, i) => ({ key: '', label: labels[i] || String(i + 1), value: num(v) }))
+            // a list of numbers, or of objects such as [{ h: '05', q: 3 }] (labelField h, valueField q)
+            const lf = p.labelField || 'label'
+            const vf = p.valueField || 'value'
+            list = value.slice(0, 31).map((v, i) => v !== null && typeof v === 'object'
+                ? { key: '', label: v[lf] === undefined || v[lf] === null ? String(i + 1) : String(v[lf]), value: num(v[vf]) }
+                : { key: '', label: labels[i] || String(i + 1), value: num(v) })
         } else {
             list = list.map(s => ({ ...s, value: num(vals[s.key]) }))
         }
@@ -90,10 +95,15 @@ export function chartSymbols (H) {
     function renderDonut (sym, value, opts) {
         const p = sym.props || {}
         const { w, h } = sym
-        const list = seriesValues(sym, value, opts).filter(s => s.value !== null && s.value > 0)
+        let list = seriesValues(sym, value, opts).filter(s => s.value !== null && s.value > 0)
+        // six colours: from the seventh slice on, the smallest ones join in "Outros"
+        if (list.length > 6) {
+            const sorted = [...list].sort((a, b) => b.value - a.value)
+            list = [...sorted.slice(0, 5), { key: '', label: 'Outros', value: sorted.slice(5).reduce((a, s) => a + s.value, 0) }]
+        }
         const total = list.reduce((a, s) => a + s.value, 0)
         const top = p.title ? 26 : 6
-        const legendW = p.legend === 'no' ? 0 : Math.min(w * 0.45, 170)
+        const legendW = p.legend === 'no' ? 0 : Math.min(w * 0.45, Math.max(170, w * 0.4))
         const r = Math.max(10, Math.min((w - legendW - 16) / 2, (h - top - 8) / 2))
         const cx = 8 + r
         const cy = top + (h - top) / 2
@@ -118,8 +128,11 @@ export function chartSymbols (H) {
             list.forEach((s, i) => {
                 const y = top + 8 + i * size * 1.7
                 const pct = Math.round(s.value / total * 1000) / 10
+                const tail = '  ' + formatValue(pct, 1, opts.locale) + '%'
+                const room = Math.max(3, Math.floor((legendW - size * 1.5 - 6) / (size * 0.58)) - tail.length)
+                const name = s.label.length > room ? s.label.slice(0, Math.max(1, room - 1)) + '…' : s.label
                 out += `<rect class="hmi-ch-dot hmi-ch-${i % 6}" x="${f(w - legendW)}" y="${f(y)}" width="${f(size)}" height="${f(size)}" rx="2"/>` +
-                    txt('hmi-ch-label', w - legendW + size * 1.5, y + size * 0.5, s.label + '  ' + formatValue(pct, 1, opts.locale) + '%', size)
+                    txt('hmi-ch-label', w - legendW + size * 1.5, y + size * 0.5, name + tail, size)
             })
         }
         return out + '</g>'
@@ -178,10 +191,12 @@ export function chartSymbols (H) {
             w: 360,
             h: 200,
             preview: undefined,
-            defaults: { title: 'PRODUÇÃO POR TURNO', series: 'turno1:Turno 1, turno2:Turno 2, turno3:Turno 3', labels: '', unit: '', decimals: 0, max: '', goal: '', lowColor: 'no' },
+            defaults: { title: 'PRODUÇÃO POR TURNO', series: 'turno1:Turno 1, turno2:Turno 2, turno3:Turno 3', labels: '', labelField: '', valueField: '', unit: '', decimals: 0, max: '', goal: '', lowColor: 'no' },
             fields: [
                 TITLE, SERIES,
                 { key: 'labels', label: 'Rótulos (se a chave do símbolo for uma lista)', type: 'text' },
+                { key: 'labelField', label: 'Lista de objetos: campo do rótulo', type: 'text' },
+                { key: 'valueField', label: 'Lista de objetos: campo do valor', type: 'text' },
                 UNIT, DEC,
                 { key: 'max', label: 'Máximo (vazio = automático)', type: 'number' },
                 { key: 'goal', label: 'Meta (linha)', type: 'number' },

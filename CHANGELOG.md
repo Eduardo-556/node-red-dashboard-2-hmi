@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.6
+
+Novidades:
+
+- Símbolo **Bobinadeira** (Fábrica): vista de frente como as bobinadeiras BT, com a IHM no armário, a bobina que gira quando a chave liga, o contraponto pneumático e o balde com o fio. Cores da máquina (azul e vermelho) ou do tema.
+- **Status de vários estados** (Estados): cada valor com seu texto e sua cor (`GIRANDO=GIRANDO:ok, PARADA=PARADA:alarm`), linha de baixo com `{chave}`, contorno com LED ou fundo colorido.
+- **Tabela** (Valores): linhas de uma chave com lista, colunas com rótulo, alinhamento e largura, e cor da linha por um campo.
+- **Linha do tempo de estados** (Gráficos): o dia de produção (ex. desde as 05:00) ou as últimas horas, marca de agora, horas embaixo e legenda com o tempo de cada estado. Empilhadas viram um Gantt das máquinas.
+- Barras e rosca aceitam **lista de objetos** (campo do rótulo e campo do valor). A rosca junta em "Outros" o que passa de seis fatias e corta nomes longos na legenda.
+- Montagem pronta **Bobinadeira com status e contadores** no menu Blocos.
+
+Correção:
+
+- Salvar pelo dashboard apagava a ação **Ir para outra tela** dos símbolos.
+
 ## 0.1.5
 
 Novidades:

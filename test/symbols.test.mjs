@@ -33,7 +33,7 @@ test('every symbol renders in both states', () => {
         const s = createSymbol(type, 10, 20)
         assert.strictEqual(s.w, SYMBOLS[type].w)
         assert.match(renderSymbol(s, SYMBOLS[type].preview), /^<g class="hmi-symbol" data-id="s[^"]+" transform="translate\(10,20\)">/)
-        if (['frame', 'shape', 'stack', 'image', 'svgImport', 'alarmList', 'alarmSummary', 'barChart', 'donut'].includes(type)) continue // static drawing, or several keys of its own
+        if (['frame', 'shape', 'stack', 'image', 'svgImport', 'alarmList', 'alarmSummary', 'barChart', 'donut', 'table', 'timeline'].includes(type)) continue // static drawing, or several keys of its own
         s.key = 'k'
         if (type === 'alarm') {
             // hidden when not active, shown as a ghost in the editor
@@ -462,4 +462,91 @@ test('hour meter with hours, minutes and seconds in separate keys', () => {
     assert.ok(renderSymbol(c, 3, { values: { hh: 3 } }).includes('3 h 00 min'))
     const f = SYMBOLS.counter.fields.find(x => x.key === 'minKey')
     assert.ok(f.when(c.props) && !f.when({ kind: 'hours', src: 'h' }))
+})
+
+test('winder spins its coil when on and keeps the machine colours', async () => {
+    const w = createSymbol('winder', 0, 0)
+    const on = renderSymbol(w, true)
+    assert.ok(on.includes('hmi-winder') && on.includes('hmi-on') && on.includes('hmi-tone-machine') && on.includes('hmi-wd-turns'))
+    assert.ok(renderSymbol(w, false).includes('hmi-off'))
+    assert.ok(renderSymbol(w, undefined).includes('hmi-unknown'))
+    w.props.wire = 'no'
+    w.props.tone = 'theme'
+    const t = renderSymbol(w, 1)
+    assert.ok(!t.includes('hmi-wd-bucket') && t.includes('hmi-tone-theme'))
+})
+
+test('status with several states picks text and colour by value', async () => {
+    const { parseStates, stateOf } = await import('../ui/symbols/index.js')
+    const list = parseStates('GIRANDO=Girando:ok, PARADA=Parada:alarm, 2=Dois:#123456, X=Errado:verde')
+    assert.deepStrictEqual(list.map(s => s.color), ['ok', 'alarm', '#123456', 'off'])
+    assert.strictEqual(stateOf(list, 'parada').text, 'Parada')
+    assert.strictEqual(stateOf(list, 2.0).text, 'Dois')
+    assert.strictEqual(stateOf(list, 'NADA'), null)
+    const c = createSymbol('stateChip', 0, 0)
+    c.key = 'm.estado'
+    assert.ok(renderSymbol(c, 'PARADA').includes('hmi-stb-alarm') && renderSymbol(c, 'PARADA').includes('PARADA<'))
+    assert.ok(renderSymbol(c, undefined).includes('SEM DADOS'))
+    c.props.look = 'solid'
+    c.props.sub = 'desde {m.desde}'
+    const s = renderSymbol(c, 'GIRANDO', { values: { 'm.estado': 'GIRANDO', 'm.desde': '08:10' } })
+    assert.ok(s.includes('hmi-st-ok') && s.includes('desde 08:10'))
+})
+
+test('table draws the rows of a list with coloured state column', async () => {
+    const { parseColumns } = await import('../ui/symbols/index.js')
+    assert.deepStrictEqual(parseColumns('hora:Hora, espiras:Espiras:r:2')[1], { field: 'espiras', label: 'Espiras', align: 'end', weight: 2 })
+    const t = createSymbol('table', 0, 0)
+    t.props.columns = 'hora:Hora, tipo:Tipo, minutos:Min:r'
+    t.props.colorField = 'tipo'
+    t.props.states = 'PARADA=Parada:alarm'
+    t.props.rows = 2
+    const rows = [{ hora: '08:00', tipo: 'PARADA', minutos: 12.5 }, { hora: '07:00', tipo: 'X', minutos: 3 }, { hora: '06:00', tipo: 'PARADA', minutos: 1 }]
+    const out = renderSymbol(t, rows, { locale: 'pt-BR' })
+    assert.ok(out.includes('>08:00<') && out.includes('>Parada<') && out.includes('>12,5<') && out.includes('hmi-tb-cell hmi-st-alarm'))
+    assert.ok(!out.includes('>06:00<') && out.includes('>+1<'))
+    assert.ok(renderSymbol(t, [], {}).includes('Nenhum registro'))
+    assert.ok(renderSymbol(t, undefined, { editor: true }).includes('hmi-tb-cell'))
+})
+
+test('timeline cuts the segments to the production day, later ones on top', async () => {
+    const { timelineWindow, timelinePieces, timeOf, parseStates } = await import('../ui/symbols/index.js')
+    const now = new Date(2026, 9, 21, 10, 0, 0).getTime()
+    const win = timelineWindow({ window: 'day', dayStart: 5 }, now)
+    assert.strictEqual(new Date(win.start).getHours(), 5)
+    assert.strictEqual(win.end - win.start, 24 * 3600e3)
+    assert.strictEqual(new Date(timelineWindow({ dayStart: 5 }, new Date(2026, 9, 21, 3, 0).getTime()).start).getDate(), 20)
+    assert.strictEqual(timeOf('2026-10-21 08:30:00'), new Date(2026, 9, 21, 8, 30).getTime())
+    assert.strictEqual(timeOf(1700000000), 1700000000000)
+    const states = parseStates('GIRANDO=Girando:ok, OCIOSA=Sem giro:low, PARADA=Parada:alarm')
+    const segs = [
+        { ini: '2026-10-21 04:00:00', fim: '2026-10-21 06:00:00', estado: 'GIRANDO' },
+        { ini: '2026-10-21 06:00:00', fim: null, estado: 'OCIOSA' },
+        { ini: '2026-10-21 07:00:00', fim: '2026-10-21 07:30:00', estado: 'PARADA' }
+    ]
+    const pcs = timelinePieces(segs, states, 'estado', win, now)
+    assert.deepStrictEqual(pcs.map(p => [p.value, (p.b - p.a) / 60000]), [['GIRANDO', 60], ['OCIOSA', 60], ['PARADA', 30], ['OCIOSA', 150]])
+    const t = createSymbol('timeline', 0, 0)
+    t.props.legend = 'totals'
+    t.props.states = 'GIRANDO=Girando:ok, OCIOSA=Sem giro:low, PARADA=Parada:alarm'
+    const out = renderSymbol(t, segs, { now })
+    assert.strictEqual((out.match(/hmi-tl-seg/g) || []).length, 4)
+    assert.ok(out.includes('Sem giro 3h 30') && out.includes('Girando 1h 00') && out.includes('hmi-tl-now'))
+})
+
+test('bar chart and donut take a list of objects', () => {
+    const b = createSymbol('barChart', 0, 0)
+    b.props.series = ''
+    b.props.labelField = 'h'
+    b.props.valueField = 'q'
+    const out = renderSymbol(b, [{ h: '05', q: 3 }, { h: '06', q: 7 }], {})
+    assert.ok(out.includes('>05<') && out.includes('>7<'))
+    const d = createSymbol('donut', 0, 0)
+    d.props.series = ''
+    d.props.labelField = 'motivo'
+    d.props.valueField = 'mins'
+    const list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((m, i) => ({ motivo: m, mins: 80 - i * 10 }))
+    const o = renderSymbol(d, list, {})
+    assert.ok(o.includes('Outros') && !o.includes('>H '))
+    assert.strictEqual((o.match(/hmi-ch-arc/g) || []).length, 6)
 })

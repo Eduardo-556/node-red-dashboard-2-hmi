@@ -4,6 +4,8 @@ export { cleanSvg, parseSvg, parseBinds } from './svgimport.js'
 export { renderOverlay, interlockOf } from './overlay.js'
 import { moreSymbols, MORE_CSS } from './more.js'
 import { chartSymbols, CHART_CSS } from './charts.js'
+import { productionSymbols, PRODUCTION_CSS } from './production.js'
+export { parseStates, stateOf, parseColumns, timeOf, timelineWindow, timelinePieces, durText } from './production.js'
 import { MACHINE_SHAPES, ROUND_SHAPES, DRIVE_SHAPES, MACHINE_CSS, machinePath } from './machine.js'
 import { MACHINE2_SHAPES, MACHINE2_ROUND, MACHINE2_ANALOG, MACHINE2_CSS, machine2Path } from './machine2.js'
 
@@ -1723,11 +1725,12 @@ export const CSS = `
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS + MACHINE_CSS + MACHINE2_CSS + OVERLAY_CSS + SVGIMPORT_CSS
+` + MORE_CSS + CHART_CSS + MACHINE_CSS + MACHINE2_CSS + OVERLAY_CSS + SVGIMPORT_CSS + PRODUCTION_CSS
 
 // second batch of symbols, built from the helpers above
 Object.assign(SYMBOLS, moreSymbols({ f, num, escapeXml, isOn, onState, formatValue, rangeState, alarmIndicator, stateClass, labelBelow, faultOf, faultMark, faultClass, scaleOf, ON_FIELDS, INVERT_FIELD, FAULT_FIELD, PRIORITY_FIELD }))
 Object.assign(SYMBOLS, chartSymbols({ f, num, escapeXml, formatValue }))
+Object.assign(SYMBOLS, productionSymbols({ f, escapeXml, onState, formatValue, stateClass, labelBelow, faultMark, faultClass, fillKeys, ON_FIELDS, FAULT_FIELD, PRIORITY_FIELD }))
 Object.assign(SYMBOLS, svgImportSymbol({ f, isOn, formatValue, labelBelow }))
 // the free shape fills by value like the frame shapes
 SYMBOLS.shape.fields.push(...SYMBOLS.frame.fields.filter(fd => ['level', 'min', 'max', 'levelColor', 'showValue', 'unit', 'decimals'].includes(fd.key)))

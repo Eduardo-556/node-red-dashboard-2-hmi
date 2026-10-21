@@ -196,3 +196,10 @@ test('screens are kept when saving from the dashboard', () => {
     assert.strictEqual(out[0].screen, 'Alarmes')
     assert.strictEqual(out[1].screen, undefined)
 })
+
+test('"go to screen" actions are kept when saving from the dashboard', () => {
+    const { cleanSymbols } = require('../nodes/admin.js')
+    const out = cleanSymbols([{ id: 'a', type: 'button', action: { mode: 'screen', value: 'BT_01' } }])
+    assert.strictEqual(out[0].action.mode, 'screen')
+    assert.strictEqual(out[0].action.value, 'BT_01')
+})

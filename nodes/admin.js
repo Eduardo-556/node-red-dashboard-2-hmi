@@ -11,7 +11,7 @@ const EDIT_TTL = 4 * 3600 * 1000
 
 const RULE_OPS = ['on', 'off', 'eq', 'ne', 'gt', 'lt']
 const RULE_EFFECTS = ['alarm', 'warn', 'info', 'ok', 'dim', 'blink', 'hide']
-const ACTIONS = ['value', 'toggle', 'pulse', 'input', 'page', 'faceplate']
+const ACTIONS = ['value', 'toggle', 'pulse', 'input', 'page', 'screen', 'faceplate']
 const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueKey', 'valueUnit', 'onTopic', 'onValue', 'offTopic', 'offValue', 'resetTopic', 'resetValue',
     // PID / regulator: process value, setpoint, output and auto/manual
     'pvKey', 'spKey', 'opKey', 'pidUnit', 'spTopic', 'spMin', 'spMax', 'opTopic', 'opMin', 'opMax', 'modeTopic', 'autoValue', 'manValue']

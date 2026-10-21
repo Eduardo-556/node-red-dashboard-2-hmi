@@ -2560,11 +2560,17 @@ var HmiEditor = (function(exports) {
 			const vals = opts && opts.values || {};
 			if (!list.length && Array.isArray(value)) {
 				const labels = String(p.labels || "").split(",").map((t) => t.trim());
-				list = value.slice(0, 12).map((v, i) => ({
+				const lf = p.labelField || "label";
+				const vf = p.valueField || "value";
+				list = value.slice(0, 31).map((v, i) => v !== null && typeof v === "object" ? {
+					key: "",
+					label: v[lf] === void 0 || v[lf] === null ? String(i + 1) : String(v[lf]),
+					value: num(v[vf])
+				} : {
 					key: "",
 					label: labels[i] || String(i + 1),
 					value: num(v)
-				}));
+				});
 			} else list = list.map((s) => ({
 				...s,
 				value: num(vals[s.key])
@@ -2626,10 +2632,18 @@ var HmiEditor = (function(exports) {
 		function renderDonut(sym, value, opts) {
 			const p = sym.props || {};
 			const { w, h } = sym;
-			const list = seriesValues(sym, value, opts).filter((s) => s.value !== null && s.value > 0);
+			let list = seriesValues(sym, value, opts).filter((s) => s.value !== null && s.value > 0);
+			if (list.length > 6) {
+				const sorted = [...list].sort((a, b) => b.value - a.value);
+				list = [...sorted.slice(0, 5), {
+					key: "",
+					label: "Outros",
+					value: sorted.slice(5).reduce((a, s) => a + s.value, 0)
+				}];
+			}
 			const total = list.reduce((a, s) => a + s.value, 0);
 			const top = p.title ? 26 : 6;
-			const legendW = p.legend === "no" ? 0 : Math.min(w * .45, 170);
+			const legendW = p.legend === "no" ? 0 : Math.min(w * .45, Math.max(170, w * .4));
 			const r = Math.max(10, Math.min((w - legendW - 16) / 2, (h - top - 8) / 2));
 			const cx = 8 + r;
 			const cy = top + (h - top) / 2;
@@ -2652,7 +2666,10 @@ var HmiEditor = (function(exports) {
 				list.forEach((s, i) => {
 					const y = top + 8 + i * size * 1.7;
 					const pct = Math.round(s.value / total * 1e3) / 10;
-					out += `<rect class="hmi-ch-dot hmi-ch-${i % 6}" x="${f(w - legendW)}" y="${f(y)}" width="${f(size)}" height="${f(size)}" rx="2"/>` + txt("hmi-ch-label", w - legendW + size * 1.5, y + size * .5, s.label + "  " + formatValue(pct, 1, opts.locale) + "%", size);
+					const tail = "  " + formatValue(pct, 1, opts.locale) + "%";
+					const room = Math.max(3, Math.floor((legendW - size * 1.5 - 6) / (size * .58)) - tail.length);
+					const name = s.label.length > room ? s.label.slice(0, Math.max(1, room - 1)) + "…" : s.label;
+					out += `<rect class="hmi-ch-dot hmi-ch-${i % 6}" x="${f(w - legendW)}" y="${f(y)}" width="${f(size)}" height="${f(size)}" rx="2"/>` + txt("hmi-ch-label", w - legendW + size * 1.5, y + size * .5, name + tail, size);
 				});
 			}
 			return out + "</g>";
@@ -2720,6 +2737,8 @@ var HmiEditor = (function(exports) {
 					title: "PRODUÇÃO POR TURNO",
 					series: "turno1:Turno 1, turno2:Turno 2, turno3:Turno 3",
 					labels: "",
+					labelField: "",
+					valueField: "",
 					unit: "",
 					decimals: 0,
 					max: "",
@@ -2732,6 +2751,16 @@ var HmiEditor = (function(exports) {
 					{
 						key: "labels",
 						label: "Rótulos (se a chave do símbolo for uma lista)",
+						type: "text"
+					},
+					{
+						key: "labelField",
+						label: "Lista de objetos: campo do rótulo",
+						type: "text"
+					},
+					{
+						key: "valueField",
+						label: "Lista de objetos: campo do valor",
 						type: "text"
 					},
 					UNIT,
@@ -2873,6 +2902,750 @@ ${[
 .hmi-root .hmi-oee-arc { fill: none; stroke: var(--hmi-ch0); }
 .hmi-root .hmi-oee-warn .hmi-oee-arc { stroke: var(--hmi-warn); }
 .hmi-root .hmi-oee-alarm .hmi-oee-arc { stroke: var(--hmi-alarm); }
+`;
+	//#endregion
+	//#region ui/symbols/production.js
+	var COLORS = [
+		"ok",
+		"alarm",
+		"warn",
+		"info",
+		"low",
+		"off",
+		"c0",
+		"c1",
+		"c2",
+		"c3",
+		"c4",
+		"c5"
+	];
+	var HEX$1 = /^#[0-9a-fA-F]{3,8}$/;
+	function parseStates(text) {
+		return String(text || "").split(/[,;\n]/).map((t) => t.trim()).filter(Boolean).slice(0, 24).map((t) => {
+			const i = t.indexOf("=");
+			const value = (i < 0 ? t : t.slice(0, i)).trim();
+			let rest = i < 0 ? value : t.slice(i + 1).trim();
+			let color = "";
+			const j = rest.lastIndexOf(":");
+			if (j >= 0) {
+				color = rest.slice(j + 1).trim();
+				rest = rest.slice(0, j).trim();
+			}
+			if (!COLORS.includes(color) && !HEX$1.test(color)) color = "off";
+			return {
+				value,
+				text: rest || value,
+				color
+			};
+		}).filter((s) => s.value !== "");
+	}
+	function stateOf(list, value) {
+		if (value === void 0 || value === null || value === "") return null;
+		const v = typeof value === "boolean" ? value ? "1" : "0" : String(value);
+		return list.find((s) => s.value === v) || list.find((s) => s.value.toLowerCase() === v.toLowerCase()) || list.find((s) => s.value !== "" && isFinite(Number(s.value)) && isFinite(Number(v)) && Number(s.value) === Number(v)) || null;
+	}
+	function parseColumns(text) {
+		return String(text || "").split(/[,;\n]/).map((t) => t.trim()).filter(Boolean).slice(0, 12).map((t) => {
+			const [field, label, align, weight] = t.split(":").map((x) => (x || "").trim());
+			return {
+				field,
+				label: label || field,
+				align: {
+					l: "start",
+					c: "middle",
+					r: "end",
+					d: "end"
+				}[String(align).charAt(0).toLowerCase()] || "start",
+				weight: Number(weight) > 0 ? Number(weight) : 1
+			};
+		}).filter((c) => c.field);
+	}
+	function timeOf(v) {
+		if (v === void 0 || v === null || v === "") return null;
+		if (v instanceof Date) return isFinite(v.getTime()) ? v.getTime() : null;
+		if (typeof v === "number") return isFinite(v) ? Math.abs(v) < 1e11 ? v * 1e3 : v : null;
+		const s = String(v).trim();
+		if (/^-?\d+(\.\d+)?$/.test(s)) return timeOf(Number(s));
+		const t = Date.parse(/^\d{4}-\d\d-\d\d \d/.test(s) ? s.replace(" ", "T") : s);
+		return isFinite(t) ? t : null;
+	}
+	function timelineWindow(p, now) {
+		if (p.window === "hours") return {
+			start: now - Math.max(1, Math.min(336, Number(p.hours) || 8)) * 36e5,
+			end: now
+		};
+		const start = new Date(now);
+		const ds = Math.max(0, Math.min(23, Math.round(Number(p.dayStart) || 0)));
+		start.setHours(ds, 0, 0, 0);
+		if (start.getTime() > now) start.setDate(start.getDate() - 1);
+		const end = new Date(start);
+		end.setDate(end.getDate() + 1);
+		return {
+			start: start.getTime(),
+			end: end.getTime()
+		};
+	}
+	function durText(min) {
+		const m = Math.max(0, Math.round(min));
+		if (m < 60) return m + " min";
+		return Math.floor(m / 60) + "h " + String(m % 60).padStart(2, "0");
+	}
+	function timelinePieces(segs, states, field, win, now) {
+		const list = [];
+		(Array.isArray(segs) ? segs : []).forEach((sg, i) => {
+			if (!sg || typeof sg !== "object") return;
+			const a = timeOf(sg.ini !== void 0 ? sg.ini : sg.start);
+			let b = timeOf(sg.fim !== void 0 ? sg.fim : sg.end);
+			if (a === null) return;
+			if (b === null) b = Math.max(now, a);
+			const ia = Math.max(a, win.start);
+			const ib = Math.min(b, win.end);
+			if (ib > ia) list.push({
+				a: ia,
+				b: ib,
+				i,
+				value: sg[field]
+			});
+		});
+		const cuts = [...new Set(list.flatMap((s) => [s.a, s.b]))].sort((x, y) => x - y);
+		const out = [];
+		for (let k = 0; k + 1 < cuts.length; k++) {
+			const a = cuts[k];
+			const b = cuts[k + 1];
+			let top = null;
+			for (const s of list) if (s.a <= a && s.b >= b && (!top || s.i > top.i)) top = s;
+			if (!top) continue;
+			const last = out[out.length - 1];
+			if (last && last.b === a && last.value === top.value) {
+				last.b = b;
+				continue;
+			}
+			const st = stateOf(states, top.value);
+			out.push({
+				a,
+				b,
+				value: top.value,
+				text: st ? st.text : String(top.value === void 0 || top.value === null ? "" : top.value),
+				color: st ? st.color : "off"
+			});
+		}
+		return out;
+	}
+	function productionSymbols(H) {
+		const { f, escapeXml, onState, formatValue, stateClass, labelBelow, faultMark, faultClass, fillKeys, ON_FIELDS, FAULT_FIELD, PRIORITY_FIELD } = H;
+		const LABEL = {
+			key: "label",
+			label: "Legenda",
+			type: "text"
+		};
+		const TITLE = {
+			key: "title",
+			label: "Título",
+			type: "text"
+		};
+		const STATES = {
+			key: "states",
+			label: "Estados (valor=Texto:cor). Cores: ok, alarm, warn, info, low, off, c0..c5 ou #hex",
+			type: "text"
+		};
+		const rect = (cls, x, y, w, h, rx, extra) => `<rect class="${cls}" x="${f(x)}" y="${f(y)}" width="${f(Math.max(0, w))}" height="${f(Math.max(0, h))}"${rx ? ` rx="${f(rx)}"` : ""}${extra || ""}/>`;
+		const circle = (cls, cx, cy, r) => `<circle class="${cls}" cx="${f(cx)}" cy="${f(cy)}" r="${f(Math.max(0, r))}"/>`;
+		const path = (cls, d) => `<path class="${cls}" d="${d}"/>`;
+		const txt = (cls, x, y, t, size, anchor) => `<text class="${cls}" x="${f(x)}" y="${f(y)}" font-size="${f(size)}"${anchor ? ` style="text-anchor:${anchor}"` : ""}>${escapeXml(t)}</text>`;
+		const fillOf = (c) => HEX$1.test(c) ? {
+			cls: "",
+			style: ` style="fill:${c}"`
+		} : {
+			cls: " hmi-st-" + c,
+			style: ""
+		};
+		const strokeOf = (c) => HEX$1.test(c) ? {
+			cls: "",
+			style: `stroke:${c};`
+		} : {
+			cls: " hmi-stb-" + c,
+			style: ""
+		};
+		const fit = (t, n) => {
+			const s = String(t);
+			return s.length > n ? s.slice(0, Math.max(1, n - 1)) + "…" : s;
+		};
+		function renderWinder(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const on = onState(value, p);
+			const s = Math.min(w, h);
+			const ay = h * .44;
+			const turns = [];
+			const cx0 = w * .44;
+			const cx1 = w * .7;
+			const step = Math.max(4, (cx1 - cx0) / Math.max(6, Math.round((cx1 - cx0) / 7)));
+			for (let x = cx0 + step / 2; x < cx1; x += step) turns.push(`M${f(x)} ${f(ay - h * .105)}V${f(ay + h * .105)}`);
+			const wire = p.wire === "no" ? "" : rect("hmi-wd-bucket", w * .4, h * .76, w * .12, h * .2, 2) + path("hmi-wd-bucket-rim", `M${f(w * .395)} ${f(h * .76)}H${f(w * .525)}`) + path("hmi-wd-wire", `M${f(w * .46)} ${f(h * .77)}L${f(w * .5)} ${f(ay + h * .11)}`);
+			const body = rect("hmi-wd-blue", w * .02, h * .3, w * .28, h * .66, 2) + rect("hmi-wd-steel", w * .145, h * .22, w * .03, h * .08) + rect("hmi-wd-beige", w * .05, h * .02, w * .22, h * .21, 2) + rect("hmi-wd-screen", w * .075, h * .045, w * .13, h * .11, 1) + circle("hmi-led", w * .105, h * .19, s * .022) + circle("hmi-wd-red", w * .235, h * .17, s * .03) + path("hmi-wd-line", `M${f(w * .06)} ${f(h * .42)}H${f(w * .26)}M${f(w * .06)} ${f(h * .8)}H${f(w * .26)}`) + rect("hmi-wd-blue", w * .32, h * .68, w * .04, h * .28) + rect("hmi-wd-blue", w * .88, h * .68, w * .04, h * .28) + rect("hmi-wd-blue", w * .3, h * .86, w * .66, h * .06) + rect("hmi-wd-steel", w * .3, h * .62, w * .66, h * .06, 1) + rect("hmi-wd-blue", w * .865, h * .54, w * .03, h * .08) + rect("hmi-wd-red", w * .84, h * .24, w * .08, h * .32, 2) + rect("hmi-wd-steel", w * .92, h * .37, w * .07, h * .07, 1) + path("hmi-wd-hose", `M${f(w * .955)} ${f(h * .44)}Q${f(w * .96)} ${f(h * .6)} ${f(w * .9)} ${f(h * .6)}`) + rect("hmi-wd-steel", w * .3, ay - h * .018, w * .54, h * .036) + rect("hmi-wd-red", w * .3, ay - h * .07, w * .06, h * .14, 2) + rect("hmi-wd-mandrel", w * .36, ay - h * .045, w * .44, h * .09, 2) + rect("hmi-wd-coil", cx0, ay - h * .11, cx1 - cx0, h * .22, 2) + `<g class="hmi-wd-turns-g${p.dir === "ccw" ? " hmi-ccw" : ""}">${path("hmi-wd-turns", turns.join(""))}</g>` + path("hmi-wd-dark", `M${f(w * .8)} ${f(ay - h * .045)}L${f(w * .84)} ${f(ay)}L${f(w * .8)} ${f(ay + h * .045)}Z`) + wire;
+			return `<g class="hmi-eq hmi-winder hmi-tone-${p.tone === "theme" ? "theme" : "machine"} ${stateClass(on)}${faultClass(p, opts)}">${body}${faultMark(p, opts, w)}${labelBelow(p, w, h)}</g>`;
+		}
+		function renderStateChip(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const list = parseStates(p.states);
+			let st = stateOf(list, value);
+			if (!st && opts && opts.editor && (value === void 0 || value === null)) st = list[0] || null;
+			const known = value !== void 0 && value !== null && value !== "";
+			const text = st ? st.text : known ? p.other ? p.other : String(value) : p.unknown || "—";
+			const color = st ? st.color : "off";
+			const fl = fillOf(color);
+			const sk = strokeOf(color);
+			const solid = p.look === "solid";
+			const sub = p.sub ? fillKeys(p.sub, opts) : "";
+			const size = Math.max(9, Math.min(h * (sub ? .34 : .46), 22));
+			const r = Math.min(h * .18, 8);
+			const blink = st && p.blink && p.blink !== "no" && (p.blink === "all" || p.blink === color) ? " hmi-blink" : "";
+			return `<g class="hmi-statechip${solid ? " hmi-solid" : ""}${known ? "" : " hmi-unknown"}${blink}"><rect class="hmi-sc-box${solid ? fl.cls : sk.cls}" x="1" y="1" width="${f(w - 2)}" height="${f(h - 2)}" rx="${f(Math.min(h / 2, 6))}"${solid ? fl.style : sk.style ? ` style="${sk.style}"` : ""}/>` + (solid ? "" : `<circle class="hmi-sc-dot${fl.cls}" cx="${f(h * .42)}" cy="${f(h / 2)}" r="${f(r)}"${fl.style}/>`) + txt("hmi-sc-text", solid ? w / 2 : h * .42 + r + 8, sub ? h * .36 : h / 2, text, size, solid ? "middle" : "start") + (sub ? txt("hmi-sc-sub", solid ? w / 2 : h * .42 + r + 8, h * .72, sub, Math.max(8, size * .62), solid ? "middle" : "start") : "") + labelBelow(p, w, h) + "</g>";
+		}
+		const SAMPLE_ROWS = [
+			{
+				hora: "07:42",
+				operador: "Ana",
+				espiras: 412,
+				camadas: 8
+			},
+			{
+				hora: "07:05",
+				operador: "Ana",
+				espiras: 410,
+				camadas: 8
+			},
+			{
+				hora: "06:21",
+				operador: "João",
+				espiras: 398,
+				camadas: 7
+			}
+		];
+		function cellText(v, col, p, opts) {
+			if (v === void 0 || v === null || v === "") return "—";
+			if (typeof v === "boolean") return v ? "Sim" : "Não";
+			if (typeof v === "number") return formatValue(v, p.decimals, opts.locale);
+			return String(v);
+		}
+		function renderTable(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			let rows = Array.isArray(value) ? value : [];
+			let cols = parseColumns(p.columns);
+			if (!cols.length && rows.length && rows[0] && typeof rows[0] === "object") cols = Object.keys(Array.isArray(rows[0]) ? rows[0].map((x, i) => i) : rows[0]).slice(0, 8).map((k) => ({
+				field: String(k),
+				label: String(k),
+				align: "start",
+				weight: 1
+			}));
+			if (opts && opts.editor && !rows.length) rows = SAMPLE_ROWS;
+			if (!cols.length) cols = [
+				{
+					field: "hora",
+					label: "Hora",
+					align: "start",
+					weight: 1
+				},
+				{
+					field: "operador",
+					label: "Operador",
+					align: "start",
+					weight: 2
+				},
+				{
+					field: "espiras",
+					label: "Espiras",
+					align: "end",
+					weight: 1
+				}
+			];
+			const states = parseStates(p.states);
+			const rowH = Math.max(14, Number(p.rowH) || 26);
+			const top = p.title ? 26 : 4;
+			const headH = p.header === "no" ? 0 : Math.max(16, rowH * .8);
+			const fits = Math.max(0, Math.floor((h - top - headH - 4) / rowH));
+			const max = Number(p.rows) > 0 ? Math.min(fits, Number(p.rows)) : fits;
+			const shown = rows.slice(0, max);
+			const pad = 8;
+			const mark = states.length && p.colorField ? Math.min(12, rowH * .4) : 0;
+			const total = cols.reduce((a, c) => a + c.weight, 0);
+			const xs = [];
+			let x = pad + (mark ? mark + 6 : 0);
+			const inner = w - x - pad;
+			cols.forEach((c) => {
+				const cw = inner * c.weight / total;
+				xs.push({
+					x,
+					w: cw
+				});
+				x += cw;
+			});
+			const size = Math.max(9, Math.min(15, rowH * .5));
+			let out = `<g class="hmi-table">${rect("hmi-kpi-card", .5, .5, w - 1, h - 1, 6)}`;
+			if (p.title) out += txt("hmi-ch-title", 10, 16, p.title, 12);
+			if (headH) {
+				cols.forEach((c, i) => {
+					const ax = c.align === "end" ? xs[i].x + xs[i].w - 4 : c.align === "middle" ? xs[i].x + xs[i].w / 2 : xs[i].x;
+					out += txt("hmi-tb-head", ax, top + headH / 2, fit(c.label.toUpperCase(), Math.floor(xs[i].w / (size * .62))), Math.max(8, size * .8), c.align);
+				});
+				out += path("hmi-ch-axis", `M${f(pad)} ${f(top + headH)}H${f(w - pad)}`);
+			}
+			shown.forEach((row, r) => {
+				const y = top + headH + r * rowH;
+				if (r % 2 === 1) out += rect("hmi-tb-zebra", 2, y, w - 4, rowH);
+				const get = (k) => row && typeof row === "object" ? row[Array.isArray(row) ? Number(k) : k] : k === cols[0].field ? row : void 0;
+				const st = mark ? stateOf(states, get(p.colorField)) : null;
+				if (mark) {
+					const fl = fillOf(st ? st.color : "off");
+					out += `<rect class="hmi-tb-mark${fl.cls}" x="${f(pad)}" y="${f(y + (rowH - mark) / 2)}" width="${f(mark)}" height="${f(mark)}" rx="2"${fl.style}/>`;
+				}
+				cols.forEach((c, i) => {
+					let t = cellText(get(c.field), c, p, opts);
+					if (st && c.field === p.colorField) t = st.text;
+					const ax = c.align === "end" ? xs[i].x + xs[i].w - 4 : c.align === "middle" ? xs[i].x + xs[i].w / 2 : xs[i].x;
+					out += txt("hmi-tb-cell" + (st && c.field === p.colorField ? fillOf(st.color).cls : ""), ax, y + rowH / 2, fit(t, Math.max(2, Math.floor(xs[i].w / (size * .56)))), size, c.align);
+				});
+			});
+			if (!shown.length) out += txt("hmi-tb-empty", w / 2, top + headH + Math.min(rowH, (h - top - headH) / 2), p.empty || "Nenhum registro", size, "middle");
+			else if (rows.length > shown.length && p.more !== "no") out += txt("hmi-tb-empty", w - pad, h - 6, "+" + (rows.length - shown.length), Math.max(8, size * .75), "end");
+			return out + "</g>";
+		}
+		function sampleSegments(win, now) {
+			const out = [];
+			const states = [
+				"GIRANDO",
+				"PARADA",
+				"GIRANDO",
+				"ALMOCO",
+				"GIRANDO",
+				"INTERVALO_15MIN",
+				"GIRANDO"
+			];
+			const span = Math.min(now, win.end) - win.start;
+			let t = win.start + span * .05;
+			states.forEach((e, i) => {
+				const len = span * [
+					.22,
+					.06,
+					.18,
+					.08,
+					.2,
+					.03,
+					.18
+				][i];
+				out.push({
+					ini: t,
+					fim: t + len,
+					estado: e
+				});
+				t += len;
+			});
+			return out;
+		}
+		function renderTimeline(sym, value, opts) {
+			const p = sym.props || {};
+			const { w, h } = sym;
+			const now = opts && opts.now || Date.now();
+			const win = timelineWindow(p, now);
+			const span = win.end - win.start;
+			const states = parseStates(p.states);
+			const sf = p.stateField || "estado";
+			let segs = Array.isArray(value) ? value : [];
+			if (opts && opts.editor && !segs.length) segs = sampleSegments(win, now);
+			const labelW = p.label ? Math.max(30, Number(p.labelW) || Math.min(110, w * .16)) : 0;
+			const legend = p.legend === "no" ? "" : p.legend;
+			const top = p.title ? 24 : legend ? 22 : 4;
+			const axis = p.axis !== "no";
+			const bottom = axis ? 18 : 4;
+			const x0 = 6 + labelW;
+			const x1 = w - 8;
+			const bh = Math.max(4, h - top - bottom);
+			const X = (t) => x0 + (Math.max(win.start, Math.min(win.end, t)) - win.start) / span * (x1 - x0);
+			const totals = {};
+			let out = `<g class="hmi-timeline">`;
+			if (p.card !== "no") out += rect("hmi-kpi-card", .5, .5, w - 1, h - 1, 6);
+			if (p.title) out += txt("hmi-ch-title", 10, 16, p.title, 12);
+			if (labelW) out += txt("hmi-tl-label", 8, top + bh / 2, fit(fillKeys(p.label, opts), Math.floor(labelW / 7.5)), Math.max(9, Math.min(15, bh * .5)), "start");
+			out += rect("hmi-tl-track", x0, top, x1 - x0, bh, 2);
+			for (const pc of timelinePieces(segs, states, sf, win, now)) {
+				const name = pc.text;
+				if (pc.b > pc.a) totals[name] = {
+					color: pc.color,
+					min: (totals[name] && totals[name].min || 0) + (Math.min(pc.b, now) - pc.a) / 6e4
+				};
+				const fl = fillOf(pc.color);
+				const xa = X(pc.a);
+				const xb = X(pc.b);
+				out += `<rect class="hmi-tl-seg${fl.cls}" x="${f(xa)}" y="${f(top)}" width="${f(Math.max(.8, xb - xa))}" height="${f(bh)}"${fl.style}><title>${escapeXml(name + " · " + durText((pc.b - pc.a) / 6e4))}</title></rect>`;
+			}
+			if (now > win.start && now < win.end) {
+				out += rect("hmi-tl-future", X(now), top, x1 - X(now), bh);
+				if (p.nowMark !== "no") out += path("hmi-tl-now", `M${f(X(now))} ${f(top - 3)}V${f(top + bh + 3)}`);
+			}
+			if (axis) {
+				const hours = span / 36e5;
+				const every = Math.max(1, Number(p.tick) || (hours <= 8 ? 1 : (x1 - x0) / hours > 40 ? 2 : (x1 - x0) / hours > 18 ? 4 : 6));
+				const first = new Date(win.start);
+				first.setMinutes(0, 0, 0);
+				if (first.getTime() < win.start) first.setHours(first.getHours() + 1);
+				for (let t = first.getTime(), i = 0; t <= win.end && i < 400; t += 36e5, i++) {
+					const hr = new Date(t).getHours();
+					if ((hr - new Date(win.start).getHours() + 48) % every) continue;
+					const x = X(t);
+					out += path("hmi-tl-tick", `M${f(x)} ${f(top + bh)}V${f(top + bh + 3)}`) + txt("hmi-tl-hour", Math.min(x1 - 8, Math.max(x0 + 8, x)), top + bh + 12, String(hr).padStart(2, "0") + "h", 10, "middle");
+				}
+			}
+			if (legend) {
+				const items = legend === "totals" ? Object.entries(totals).map(([n, t]) => ({
+					text: n + " " + durText(t.min),
+					color: t.color
+				})) : states.map((s) => ({
+					text: s.text,
+					color: s.color
+				}));
+				let lx = x1;
+				for (const it of items.reverse()) {
+					const tw = it.text.length * 6.2 + 18;
+					if (lx - tw < (p.title ? 10 + p.title.length * 7.5 : x0)) break;
+					lx -= tw;
+					const fl = fillOf(it.color);
+					out += `<rect class="hmi-tl-dot${fl.cls}" x="${f(lx)}" y="${f(top / 2 - 5)}" width="10" height="10" rx="2"${fl.style}/>` + txt("hmi-tl-legend", lx + 14, top / 2, it.text, 11, "start");
+				}
+			}
+			return out + "</g>";
+		}
+		const WINDOW_FIELDS = [
+			{
+				key: "window",
+				label: "Período",
+				type: "select",
+				options: [["day", "Dia de produção"], ["hours", "Últimas horas"]],
+				refresh: true
+			},
+			{
+				key: "dayStart",
+				label: "O dia começa às (hora)",
+				type: "number",
+				when: (p) => p.window !== "hours"
+			},
+			{
+				key: "hours",
+				label: "Quantas horas",
+				type: "number",
+				when: (p) => p.window === "hours"
+			}
+		];
+		return {
+			winder: {
+				label: "Bobinadeira",
+				group: "Fábrica",
+				w: 360,
+				h: 200,
+				preview: 1,
+				defaults: {
+					label: "",
+					onWhen: "nonzero",
+					threshold: 0,
+					invert: "no",
+					faultKey: "",
+					priority: "1",
+					tone: "machine",
+					wire: "yes",
+					dir: "cw"
+				},
+				fields: [
+					LABEL,
+					...ON_FIELDS,
+					{
+						key: "tone",
+						label: "Cores",
+						type: "select",
+						options: [["machine", "Da máquina (azul e vermelho)"], ["theme", "Do tema"]]
+					},
+					{
+						key: "wire",
+						label: "Balde com o fio",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					},
+					{
+						key: "dir",
+						label: "Sentido",
+						type: "select",
+						options: [["cw", "Horário"], ["ccw", "Anti-horário"]]
+					},
+					FAULT_FIELD,
+					PRIORITY_FIELD
+				],
+				render: renderWinder
+			},
+			stateChip: {
+				label: "Status (vários estados)",
+				group: "Estados",
+				w: 220,
+				h: 40,
+				preview: "GIRANDO",
+				defaults: {
+					states: "GIRANDO=GIRANDO:ok, PARADA=PARADA:alarm, ALMOCO=ALMOÇO:info, INTERVALO_15MIN=15 MIN:warn, SEM_SINAL=SEM SINAL:off",
+					other: "",
+					unknown: "SEM DADOS",
+					sub: "",
+					look: "outline",
+					blink: "no",
+					label: ""
+				},
+				fields: [
+					STATES,
+					{
+						key: "other",
+						label: "Texto para valor fora da lista (vazio = o próprio valor)",
+						type: "text"
+					},
+					{
+						key: "unknown",
+						label: "Texto sem valor",
+						type: "text"
+					},
+					{
+						key: "sub",
+						label: "Linha de baixo ({chave} mostra um valor)",
+						type: "text"
+					},
+					{
+						key: "look",
+						label: "Aparência",
+						type: "select",
+						options: [["outline", "Contorno com LED"], ["solid", "Fundo colorido"]]
+					},
+					{
+						key: "blink",
+						label: "Piscar",
+						type: "select",
+						options: [
+							["no", "Não"],
+							["alarm", "Nos estados vermelhos"],
+							["warn", "Nos estados amarelos"],
+							["all", "Sempre"]
+						]
+					},
+					LABEL
+				],
+				render: renderStateChip
+			},
+			table: {
+				label: "Tabela (lista)",
+				group: "Valores",
+				w: 420,
+				h: 200,
+				preview: void 0,
+				defaults: {
+					title: "ÚLTIMAS BOBINAS",
+					columns: "hora:Hora, operador:Operador::2, espiras:Espiras:r, camadas:Camadas:r",
+					rowH: 26,
+					rows: "",
+					decimals: "",
+					header: "yes",
+					empty: "Nenhum registro",
+					colorField: "",
+					states: "",
+					more: "yes"
+				},
+				fields: [
+					TITLE,
+					{
+						key: "columns",
+						label: "Colunas (campo:Rótulo:alinhamento l/c/r:largura)",
+						type: "text"
+					},
+					{
+						key: "rowH",
+						label: "Altura da linha",
+						type: "number"
+					},
+					{
+						key: "rows",
+						label: "Máximo de linhas (vazio = as que couberem)",
+						type: "number"
+					},
+					{
+						key: "decimals",
+						label: "Casas decimais",
+						type: "number"
+					},
+					{
+						key: "header",
+						label: "Cabeçalho",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					},
+					{
+						key: "empty",
+						label: "Texto sem linhas",
+						type: "text"
+					},
+					{
+						key: "colorField",
+						label: "Campo que dá a cor da linha (opcional)",
+						type: "text"
+					},
+					{
+						...STATES,
+						when: (p) => !!p.colorField
+					},
+					{
+						key: "more",
+						label: "Mostrar quantas linhas ficaram de fora",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					}
+				],
+				render: renderTable
+			},
+			timeline: {
+				label: "Linha do tempo de estados",
+				group: "Gráficos",
+				w: 640,
+				h: 70,
+				preview: void 0,
+				defaults: {
+					title: "",
+					label: "",
+					labelW: "",
+					states: "GIRANDO=Girando:ok, PARADA=Parada:alarm, ALMOCO=Almoço:info, INTERVALO_15MIN=15 min:warn, OCIOSA=Sem giro:off",
+					stateField: "estado",
+					window: "day",
+					dayStart: 5,
+					hours: 8,
+					tick: "",
+					axis: "yes",
+					legend: "states",
+					nowMark: "yes",
+					card: "yes"
+				},
+				fields: [
+					TITLE,
+					{
+						key: "label",
+						label: "Nome à esquerda ({chave} mostra um valor)",
+						type: "text"
+					},
+					{
+						key: "labelW",
+						label: "Largura do nome",
+						type: "number"
+					},
+					STATES,
+					{
+						key: "stateField",
+						label: "Campo do estado em cada trecho",
+						type: "text"
+					},
+					...WINDOW_FIELDS,
+					{
+						key: "tick",
+						label: "Marca a cada (horas, vazio = automático)",
+						type: "number"
+					},
+					{
+						key: "axis",
+						label: "Horas embaixo",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					},
+					{
+						key: "legend",
+						label: "Legenda",
+						type: "select",
+						options: [
+							["states", "Estados"],
+							["totals", "Estados com o tempo de cada um"],
+							["no", "Não"]
+						]
+					},
+					{
+						key: "nowMark",
+						label: "Marca de agora",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					},
+					{
+						key: "card",
+						label: "Fundo de cartão",
+						type: "select",
+						options: [["yes", "Sim"], ["no", "Não"]]
+					}
+				],
+				render: renderTimeline
+			}
+		};
+	}
+	var PRODUCTION_CSS = `
+.hmi-root .hmi-statechip .hmi-sc-box { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 2; }
+.hmi-root .hmi-statechip.hmi-unknown .hmi-sc-box { stroke-dasharray: 5 3; }
+.hmi-root .hmi-sc-text { fill: var(--hmi-text); font-weight: 800; letter-spacing: .4px; dominant-baseline: central; }
+.hmi-root .hmi-sc-sub { fill: var(--hmi-text-dim); font-weight: 600; dominant-baseline: central; }
+.hmi-root .hmi-statechip.hmi-solid .hmi-sc-box { stroke: none; }
+.hmi-root .hmi-statechip.hmi-solid .hmi-sc-box.hmi-st-off { fill: var(--hmi-tag-bg); stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-statechip.hmi-solid:not(:has(.hmi-st-off)) .hmi-sc-text, .hmi-root .hmi-statechip.hmi-solid:not(:has(.hmi-st-off)) .hmi-sc-sub { fill: #111; }
+.hmi-root .hmi-tb-head { fill: var(--hmi-text-dim); font-weight: 700; letter-spacing: .5px; dominant-baseline: central; }
+.hmi-root .hmi-tb-cell { fill: var(--hmi-text); dominant-baseline: central; }
+.hmi-root .hmi-tb-cell[class*="hmi-st-"] { font-weight: 700; }
+.hmi-root .hmi-tb-zebra { fill: var(--hmi-text); fill-opacity: .04; }
+.hmi-root .hmi-tb-empty { fill: var(--hmi-text-dim); dominant-baseline: central; }
+.hmi-root .hmi-tl-track { fill: var(--hmi-bg); stroke: var(--hmi-line); stroke-width: .8; }
+.hmi-root .hmi-tl-future { fill: var(--hmi-bg); opacity: .55; }
+.hmi-root .hmi-tl-now { stroke: var(--hmi-text); stroke-width: 1.5; }
+.hmi-root .hmi-tl-tick { stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-tl-hour, .hmi-root .hmi-tl-legend { fill: var(--hmi-text-dim); dominant-baseline: central; }
+.hmi-root .hmi-tl-label { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
+.hmi-root .hmi-winder .hmi-wd-blue { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-red, .hmi-root .hmi-winder .hmi-wd-dark { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-beige { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-screen { fill: var(--hmi-pit); stroke: var(--hmi-line); stroke-width: .8; }
+.hmi-root .hmi-winder .hmi-wd-steel { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-winder .hmi-wd-mandrel { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: .8; }
+.hmi-root .hmi-winder .hmi-wd-coil { fill: var(--hmi-material); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-turns { fill: none; stroke: var(--hmi-stroke); stroke-width: 1.6; stroke-dasharray: 6 10; opacity: .7; }
+.hmi-root .hmi-winder .hmi-wd-line { fill: none; stroke: var(--hmi-stroke); stroke-width: .8; opacity: .6; }
+.hmi-root .hmi-winder .hmi-wd-hose { fill: none; stroke: var(--hmi-info); stroke-width: 2; }
+.hmi-root .hmi-winder .hmi-wd-bucket { fill: var(--hmi-warn); stroke: var(--hmi-stroke); stroke-width: 1; }
+.hmi-root .hmi-winder .hmi-wd-bucket-rim { fill: none; stroke: var(--hmi-stroke); stroke-width: 2; }
+.hmi-root .hmi-winder .hmi-wd-wire { fill: none; stroke: var(--hmi-text); stroke-width: 1.2; stroke-dasharray: 8 4; opacity: .8; }
+.hmi-root .hmi-winder.hmi-unknown .hmi-wd-blue { stroke-dasharray: 5 3; }
+.hmi-root .hmi-winder.hmi-fault .hmi-wd-blue { stroke: var(--hmi-alarm); stroke-width: 2.5; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-blue { fill: #1f5fbf; stroke: #123c7c; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-red { fill: #e2411d; stroke: #8f2410; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-beige { fill: #d8d0b0; stroke: #8f886d; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-screen { fill: #263038; stroke: #59626c; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-steel { fill: #3b4249; stroke: #1d2126; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-dark { fill: #1d2126; stroke: #000; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-mandrel { fill: #eef2f5; stroke: #8a939d; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-coil { fill: #b98a55; stroke: #6e4d2a; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-turns { stroke: #f3e2c6; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-hose { stroke: #2f80c8; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-bucket { fill: #f2c200; stroke: #8a6d00; }
+.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-wire { stroke: #d9dee3; }
+.hmi-root .hmi-winder.hmi-tone-machine.hmi-off .hmi-wd-coil, .hmi-root .hmi-winder.hmi-tone-machine.hmi-unknown .hmi-wd-coil { fill: #9c7a52; }
+.hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-wd-turns, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-wd-turns { animation: hmi-belt .45s linear infinite; }
+.hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-ccw .hmi-wd-turns, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-ccw .hmi-wd-turns { animation-direction: reverse; }
+.hmi-root.hmi-theme-classic .hmi-winder.hmi-on .hmi-wd-wire, .hmi-root.hmi-anim-always .hmi-winder.hmi-on .hmi-wd-wire { animation: hmi-flow .8s linear infinite; }
+/* state colours last, so they win over the default fill of each part */
+${Object.entries({
+		ok: "--hmi-ok",
+		alarm: "--hmi-alarm",
+		warn: "--hmi-warn",
+		info: "--hmi-info",
+		low: "--hmi-low",
+		off: "--hmi-equip",
+		c0: "--hmi-ch0",
+		c1: "--hmi-ch1",
+		c2: "--hmi-ch2",
+		c3: "--hmi-ch3",
+		c4: "--hmi-ch4",
+		c5: "--hmi-ch5"
+	}).map(([k, v]) => `.hmi-root :is(.hmi-statechip, .hmi-table, .hmi-timeline) .hmi-st-${k} { fill: var(${v}); } .hmi-root :is(.hmi-statechip, .hmi-table, .hmi-timeline) .hmi-stb-${k} { stroke: var(${v}); }`).join("\n")}
 `;
 	//#endregion
 	//#region ui/symbols/machine.js
@@ -7192,7 +7965,7 @@ ${[
 @keyframes hmi-spin-ccw { to { transform: rotate(-360deg); } }
 @keyframes hmi-flow { to { stroke-dashoffset: -24; } }
 @keyframes hmi-blink { 50% { opacity: .35; } }
-` + MORE_CSS + CHART_CSS + MACHINE_CSS + MACHINE2_CSS + OVERLAY_CSS + SVGIMPORT_CSS;
+` + MORE_CSS + CHART_CSS + MACHINE_CSS + MACHINE2_CSS + OVERLAY_CSS + SVGIMPORT_CSS + PRODUCTION_CSS;
 	Object.assign(SYMBOLS, moreSymbols({
 		f,
 		num,
@@ -7218,6 +7991,20 @@ ${[
 		num,
 		escapeXml,
 		formatValue
+	}));
+	Object.assign(SYMBOLS, productionSymbols({
+		f,
+		escapeXml,
+		onState,
+		formatValue,
+		stateClass,
+		labelBelow,
+		faultMark,
+		faultClass,
+		fillKeys,
+		ON_FIELDS,
+		FAULT_FIELD,
+		PRIORITY_FIELD
 	}));
 	Object.assign(SYMBOLS, svgImportSymbol({
 		f,
@@ -7335,6 +8122,34 @@ ${[
 					part("estop", 0, 290, "{{tag}}.emergencia", { label: "Emergência" }, [60, 60]),
 					part("pushStation", 100, 280, "{{tag}}.ciclo", { label: "Bimanual" }, [60, 80]),
 					part("beacon", 220, 280, "{{tag}}.falha", {}, [36, 70])
+				]
+			},
+			{
+				name: "Bobinadeira com status e contadores",
+				symbols: [
+					text(0, 0, "{{tag}}", 150),
+					sym("stateChip", 160, 0, "{{tag}}.estado", {}, [180, 34]),
+					sym("winder", 10, 44, "{{tag}}.girando", {}, [320, 140]),
+					sym("text", 0, 190, "", {
+						text: "{{{tag}}.operador} · {{{tag}}.projeto}",
+						size: 13,
+						align: "start",
+						tone: "dim"
+					}, [340, 18]),
+					sym("tag", 0, 216, "{{tag}}.bobinas", {
+						title: "BOBINAS HOJE",
+						decimals: 0
+					}, [106, 54]),
+					sym("tag", 117, 216, "{{tag}}.ocupacao", {
+						title: "OCUPAÇÃO",
+						unit: "%",
+						decimals: 0
+					}, [106, 54]),
+					sym("tag", 234, 216, "{{tag}}.ultima", {
+						title: "ÚLTIMA",
+						decimals: 0
+					}, [106, 54]),
+					sym("timeline", 0, 284, "{{tag}}.linha_tempo", { legend: "no" }, [340, 52])
 				]
 			},
 			{
@@ -9610,6 +10425,7 @@ ${[
 	exports.cleanSvg = cleanSvg;
 	exports.createEditor = createEditor;
 	exports.createSymbol = createSymbol;
+	exports.durText = durText;
 	exports.escapeXml = escapeXml;
 	exports.fillKeys = fillKeys;
 	exports.formatValue = formatValue;
@@ -9620,7 +10436,9 @@ ${[
 	exports.onState = onState;
 	exports.paletteItems = paletteItems;
 	exports.parseBinds = parseBinds;
+	exports.parseColumns = parseColumns;
 	exports.parsePreview = parsePreview;
+	exports.parseStates = parseStates;
 	exports.parseSvg = parseSvg;
 	exports.rangeState = rangeState;
 	exports.renderOverlay = renderOverlay;
@@ -9629,6 +10447,10 @@ ${[
 	exports.ruleMatch = ruleMatch;
 	exports.safeImageSrc = safeImageSrc;
 	exports.scaleValue = scaleValue;
+	exports.stateOf = stateOf;
+	exports.timeOf = timeOf;
+	exports.timelinePieces = timelinePieces;
+	exports.timelineWindow = timelineWindow;
 	exports.unscaleValue = unscaleValue;
 	exports.valueFor = valueFor;
 	return exports;
