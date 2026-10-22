@@ -156,16 +156,12 @@ export function productionSymbols (H) {
             R('hmi-wd-dark', cx - w * 0.012, hy + hh, w * 0.024, h * 0.3 - hy - hh) +
             R('hmi-wd-box', hx, hy, hw, hh, 3) +
             rect('hmi-wd-screen', hx + hw * 0.1, hy + hh * 0.08, hw * 0.8, hh * 0.46, 1.5) +
-            path('hmi-wd-ui', `M${f(hx + hw * 0.16)} ${f(hy + hh * 0.2)}H${f(hx + hw * 0.6)}M${f(hx + hw * 0.16)} ${f(hy + hh * 0.3)}H${f(hx + hw * 0.5)}`) +
-            circle('hmi-led', hx + hw * 0.8, hy + hh * 0.22, s * 0.016) +
-            rect('hmi-wd-bar', hx + hw * 0.16, hy + hh * 0.4, hw * 0.68, hh * 0.06, 1) +
-            rect('hmi-wd-barfill', hx + hw * 0.16, hy + hh * 0.4, hw * 0.68 * (on ? 0.7 : 0.15), hh * 0.06, 1) +
             // e-stop (yellow ring, red mushroom) and potentiometer, under the screen
-            circle('hmi-wd-ering', hx + hw * 0.3, hy + hh * 0.76, ix * 1.15) +
-            circle('hmi-wd-estop', hx + hw * 0.3, hy + hh * 0.76, ix * 0.78) +
-            circle('hmi-wd-pot', hx + hw * 0.7, hy + hh * 0.76, ix * 0.85) +
-            path('hmi-wd-potmark', `M${f(hx + hw * 0.7)} ${f(hy + hh * 0.76)}L${f(hx + hw * 0.7 + ix * 0.55)} ${f(hy + hh * 0.76 - ix * 0.55)}`) +
-            path('hmi-wd-scale', `M${f(hx + hw * 0.7 - ix * 1.2)} ${f(hy + hh * 0.76 + ix * 0.9)}A${f(ix * 1.5)} ${f(ix * 1.5)} 0 1 1 ${f(hx + hw * 0.7 + ix * 1.2)} ${f(hy + hh * 0.76 + ix * 0.9)}`)
+            circle('hmi-wd-ering', hx + hw * 0.3, hy + hh * 0.78, ix * 1.15) +
+            circle('hmi-wd-estop', hx + hw * 0.3, hy + hh * 0.78, ix * 0.78) +
+            circle('hmi-wd-pot', hx + hw * 0.7, hy + hh * 0.78, ix * 0.55) +
+            path('hmi-wd-potmark', `M${f(hx + hw * 0.7)} ${f(hy + hh * 0.78)}L${f(hx + hw * 0.7 + ix * 0.36)} ${f(hy + hh * 0.78 - ix * 0.36)}`) +
+            path('hmi-wd-scale', `M${f(hx + hw * 0.7 - ix * 0.72)} ${f(hy + hh * 0.78 + ix * 0.55)}A${f(ix * 0.9)} ${f(ix * 0.9)} 0 1 1 ${f(hx + hw * 0.7 + ix * 0.72)} ${f(hy + hh * 0.78 + ix * 0.55)}`)
         // spreader: carriage on a rail in front, wire up to the coil; it travels across the coil
         const railY = h * 0.8
         const sw = w * 0.07
@@ -494,10 +490,7 @@ export const PRODUCTION_CSS = `
 .hmi-root .hmi-tl-label { fill: var(--hmi-text); font-weight: 700; dominant-baseline: central; }
 .hmi-root .hmi-winder .hmi-wd-metal, .hmi-root .hmi-winder .hmi-wd-box { fill: var(--hmi-equip); stroke: var(--hmi-stroke); stroke-width: 1.2; }
 .hmi-root .hmi-winder .hmi-wd-dark, .hmi-root .hmi-winder .hmi-wd-stop { fill: var(--hmi-dark); stroke: var(--hmi-stroke); stroke-width: 1; }
-.hmi-root .hmi-winder .hmi-wd-screen { fill: var(--hmi-pit); stroke: var(--hmi-line); stroke-width: .8; }
-.hmi-root .hmi-winder .hmi-wd-ui { fill: none; stroke: var(--hmi-text-dim); stroke-width: 1.4; stroke-linecap: round; }
-.hmi-root .hmi-winder .hmi-wd-bar { fill: var(--hmi-bg); }
-.hmi-root .hmi-winder .hmi-wd-barfill { fill: var(--hmi-info); }
+.hmi-root .hmi-winder .hmi-wd-screen { fill: #050607; stroke: #3a4148; stroke-width: .8; }
 .hmi-root .hmi-winder .hmi-wd-ering { fill: #f2c200; stroke: #8a6d00; stroke-width: 1; }
 .hmi-root .hmi-winder .hmi-wd-estop { fill: #d71920; stroke: #7f0d10; stroke-width: 1; }
 .hmi-root .hmi-winder .hmi-wd-pot { fill: #1d2126; stroke: var(--hmi-stroke); stroke-width: 1; }
@@ -518,13 +511,9 @@ export const PRODUCTION_CSS = `
 .hmi-root .hmi-winder .hmi-wd-wire { fill: none; stroke: var(--hmi-text); stroke-width: 1.4; stroke-dasharray: 8 4; opacity: .85; }
 .hmi-root .hmi-winder.hmi-unknown .hmi-wd-cab { stroke-dasharray: 5 3; }
 .hmi-root .hmi-winder.hmi-fault .hmi-wd-cab { stroke: var(--hmi-alarm); stroke-width: 2.5; }
-.hmi-root .hmi-winder.hmi-off .hmi-wd-barfill, .hmi-root .hmi-winder.hmi-unknown .hmi-wd-barfill { fill: var(--hmi-text-dim); }
 .hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-metal { stroke: #8a939d; }
 .hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-box { fill: #2a2f36; stroke: #b5bfc8; }
 .hmi-root .hmi-winder.hmi-tone-slitter :is(.hmi-wd-dark, .hmi-wd-stop, .hmi-wd-flange) { fill: #3a4148; stroke: #7a838c; }
-.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-screen { fill: #111418; stroke: #66707a; }
-.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-ui { stroke: #38bdf8; opacity: .8; }
-.hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-bar { fill: #1c2025; }
 .hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-mandrel { fill: #c4d0db; stroke: #8a939d; }
 .hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-coil { stroke: #6e4d2a; }
 .hmi-root .hmi-winder.hmi-tone-slitter .hmi-wd-turns { stroke: #f0c79a; }
@@ -539,7 +528,6 @@ export const PRODUCTION_CSS = `
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-box { fill: #d8d0b0; stroke: #8f886d; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-chuck { fill: #e2411d; stroke: #8f2410; }
 .hmi-root .hmi-winder.hmi-tone-machine :is(.hmi-wd-dark, .hmi-wd-stop, .hmi-wd-flange) { fill: #3b4249; stroke: #1d2126; }
-.hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-screen { fill: #263038; stroke: #59626c; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-mandrel { fill: #eef2f5; stroke: #8a939d; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-coil { fill: #b98a55; stroke: #6e4d2a; }
 .hmi-root .hmi-winder.hmi-tone-machine .hmi-wd-turns { stroke: #f3e2c6; }

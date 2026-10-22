@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Bobinadeira: tela da IHM toda preta, sem linhas desenhadas, e potenciômetro menor, sem encostar na tela.
+
 ## 0.1.7
 
 Novidades:
