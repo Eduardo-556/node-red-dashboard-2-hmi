@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11
+
+- Correção: um canvas com mais de 20 telas perdia as telas a partir da 21ª ao salvar, e os símbolos delas iam parar na primeira tela (a visão geral ficava com tudo misturado). Agora cabem 100 telas, e uma tela que algum símbolo ainda usa nunca é perdida: ela volta para a lista.
+
 ## 0.1.10
 
 - **Celular automático**: quando o canvas fica mais estreito que 700 px (campo **Celular**), a tela se reorganiza sozinha em uma coluna e a página rola. Só se desenha a tela larga. Um retângulo com símbolos dentro vira um bloco que se move inteiro; os blocos são lidos em linhas, de cima para baixo e da esquerda para a direita. Valores, gráficos e tabelas ocupam a largura do celular; desenhos de máquina mantêm a forma e diminuem. 0 desliga.

@@ -158,6 +158,8 @@ export default {
         screens () {
             const out = []
             for (const n of Array.isArray(this.props.screens) ? this.props.screens : []) if (typeof n === 'string' && n && !out.includes(n)) out.push(n)
+            // a screen a symbol names but the list lost: still its own screen, not the first one
+            if (out.length) for (const m of this.symbols) if (m && typeof m.screen === 'string' && m.screen && !out.includes(m.screen)) out.push(m.screen)
             return out
         },
         current () { return this.screens.includes(this.screen) ? this.screen : (this.screens[0] || '') },

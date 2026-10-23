@@ -122,14 +122,23 @@ export function cleanBlockSymbols (list) {
         return c
     })
 }
-// screen names: unique, trimmed, at most 20
+// screen names: unique, trimmed, at most MAX_SCREENS
+export const MAX_SCREENS = 100
 export function cleanScreens (list) {
     const out = []
     for (const n of Array.isArray(list) ? list : []) {
         const t = typeof n === 'string' ? n.trim().slice(0, 40) : ''
-        if (t && !out.includes(t) && out.length < 20) out.push(t)
+        if (t && !out.includes(t) && out.length < MAX_SCREENS) out.push(t)
     }
     return out
+}
+// the screen list plus any screen a symbol still names (a list cut short by an
+// older version must not move those symbols to the first screen)
+export function screensOf (screens, symbols) {
+    const list = cleanScreens(screens)
+    if (!list.length) return list
+    const named = (Array.isArray(symbols) ? symbols : []).map(m => m && m.screen).filter(n => typeof n === 'string')
+    return cleanScreens([...list, ...named])
 }
 export function layerName (s) {
     const p = (s && s.props) || {}
@@ -257,7 +266,7 @@ export function createEditor (root, opts) {
     const ed = { symbols: clone(o.symbols), sel: null, multi: [], drag: null, history: [], future: [], zoom: 1, pan: { x: 0, y: 0 }, guides: [], hidden: new Set(), panel: 'props', filter: '' }
     ed.history.push(clone(ed.symbols))
     // screens of this canvas (names); none = one screen. A symbol without "screen" is on the first one
-    ed.screens = cleanScreens(o.screens)
+    ed.screens = screensOf(o.screens, ed.symbols)
     ed.screen = ed.screens[0] || ''
     const here = s => !ed.screens.length || (s.screen || ed.screens[0]) === ed.screen
     const onScreen = () => ed.symbols.filter(here)

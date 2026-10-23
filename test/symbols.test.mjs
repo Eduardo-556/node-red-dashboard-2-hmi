@@ -582,3 +582,12 @@ test('phone layout: one column, blocks keep their symbols', async () => {
     // nothing is wider than the phone
     for (const s of r.symbols) assert.ok(s.x + s.w * (s._k || 1) <= 390 + 0.5, s.id)
 })
+
+test('screens: a list cut short keeps the screens its symbols name', async () => {
+    const { screensOf, cleanScreens } = await import('../ui/editor/index.js')
+    const many = Array.from({ length: 40 }, (x, i) => 'T' + i)
+    assert.strictEqual(cleanScreens(many).length, 40)
+    assert.deepStrictEqual(screensOf(['A', 'B'], [{ screen: 'A' }, { screen: 'C' }, {}]), ['A', 'B', 'C'])
+    // no screens: one screen, nothing added
+    assert.deepStrictEqual(screensOf([], [{ screen: 'C' }]), [])
+})

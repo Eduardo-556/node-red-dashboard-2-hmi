@@ -8800,9 +8800,15 @@ ${Object.entries({
 		const out = [];
 		for (const n of Array.isArray(list) ? list : []) {
 			const t = typeof n === "string" ? n.trim().slice(0, 40) : "";
-			if (t && !out.includes(t) && out.length < 20) out.push(t);
+			if (t && !out.includes(t) && out.length < 100) out.push(t);
 		}
 		return out;
+	}
+	function screensOf(screens, symbols) {
+		const list = cleanScreens(screens);
+		if (!list.length) return list;
+		const named = (Array.isArray(symbols) ? symbols : []).map((m) => m && m.screen).filter((n) => typeof n === "string");
+		return cleanScreens([...list, ...named]);
 	}
 	function layerName(s) {
 		const p = s && s.props || {};
@@ -8939,7 +8945,7 @@ ${Object.entries({
 			filter: ""
 		};
 		ed.history.push(clone(ed.symbols));
-		ed.screens = cleanScreens(o.screens);
+		ed.screens = screensOf(o.screens, ed.symbols);
 		ed.screen = ed.screens[0] || "";
 		const here = (s) => !ed.screens.length || (s.screen || ed.screens[0]) === ed.screen;
 		const onScreen = () => ed.symbols.filter(here);
