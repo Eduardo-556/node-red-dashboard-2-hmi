@@ -4,6 +4,7 @@
 
 - **Celular automático**: quando o canvas fica mais estreito que 700 px (campo **Celular**), a tela se reorganiza sozinha em uma coluna e a página rola. Só se desenha a tela larga. Um retângulo com símbolos dentro vira um bloco que se move inteiro; os blocos são lidos em linhas, de cima para baixo e da esquerda para a direita. Valores, gráficos e tabelas ocupam a largura do celular; desenhos de máquina mantêm a forma e diminuem. 0 desliga.
 - `pageBg` e `phoneAt` também mudam por `msg.ui_update`.
+- Nomes das cores e formas sem "(slitter)": "Metal", "Aço escuro", "Piso" etc. Os fluxos já salvos continuam iguais.
 
 ## 0.1.9
 
@@ -17,7 +18,7 @@
 
 Novidades:
 
-- **Bobinadeira** redesenhada no estilo metálico da slitter (nova cor padrão "Metal (como a slitter)"). A IHM fica num painel em cima do armário, com a tela no centro e o botão de emergência e o potenciômetro embaixo dela. O espalhador do fio corre de um lado para o outro ao longo da bobina enquanto ela gira.
+- **Bobinadeira** redesenhada em estilo metálico (nova cor padrão "Metal"). A IHM fica num painel em cima do armário, com a tela no centro e o botão de emergência e o potenciômetro embaixo dela. O espalhador do fio corre de um lado para o outro ao longo da bobina enquanto ela gira.
 - Texto com `{chave:t}` mostra o valor como veio, sem separador de milhar (matrícula `2888` não vira `2.888`).
 
 ## 0.1.6

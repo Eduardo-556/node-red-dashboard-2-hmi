@@ -3388,7 +3388,7 @@ ${[
 						label: "Cores",
 						type: "select",
 						options: [
-							["slitter", "Metal (como a slitter)"],
+							["slitter", "Metal"],
 							["machine", "Da máquina (azul e vermelho)"],
 							["theme", "Do tema"]
 						]
@@ -5692,28 +5692,28 @@ ${Object.entries({
 		],
 		[
 			"chamfer",
-			"Corpo metal (slitter)",
+			"Corpo metal",
 			240,
 			300,
 			"metal"
 		],
 		[
 			"rect",
-			"Base aço (slitter)",
+			"Base aço",
 			300,
 			60,
 			"steel"
 		],
 		[
 			"rect",
-			"Fosso fundo (slitter)",
+			"Fosso fundo",
 			170,
 			140,
 			"pitDeep"
 		],
 		[
 			"rect",
-			"Piso (slitter)",
+			"Piso",
 			600,
 			80,
 			"floor"
@@ -5824,7 +5824,7 @@ ${Object.entries({
 		],
 		[
 			"beamSide",
-			"Viga aço (slitter)",
+			"Viga aço",
 			400,
 			30,
 			"steel",
@@ -5832,7 +5832,7 @@ ${Object.entries({
 		],
 		[
 			"pedestal",
-			"Pedestal metal (slitter)",
+			"Pedestal metal",
 			120,
 			140,
 			"metal",
@@ -5853,15 +5853,15 @@ ${Object.entries({
 		["pit", "Fosso / vazio (tema)"],
 		["outline", "Só contorno"],
 		["guard", "Proteção (tracejado)"],
-		["metal", "Metal (slitter)"],
-		["metalLight", "Metal, borda clara (slitter)"],
-		["steel", "Aço escuro (slitter)"],
-		["graphite", "Grafite / rolo (slitter)"],
-		["pitDeep", "Fosso fundo (slitter)"],
-		["wall", "Parede (slitter)"],
-		["floor", "Piso (slitter)"],
-		["floorDark", "Piso escuro (slitter)"],
-		["sensorTone", "Sensor (slitter)"],
+		["metal", "Metal"],
+		["metalLight", "Metal, borda clara"],
+		["steel", "Aço escuro"],
+		["graphite", "Grafite / rolo"],
+		["pitDeep", "Fosso fundo"],
+		["wall", "Parede"],
+		["floor", "Piso"],
+		["floorDark", "Piso escuro"],
+		["sensorTone", "Cor de sensor"],
 		["custom", "Cor personalizada"]
 	];
 	var TONE_COLORS = {

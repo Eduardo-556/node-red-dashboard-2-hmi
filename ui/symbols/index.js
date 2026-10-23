@@ -50,10 +50,10 @@ const SHAPES = [
     ['cabinet', 'Painel elétrico', 140, 220],
     ['rect', 'Proteção (tracejado)', 300, 200, 'guard'],
     ['rect', 'Fosso', 300, 80, 'pit'],
-    ['chamfer', 'Corpo metal (slitter)', 240, 300, 'metal'],
-    ['rect', 'Base aço (slitter)', 300, 60, 'steel'],
-    ['rect', 'Fosso fundo (slitter)', 170, 140, 'pitDeep'],
-    ['rect', 'Piso (slitter)', 600, 80, 'floor'],
+    ['chamfer', 'Corpo metal', 240, 300, 'metal'],
+    ['rect', 'Base aço', 300, 60, 'steel'],
+    ['rect', 'Fosso fundo', 170, 140, 'pitDeep'],
+    ['rect', 'Piso', 600, 80, 'floor'],
     // structures: beams, supports and pedestals (palette category "Estruturas")
     ['beamSide', 'Viga (vista lateral)', 400, 30, '', 'Estruturas'],
     ['beamI', 'Viga I (perfil)', 80, 100, '', 'Estruturas'],
@@ -68,8 +68,8 @@ const SHAPES = [
     ['aFrame', 'Cavalete', 200, 140, '', 'Estruturas'],
     ['stand', 'Suporte com pés', 240, 120, '', 'Estruturas'],
     ['basePlate', 'Chapa de base / sapata', 160, 24, '', 'Estruturas'],
-    ['beamSide', 'Viga aço (slitter)', 400, 30, 'steel', 'Estruturas'],
-    ['pedestal', 'Pedestal metal (slitter)', 120, 140, 'metal', 'Estruturas'],
+    ['beamSide', 'Viga aço', 400, 30, 'steel', 'Estruturas'],
+    ['pedestal', 'Pedestal metal', 120, 140, 'metal', 'Estruturas'],
     // machine parts (palette category "Mecânica") and more geometric shapes
     ...MACHINE_SHAPES,
     // pneumatics, sensors, handling and production parts
@@ -79,11 +79,11 @@ const SPIN_SHAPES = [...ROUND_SHAPES, ...MACHINE2_ROUND, ...DRIVE_SHAPES]
 const isMotion = p => p.motion === 'value' && MACHINE2_ANALOG.includes(p.shape)
 const TONES = [
     ['equip', 'Equipamento (tema)'], ['dark', 'Escuro (tema)'], ['pit', 'Fosso / vazio (tema)'], ['outline', 'Só contorno'], ['guard', 'Proteção (tracejado)'],
-    ['metal', 'Metal (slitter)'], ['metalLight', 'Metal, borda clara (slitter)'], ['steel', 'Aço escuro (slitter)'], ['graphite', 'Grafite / rolo (slitter)'],
-    ['pitDeep', 'Fosso fundo (slitter)'], ['wall', 'Parede (slitter)'], ['floor', 'Piso (slitter)'], ['floorDark', 'Piso escuro (slitter)'], ['sensorTone', 'Sensor (slitter)'],
+    ['metal', 'Metal'], ['metalLight', 'Metal, borda clara'], ['steel', 'Aço escuro'], ['graphite', 'Grafite / rolo'],
+    ['pitDeep', 'Fosso fundo'], ['wall', 'Parede'], ['floor', 'Piso'], ['floorDark', 'Piso escuro'], ['sensorTone', 'Cor de sensor'],
     ['custom', 'Cor personalizada']
 ]
-// fixed colours taken from the OP1475 slitter screen; [fill or gradient top..bottom, stroke]
+// fixed metal and floor colours; [fill or gradient top..bottom, stroke]
 const TONE_COLORS = {
     metal: [['#6a737d', '#4d555e'], '#8a939d'],
     metalLight: [['#6a737d', '#4d555e'], '#b5bfc8'],

@@ -396,7 +396,7 @@ export function productionSymbols (H) {
             defaults: { label: '', onWhen: 'nonzero', threshold: 0, invert: 'no', faultKey: '', priority: '1', tone: 'slitter', wire: 'yes', dir: 'cw' },
             fields: [
                 LABEL, ...ON_FIELDS,
-                { key: 'tone', label: 'Cores', type: 'select', options: [['slitter', 'Metal (como a slitter)'], ['machine', 'Da máquina (azul e vermelho)'], ['theme', 'Do tema']] },
+                { key: 'tone', label: 'Cores', type: 'select', options: [['slitter', 'Metal'], ['machine', 'Da máquina (azul e vermelho)'], ['theme', 'Do tema']] },
                 { key: 'wire', label: 'Espalhador do fio (corre de um lado para o outro girando)', type: 'select', options: [['yes', 'Sim'], ['no', 'Não']] },
                 { key: 'dir', label: 'Sentido', type: 'select', options: [['cw', 'Horário'], ['ccw', 'Anti-horário']] },
                 FAULT_FIELD, PRIORITY_FIELD
