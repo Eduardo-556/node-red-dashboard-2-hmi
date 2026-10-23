@@ -141,6 +141,8 @@ export default {
             timer: null,
             beat: null,
             fitHeight: 0,
+            // page elements painted by pageBg, with their style before
+            painted: [],
             // screen open on this page (several screens in one canvas)
             screen: '',
             edit: null,
@@ -170,6 +172,8 @@ export default {
         viewH () { return Number(this.cfg('viewH')) || 720 },
         theme () { return this.cfg('theme') === 'classic' ? 'classic' : 'isa101' },
         transparent () { return this.cfg('background') === 'transparent' },
+        // repaint the page when one of these changes
+        pageBgKey () { return [this.cfg('pageBg'), this.cfg('background'), this.theme, this.cfg('scope')].join('|') },
         editing () { return !!this.edit },
         // msg.enabled = false from the flow turns the commands off
         disabled () { return !!(this.state && this.state.enabled === false) || this.dyn.enabled === false },
@@ -274,7 +278,8 @@ export default {
     watch: {
         // the flow can open a screen: msg.ui_update = { screen: "Alarmes" }
         flowScreen (v) { if (typeof v === 'string' && v) this.screen = v },
-        showNav () { this.$nextTick(this.fit) }
+        showNav () { this.$nextTick(this.fit) },
+        pageBgKey () { this.$nextTick(this.paintPage) }
     },
     created () {
         if (typeof this.cfg('screen') === 'string') this.screen = this.cfg('screen')
@@ -311,10 +316,12 @@ export default {
         window.addEventListener('blur', this.letGo)
         document.addEventListener('visibilitychange', this.onHide)
         this.$nextTick(this.fit)
+        this.$nextTick(this.paintPage)
         if (this.editing) this.$nextTick(this.openEditor)
     },
     unmounted () {
         this.letGo()
+        this.unpaintPage()
         clearInterval(this.timer)
         clearInterval(this.beat)
         window.removeEventListener('resize', this.fit)
@@ -329,6 +336,37 @@ export default {
             if (this.dyn[k] !== undefined) return this.dyn[k]
             if (this.state && this.state[k] !== undefined && !['enabled', 'visible', 'class'].includes(k)) return this.state[k]
             return this.props[k]
+        },
+        // Canvas on the whole page: paint the page behind it, so a site style
+        // (white page, background image) does not show around the canvas.
+        paintPage () {
+            this.unpaintPage()
+            const mode = this.cfg('pageBg')
+            if (!mode || this.cfg('scope') === 'group' || !this.$el || !this.$el.closest || this.$el.closest('.nrdb-ui-group')) return
+            let color = mode
+            if (mode === 'canvas') {
+                const bg = this.$el.querySelector('rect.hmi-bg')
+                color = bg ? getComputedStyle(bg).fill : ''
+                if (!color || color === 'none' || /rgba\(.*,\s*0\)$/.test(color) || color === 'transparent') return
+            }
+            if (!/^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+)$/i.test(String(color).trim())) return
+            const seen = new Set()
+            this.painted = []
+            for (const sel of ['.nrdb-ui-page', '.v-main', '.v-application']) {
+                const el = this.$el.closest(sel)
+                if (!el || seen.has(el)) continue
+                seen.add(el)
+                this.painted.push({ el, style: el.getAttribute('style') })
+                el.style.setProperty('background-color', color, 'important')
+                el.style.setProperty('background-image', 'none', 'important')
+            }
+        },
+        unpaintPage () {
+            for (const p of this.painted || []) {
+                if (p.style === null) p.el.removeAttribute('style')
+                else p.el.setAttribute('style', p.style)
+            }
+            this.painted = []
         },
         fit () {
             if (this.cfg('fit') !== 'screen' || !this.$el || !this.$el.getBoundingClientRect) return

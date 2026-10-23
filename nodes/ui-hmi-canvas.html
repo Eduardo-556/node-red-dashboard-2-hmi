@@ -121,6 +121,7 @@
             viewH: { value: 720, required: true, validate: RED.validators.number() },
             theme: { value: 'isa101' },
             background: { value: 'theme' },
+            pageBg: { value: '' },
             animate: { value: 'always' },
             screens: { value: [] },
             screenNav: { value: 'tabs' },
@@ -162,6 +163,13 @@
                 height: '#node-input-height',
                 group: '#node-input-group'
             })
+            // page colour: '' (leave it), 'canvas' or a #hex picked here
+            const pb = this.pageBg || ''
+            $('#hmi-pagebg-mode').val(pb === '' || pb === 'canvas' ? pb : 'color')
+            $('#hmi-pagebg-color').val(/^#[0-9a-f]{6}$/i.test(pb) ? pb : '#24282e')
+            $('#hmi-pagebg-mode').on('change', function () {
+                $('#hmi-pagebg-color').toggle($(this).val() === 'color')
+            }).trigger('change')
             this._hmiEditor = startEditor(this)
         },
         oneditsave: function () {
@@ -171,6 +179,8 @@
                 this.screens = ed.getScreens()
             }
             delete this._hmiEditor
+            const mode = $('#hmi-pagebg-mode').val()
+            this.pageBg = mode === 'color' ? $('#hmi-pagebg-color').val() : (mode || '')
             if ($('#node-input-scope').val() === 'group') $('#node-input-page').val('_ADD_')
             else $('#node-input-group').val('_ADD_')
         },
@@ -245,6 +255,15 @@
             <option value="dashboard">Cor do Dashboard (tema claro/escuro)</option>
         </select>
     </div>
+    <div class="form-row hmi-row-page">
+        <label for="hmi-pagebg-mode"><i class="fa fa-desktop"></i> Fundo da página</label>
+        <select id="hmi-pagebg-mode" style="width: 200px">
+            <option value="">Não mudar</option>
+            <option value="canvas">Mesma cor do canvas</option>
+            <option value="color">Escolher a cor</option>
+        </select>
+        <input type="color" id="hmi-pagebg-color" style="width: 60px; vertical-align: middle">
+    </div>
     <div class="form-row">
         <label for="node-input-offlineAfter"><i class="fa fa-chain-broken"></i> Offline after</label>
         <input type="number" id="node-input-offlineAfter" style="width: 90px"> s without data (0 = off)
@@ -312,6 +331,7 @@
     <p>A machine screen (HMI) for Dashboard 2.0, built by dragging symbols onto a canvas.</p>
     <h3>Editing</h3>
     <p>Drag a symbol from the bar above the canvas, or click it to add it in the middle. Click a symbol to edit its properties on the right. Drag to move it and use the blue square to resize it. <code>Delete</code> removes the selected symbol, arrow keys move it (Shift = 10 px).</p>
+    <p><b>Fundo da página</b> (canvas shown on the whole page): paints the dashboard page behind the canvas with the canvas colour or a colour you pick, so no strip of the page background (white, or an image from a site style) shows around it at any window size. It goes back to normal when you open another page.</p>
     <p>Each symbol shows the value of its <b>payload key</b>. The test value is only used in the editor preview.</p>
     <h3>Inputs</h3>
     <dl class="message-properties">
@@ -324,7 +344,7 @@
         <dt class="optional">enabled <span class="property-type">boolean</span></dt>
         <dd><code>false</code> turns every command of the canvas off (view only); Node-RED also refuses them.</dd>
         <dt class="optional">ui_update <span class="property-type">object</span></dt>
-        <dd>Changes settings while running: <code>theme</code>, <code>animate</code> (always / classic / never), <code>screen</code> (opens that screen on every page), <code>background</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
+        <dd>Changes settings while running: <code>theme</code>, <code>animate</code> (always / classic / never), <code>screen</code> (opens that screen on every page), <code>background</code>, <code>pageBg</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
         <dt class="optional">_hmiAck <span class="property-type">string</span></dt>
         <dd>Acknowledges alarms from the flow: an alarm id, <code>"symbol:&lt;id&gt;"</code> or <code>"all"</code>.</dd>
     </dl>

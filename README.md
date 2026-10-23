@@ -192,6 +192,7 @@ Acima do desenho fica a barra **Telas**: **+ Tela** cria outra tela (Principal, 
 | Movimento | **Sempre que ligado** (padrão), **Só no tema Clássico** ou **Nunca**. |
 | Telas | **Abas no topo** quando o canvas tem mais de uma tela, ou **Sem abas** (troca só por botão ou pelo fluxo). |
 | Background | **Cor do tema**, **Transparente** (aparece o fundo da página do dashboard) ou **Cor do Dashboard** (segue o tema claro/escuro do Dashboard). |
+| Fundo da página | Só com o canvas na página inteira. **Não mudar**, **Mesma cor do canvas** ou **Escolher a cor**: pinta a página do dashboard atrás do canvas, então não sobra faixa branca (nem a imagem de fundo de um estilo do site) em volta dele em nenhum tamanho de tela. Volta ao normal ao abrir outra página. |
 | Fit | **Caber na tela**: a tela inteira aparece sem rolar. **Largura toda**: ocupa a largura e a altura acompanha. |
 | Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
 | Number format | Formato dos números, ex. `pt-BR` (1.450,5) ou `en-US` (1,450.5). |
@@ -243,6 +244,8 @@ Machine parts (0.1.2): four new palette menus for the **Corpo** symbol, **Pneum�
 0.1.6: **coil winder** symbol (front view like the BT winders, coil turns while the key is on), **multi-state status** (text and colour per value), **table** (rows from a list key, colour column by state), **state timeline** (production day or last hours, later segments drawn on top, totals per state; stack them for a Gantt of machines), bar chart and donut from a list of objects (label/value fields, donut groups small slices as "Outros"), ready-made assembly "Bobinadeira com status e contadores", and "go to screen" actions are no longer dropped when saving from the dashboard.
 
 0.1.7: coil winder redrawn in the slitter's metal style (HMI panel with e-stop and potentiometer below the screen, wire spreader that travels along the coil while it turns) and `{key:t}` text placeholders that show ids as typed.
+
+0.1.9: **page background** option for canvases shown on the whole page (canvas colour or a picked colour), so the dashboard page never shows a white strip or a site-style background image around the canvas.
 
 Machine parts (0.1.3): 20 moving parts can follow a **position value** (min..max) instead of on/off, a part can go **ghost** when its key is off (no part / empty pallet), and the **Blocos** menu has **ready-made assemblies** (cylinder with valve and limit switches, conveyor with sensor and diverter, filling station, press with light curtain, pick and place gantry) whose keys use the name asked on drop. New example `envase`.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- Opção **Fundo da página** no canvas da página inteira: pinta a página do dashboard atrás do canvas com a cor dele ou com uma cor escolhida. Some a faixa branca em volta do canvas (e a imagem de fundo de um estilo do site), em qualquer tamanho de tela; ao abrir outra página volta o fundo normal.
+
 ## 0.1.8
 
 - Bobinadeira: tela da IHM toda preta, sem linhas desenhadas, e potenciômetro menor, sem encostar na tela.
