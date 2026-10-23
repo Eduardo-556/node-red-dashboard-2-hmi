@@ -1391,6 +1391,21 @@ export function fillKeys (str, opts) {
     })
 }
 
+// _lines (phone layout): the text breaks into that many lines at most
+function textLines (text, sym, size, bold, x) {
+    const n = Math.min(3, Number(sym._lines) || 1)
+    if (n < 2) return escapeXml(text)
+    const per = Math.max(4, Math.floor(sym.w / (size * (bold ? 0.6 : 0.55))))
+    const lines = []
+    let cur = ''
+    for (const word of String(text).split(' ')) {
+        if (cur && (cur + ' ' + word).length > per && lines.length < n - 1) { lines.push(cur); cur = word } else cur = cur ? cur + ' ' + word : word
+    }
+    lines.push(cur)
+    const lh = size * 1.2
+    return lines.map((l, i) => `<tspan x="${f(x)}" dy="${f(i ? lh : -(lines.length - 1) * lh / 2)}">${escapeXml(l)}</tspan>`).join('')
+}
+
 function renderText (sym, value, opts) {
     const p = sym.props || {}
     const align = ['start', 'end'].includes(p.align) ? p.align : 'middle'
@@ -1400,7 +1415,7 @@ function renderText (sym, value, opts) {
     const size = Math.max(6, Number(p.size) || 16)
     const unknown = sym.key && (value === undefined || value === null) ? ' hmi-unknown' : ''
     return `<g class="hmi-text hmi-tone-${p.tone === 'dim' ? 'dim' : 'normal'}${unknown}"><rect class="hmi-hitbox" x="0" y="0" width="${f(sym.w)}" height="${f(sym.h)}"/>` +
-        `<text x="${f(x)}" y="${f(sym.h / 2)}" font-size="${f(size)}" style="text-anchor:${align}" font-weight="${p.bold === 'yes' ? 700 : 400}">${escapeXml(text)}</text></g>`
+        `<text x="${f(x)}" y="${f(sym.h / 2)}" font-size="${f(size)}" style="text-anchor:${align}" font-weight="${p.bold === 'yes' ? 700 : 400}">${textLines(text, sym, size, p.bold === 'yes', x)}</text></g>`
 }
 
 function renderLed (sym, value) {
@@ -1491,7 +1506,9 @@ export function renderSymbol (sym, value, opts) {
     if (fx.hide && !o.editor) return ''
     const cls = 'hmi-symbol' + fx.classes.map(c => ' ' + c).join('') + (fx.hide ? ' hmi-rule-hidden' : '')
     const rot = Number(sym.rot) || 0
-    const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : '')
+    // _k: shrunk by the phone layout
+    const k = Number(sym._k)
+    const tf = `translate(${f(sym.x)},${f(sym.y)})` + (k > 0 && k < 1 ? ` scale(${Math.round(k * 1000) / 1000})` : '') + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : '')
     // own colours for on / off: the theme colours are swapped inside this symbol only
     const p = sym.props || {}
     let vars = ''
@@ -1745,3 +1762,4 @@ export function injectStyles (doc) {
     el.textContent = CSS
     d.head.appendChild(el)
 }
+export { phoneLayout } from './layout.js'

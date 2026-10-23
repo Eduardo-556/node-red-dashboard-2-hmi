@@ -1,7 +1,7 @@
 <template>
     <div class="hmi-canvas-wrapper">
         <div v-if="showNav" :class="['hmi-screen-nav', 'hmi-nav-' + theme]">
-            <button v-for="n in tabScreens" :key="n" type="button" :class="['hmi-screen-tab', { 'hmi-screen-on': n === current }]" @click="openScreen(n)">{{ n }}</button>
+            <button v-for="n in screens" :key="n" type="button" :class="['hmi-screen-tab', { 'hmi-screen-on': n === current }]" @click="openScreen(n)">{{ n }}</button>
         </div>
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -80,8 +80,8 @@
 </template>
 
 <script>
-import { createEditor, isPhoneScreen, phoneScreenOf, contentHeight } from '../editor/index.js'
-import { injectStyles, renderSymbol, renderOverlay, interlockOf, valueFor, onState, formatValue, isOn, scaleValue } from '../symbols/index.js'
+import { createEditor } from '../editor/index.js'
+import { injectStyles, renderSymbol, phoneLayout, renderOverlay, interlockOf, valueFor, onState, formatValue, isOn, scaleValue } from '../symbols/index.js'
 
 // same as nodes/trend.js: at most this many samples per trend window
 const TREND_POINTS = 1500
@@ -141,7 +141,8 @@ export default {
             timer: null,
             beat: null,
             fitHeight: 0,
-            winW: typeof window !== 'undefined' ? window.innerWidth : 1280,
+            // width of the canvas on the page, for the phone layout
+            boxW: 0,
             // page elements painted by pageBg, with their style before
             painted: [],
             // screen open on this page (several screens in one canvas)
@@ -159,31 +160,28 @@ export default {
             for (const n of Array.isArray(this.props.screens) ? this.props.screens : []) if (typeof n === 'string' && n && !out.includes(n)) out.push(n)
             return out
         },
-        // phone versions ("<name> · celular") are not tabs: they replace <name> on a narrow window
-        tabScreens () { return this.screens.filter(n => !isPhoneScreen(n)) },
-        current () {
-            const s = isPhoneScreen(this.screen) ? this.screen.slice(0, -phoneScreenOf('').length) : this.screen
-            return this.tabScreens.includes(s) ? s : (this.tabScreens[0] || '')
-        },
-        phone () { return !this.editing && this.winW <= (Number(this.cfg('phoneAt')) || 700) },
-        // the screen drawn now: the phone version of the current one, when there is one
-        displayed () {
-            const p = phoneScreenOf(this.current)
-            return this.phone && this.screens.includes(p) ? p : this.current
-        },
-        onPhone () { return isPhoneScreen(this.displayed) },
+        current () { return this.screens.includes(this.screen) ? this.screen : (this.screens[0] || '') },
         // the symbols of the screen open now
-        shown () {
+        onScreen () {
             if (this.screens.length < 2) return this.symbols
             const first = this.screens[0]
-            return this.symbols.filter(s => ((s.screen && this.screens.includes(s.screen)) ? s.screen : first) === this.displayed)
+            return this.symbols.filter(s => ((s.screen && this.screens.includes(s.screen)) ? s.screen : first) === this.current)
         },
-        showNav () { return !this.editing && this.tabScreens.length > 1 && this.cfg('screenNav') !== 'none' },
+        // narrow window (phone): the screen is rearranged into one column; 0 = never
+        phone () {
+            const at = this.cfg('phoneAt')
+            const lim = at === undefined || at === '' || at === null ? 700 : Number(at)
+            return !this.editing && lim > 0 && this.boxW > 0 && this.boxW <= lim && this.boxW < (Number(this.cfg('viewW')) || 1280)
+        },
+        laid () { return this.phone ? phoneLayout(this.onScreen, this.boxW, Number(this.cfg('viewW')) || 1280) : null },
+        // the symbols of the screen open now
+        shown () { return this.laid ? this.laid.symbols : this.onScreen },
+        showNav () { return !this.editing && this.screens.length > 1 && this.cfg('screenNav') !== 'none' },
         flowScreen () { return this.cfg('screen') },
         anim () { return ['classic', 'never'].includes(this.cfg('animate')) ? this.cfg('animate') : 'always' },
-        viewW () { return this.onPhone ? (Number(this.cfg('phoneW')) || 400) : (Number(this.cfg('viewW')) || 1280) },
-        // a phone screen is as tall as its symbols: it scrolls down
-        viewH () { return this.onPhone ? Math.max(200, contentHeight(this.shown) + 12) : (Number(this.cfg('viewH')) || 720) },
+        viewW () { return this.laid ? this.boxW : (Number(this.cfg('viewW')) || 1280) },
+        // on a phone the canvas is as tall as its content and the page scrolls
+        viewH () { return this.laid ? this.laid.height : (Number(this.cfg('viewH')) || 720) },
         theme () { return this.cfg('theme') === 'classic' ? 'classic' : 'isa101' },
         transparent () { return this.cfg('background') === 'transparent' },
         // repaint the page when one of these changes
@@ -286,14 +284,14 @@ export default {
             }
         },
         svgStyle () {
-            return this.cfg('fit') === 'screen' && !this.onPhone && this.fitHeight > 0 ? { height: this.fitHeight + 'px' } : {}
+            return this.cfg('fit') === 'screen' && !this.laid && this.fitHeight > 0 ? { height: this.fitHeight + 'px' } : {}
         }
     },
     watch: {
         // the flow can open a screen: msg.ui_update = { screen: "Alarmes" }
         flowScreen (v) { if (typeof v === 'string' && v) this.screen = v },
         showNav () { this.$nextTick(this.fit) },
-        onPhone () { this.$nextTick(this.fit) },
+        phone () { this.$nextTick(this.fit) },
         pageBgKey () { this.$nextTick(this.paintPage) }
     },
     created () {
@@ -384,7 +382,7 @@ export default {
             this.painted = []
         },
         fit () {
-            if (typeof window !== 'undefined') this.winW = window.innerWidth
+            if (this.$el && this.$el.clientWidth) this.boxW = Math.round(this.$el.clientWidth)
             if (this.cfg('fit') !== 'screen' || !this.$el || !this.$el.getBoundingClientRect) return
             const svg = this.$el.querySelector('svg.hmi-root') || this.$el
             const top = svg.getBoundingClientRect().top + window.scrollY
@@ -620,7 +618,6 @@ export default {
         },
         // another dashboard page (its path, e.g. /linha2) or a full address
         openScreen (name) {
-            if (isPhoneScreen(name)) name = name.slice(0, -phoneScreenOf('').length)
             if (!this.screens.includes(name)) return
             this.letGo()
             this.faceplate = null
@@ -677,10 +674,7 @@ export default {
                 screens: this.screens,
                 getValues: () => vm.values,
                 fill: true,
-                // a phone screen is edited at the phone width, with room to grow downwards
-                getView: (scr, syms) => isPhoneScreen(scr)
-                    ? { w: Number(vm.cfg('phoneW')) || 400, h: Math.max(800, contentHeight(syms) + 300) }
-                    : { w: Number(vm.cfg('viewW')) || 1280, h: Number(vm.cfg('viewH')) || 720 },
+                getView: () => ({ w: vm.viewW, h: vm.viewH }),
                 getTheme: () => vm.theme,
                 getBackground: () => vm.cfg('background'),
                 getLocale: () => vm.cfg('locale'),

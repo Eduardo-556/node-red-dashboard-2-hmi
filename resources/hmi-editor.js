@@ -5163,6 +5163,356 @@ ${Object.entries({
 @keyframes hmi-vib { from { transform: translate(-1px, 0); } to { transform: translate(1px, .5px); } }
 `;
 	//#endregion
+	//#region ui/symbols/layout.js
+	var FLUID = /* @__PURE__ */ new Set([
+		"tag",
+		"kpi",
+		"text",
+		"chip",
+		"alarm",
+		"button",
+		"trend",
+		"alarmList",
+		"alarmSummary",
+		"counter",
+		"mode",
+		"interlock",
+		"barChart",
+		"donut",
+		"oee",
+		"stateChip",
+		"table",
+		"timeline",
+		"setpoint",
+		"frame"
+	]);
+	var BOX_SHAPES = ["rect", "round"];
+	var TOL = 4;
+	var PAD = 12;
+	var GAP = 12;
+	var num$1 = (v) => Number(v) || 0;
+	var clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+	function textWidth(s, size) {
+		const p = s.props || {};
+		let t = String(p.text || "").replace(/\{[^}]*\}/g, "000000");
+		if (s.key) t += (t ? " " : "") + "00000" + (p.unit ? " " + p.unit : "");
+		return t.length * size * (p.bold === "yes" ? .6 : .55);
+	}
+	var textSize = (s) => Math.max(6, num$1((s.props || {}).size) || 16);
+	function boxOf(s) {
+		let x = num$1(s.x);
+		let y = num$1(s.y);
+		let w = num$1(s.w);
+		let h = num$1(s.h);
+		const pts = s.props && Array.isArray(s.props.points) ? s.props.points : null;
+		if (pts && pts.length && (s.type === "line" || s.type === "shape")) {
+			const xs = pts.map((p) => num$1(p[0]));
+			const ys = pts.map((p) => num$1(p[1]));
+			x += Math.min(...xs);
+			y += Math.min(...ys);
+			w = Math.max(...xs) - Math.min(...xs);
+			h = Math.max(...ys) - Math.min(...ys);
+		} else if (s.type === "text" && !num$1(s.rot)) {
+			const tw = Math.min(w, textWidth(s, textSize(s)) + 4);
+			const a = (s.props || {}).align;
+			if (a === "end") x += w - tw;
+			else if (a !== "start") x += (w - tw) / 2;
+			w = tw;
+		}
+		return {
+			x,
+			y,
+			w: Math.max(1, w),
+			h: Math.max(1, h)
+		};
+	}
+	var isBox = (s) => s.type === "frame" && BOX_SHAPES.includes((s.props || {}).shape) && !num$1(s.rot);
+	var inside = (a, b) => a.x >= b.x - 1 && a.y >= b.y - 1 && a.x + a.w <= b.x + b.w + 1 && a.y + a.h <= b.y + b.h + 1;
+	function buildTree(symbols) {
+		const nodes = symbols.map((s, i) => ({
+			s,
+			i,
+			box: boxOf(s),
+			kids: []
+		}));
+		const boxes = nodes.filter((n) => isBox(n.s));
+		const top = [];
+		for (const n of nodes) {
+			let parent = null;
+			for (const b of boxes) {
+				if (b === n) continue;
+				const area = b.box.w * b.box.h;
+				const own = n.box.w * n.box.h;
+				if (area < own || area === own && b.i > n.i) continue;
+				if (!inside(n.box, b.box)) continue;
+				if (!parent || area < parent.box.w * parent.box.h) parent = b;
+			}
+			if (parent) parent.kids.push(n);
+			else top.push(n);
+		}
+		return top;
+	}
+	function cut(nodes, axis) {
+		const a = axis === "y" ? "y" : "x";
+		const len = axis === "y" ? "h" : "w";
+		const list = [...nodes].sort((p, q) => p.box[a] - q.box[a]);
+		const groups = [];
+		let end = 0;
+		for (const n of list) if (!groups.length || n.box[a] > end - TOL) {
+			groups.push([n]);
+			end = n.box[a] + n.box[len];
+		} else {
+			groups[groups.length - 1].push(n);
+			end = Math.max(end, n.box[a] + n.box[len]);
+		}
+		return groups;
+	}
+	var span = (nodes) => {
+		const x = Math.min(...nodes.map((n) => n.box.x));
+		const y = Math.min(...nodes.map((n) => n.box.y));
+		return {
+			x,
+			y,
+			w: Math.max(...nodes.map((n) => n.box.x + n.box.w)) - x,
+			h: Math.max(...nodes.map((n) => n.box.y + n.box.h)) - y
+		};
+	};
+	function flat(n, out) {
+		out.push(n);
+		for (const k of n.kids) flat(k, out);
+		return out;
+	}
+	function rigid(nodes, avail) {
+		const b = span(nodes);
+		const k = Math.min(1, avail / b.w);
+		return {
+			w: b.w * k,
+			h: b.h * k,
+			fluid: false,
+			put(ox, oy, out) {
+				for (const top of nodes) for (const n of flat(top, [])) out[n.i] = {
+					x: ox + (num$1(n.s.x) - b.x) * k,
+					y: oy + (num$1(n.s.y) - b.y) * k,
+					k
+				};
+			}
+		};
+	}
+	function leaf(n, avail, stretch) {
+		if (avail <= 0) avail = 1;
+		const s = n.s;
+		if (!FLUID.has(s.type) || num$1(s.rot)) return rigid([n], avail);
+		if (s.type === "text") {
+			const size = textSize(s);
+			const tw = textWidth(s, size) + 4;
+			const fs = clamp(avail / tw, .8, 1);
+			const lines = Math.min(3, Math.ceil(tw * fs / avail));
+			const w = stretch ? avail : Math.min(avail, tw * fs);
+			const h = Math.max(n.box.h, lines * size * fs * 1.25 + 4);
+			return {
+				w,
+				h,
+				fluid: true,
+				put(ox, oy, out) {
+					out[n.i] = {
+						x: ox,
+						y: oy,
+						w,
+						h,
+						size: fs < 1 ? size * fs : 0,
+						lines
+					};
+				}
+			};
+		}
+		const w = stretch ? avail : Math.min(avail, n.box.w);
+		return {
+			w,
+			h: n.box.h,
+			fluid: true,
+			put(ox, oy, out) {
+				out[n.i] = {
+					x: ox,
+					y: oy,
+					w,
+					h: n.box.h
+				};
+			}
+		};
+	}
+	function block(n, avail) {
+		if (n.box.w * .8 <= avail) return rigid([n], avail);
+		const kids = n.kids;
+		const bx = n.box;
+		const inner = kids.filter((k) => !edge(k, bx.w));
+		const pad = clamp(inner.length ? Math.min(...inner.map((k) => k.box.x - bx.x)) : 0, 0, PAD);
+		const top = clamp(Math.min(...kids.map((k) => k.box.y - bx.y)), 0, PAD);
+		const bottom = clamp(Math.min(...kids.map((k) => bx.y + bx.h - k.box.y - k.box.h)), 0, PAD);
+		const body = group(kids, avail, pad, bx.w, true);
+		const h = top + body.h + bottom;
+		return {
+			w: avail,
+			h,
+			fluid: true,
+			put(ox, oy, out) {
+				out[n.i] = {
+					x: ox,
+					y: oy,
+					w: avail,
+					h
+				};
+				body.put(ox, oy + top, out);
+			}
+		};
+	}
+	var piece = (n, avail, stretch) => n.kids.length ? block(n, avail) : leaf(n, avail, stretch);
+	var edge = (n, fullW) => isBox(n.s) && n.box.w >= fullW * .95;
+	function group(nodes, avail, pad, fullW, stretch) {
+		if (nodes.length === 1) {
+			const n = nodes[0];
+			if (edge(n, fullW)) {
+				const p = piece(n, avail, stretch);
+				return {
+					w: p.w,
+					h: p.h,
+					fluid: p.fluid,
+					put: p.put
+				};
+			}
+			const p = piece(n, avail - pad * 2, stretch);
+			const x = pad + (p.fluid ? 0 : Math.max(0, avail - pad * 2 - p.w) / 2);
+			return {
+				w: p.w + pad * 2,
+				h: p.h,
+				fluid: p.fluid,
+				put(ox, oy, out) {
+					p.put(ox + x, oy, out);
+				}
+			};
+		}
+		const rows = cut(nodes, "y");
+		if (rows.length > 1) {
+			const parts = rows.map((r) => group(r, avail, pad, fullW, stretch));
+			const gaps = rows.map((r, i) => i ? clamp(span(r).y - (span(rows[i - 1]).y + span(rows[i - 1]).h), 4, GAP) : 0);
+			const h = parts.reduce((t, p, i) => t + p.h + gaps[i], 0);
+			return {
+				w: Math.max(...parts.map((p) => p.w)),
+				h,
+				fluid: parts.some((p) => p.fluid),
+				put(ox, oy, out) {
+					let y = oy;
+					parts.forEach((p, i) => {
+						y += gaps[i];
+						p.put(ox, y, out);
+						y += p.h;
+					});
+				}
+			};
+		}
+		const cols = cut(nodes, "x");
+		if (cols.length > 1) return columns(cols, avail, pad, stretch);
+		const p = rigid(nodes, avail - pad * 2);
+		const x = pad + Math.max(0, avail - pad * 2 - p.w) / 2;
+		return {
+			w: p.w + pad * 2,
+			h: p.h,
+			fluid: false,
+			put(ox, oy, out) {
+				p.put(ox + x, oy, out);
+			}
+		};
+	}
+	function columns(cols, avail, pad, stretch) {
+		const inner = avail - pad * 2;
+		const natural = cols.map((c) => group(c, inner, 0, Infinity, false));
+		const lines = [];
+		let line = [];
+		let used = 0;
+		const least = (p) => p.fluid ? p.w * .75 : p.w;
+		natural.forEach((p, i) => {
+			if (line.length && used + GAP + least(p) > inner) {
+				lines.push(line);
+				line = [];
+				used = 0;
+			}
+			used += (line.length ? GAP : 0) + least(p);
+			line.push(i);
+		});
+		if (line.length) lines.push(line);
+		const laid = lines.map((idx) => {
+			const sum = idx.reduce((t, i) => t + natural[i].w, 0) || 1;
+			const free = inner - sum - GAP * (idx.length - 1);
+			const grow = (stretch || free < 0) && idx.some((i) => natural[i].fluid);
+			const flex = idx.reduce((t, i) => t + (natural[i].fluid ? natural[i].w : 0), 0) || 1;
+			const widths = idx.map((i) => grow && natural[i].fluid ? natural[i].w + free * natural[i].w / flex : natural[i].w);
+			const parts = idx.map((i, j) => group(cols[i], widths[j], 0, Infinity, stretch));
+			const width = widths.reduce((t, w) => t + w, 0) + GAP * (idx.length - 1);
+			return {
+				parts,
+				widths,
+				h: Math.max(...parts.map((p) => p.h)),
+				x0: grow ? 0 : Math.max(0, inner - width) / 2,
+				width
+			};
+		});
+		const h = laid.reduce((t, l) => t + l.h, 0) + GAP * (laid.length - 1);
+		return {
+			w: Math.max(...laid.map((l) => l.width)) + pad * 2,
+			h,
+			fluid: natural.some((p) => p.fluid),
+			put(ox, oy, out) {
+				let y = oy;
+				for (const l of laid) {
+					let x = ox + pad + l.x0;
+					l.parts.forEach((p, j) => {
+						p.put(x, y, out);
+						x += l.widths[j] + GAP;
+					});
+					y += l.h + GAP;
+				}
+			}
+		};
+	}
+	function phoneLayout(symbols, width, viewW) {
+		const list = Array.isArray(symbols) ? symbols : [];
+		const W = Math.max(120, num$1(width));
+		const top = buildTree(list);
+		if (!top.length) return {
+			symbols: [],
+			height: 100
+		};
+		const fullW = Math.max(num$1(viewW), span(top).x + span(top).w);
+		const inner = top.filter((k) => !edge(k, fullW));
+		const pad = clamp(inner.length ? Math.min(...inner.map((k) => k.box.x)) : 0, 0, PAD);
+		const topPad = clamp(span(top).y, 0, PAD);
+		const body = group(top, W, pad, fullW, true);
+		const out = [];
+		body.put(0, topPad, out);
+		return {
+			symbols: list.map((s, i) => {
+				const o = out[i];
+				if (!o) return s;
+				const c = {
+					...s,
+					x: o.x,
+					y: o.y
+				};
+				if (o.w !== void 0) {
+					c.w = o.w;
+					c.h = o.h;
+				}
+				if (o.k !== void 0 && o.k < .999) c._k = o.k;
+				if (o.lines > 1) c._lines = o.lines;
+				if (o.size) c.props = {
+					...s.props,
+					size: o.size
+				};
+				return c;
+			}),
+			height: Math.ceil(topPad + body.h + PAD)
+		};
+	}
+	//#endregion
 	//#region ui/symbols/index.js
 	var THEMES = {
 		isa101: "ISA-101",
@@ -7699,6 +8049,20 @@ ${Object.entries({
 			return formatValue(v, d === void 0 ? "" : d, o.locale);
 		});
 	}
+	function textLines(text, sym, size, bold, x) {
+		const n = Math.min(3, Number(sym._lines) || 1);
+		if (n < 2) return escapeXml(text);
+		const per = Math.max(4, Math.floor(sym.w / (size * (bold ? .6 : .55))));
+		const lines = [];
+		let cur = "";
+		for (const word of String(text).split(" ")) if (cur && (cur + " " + word).length > per && lines.length < n - 1) {
+			lines.push(cur);
+			cur = word;
+		} else cur = cur ? cur + " " + word : word;
+		lines.push(cur);
+		const lh = size * 1.2;
+		return lines.map((l, i) => `<tspan x="${f(x)}" dy="${f(i ? lh : -(lines.length - 1) * lh / 2)}">${escapeXml(l)}</tspan>`).join("");
+	}
 	function renderText(sym, value, opts) {
 		const p = sym.props || {};
 		const align = ["start", "end"].includes(p.align) ? p.align : "middle";
@@ -7707,7 +8071,7 @@ ${Object.entries({
 		if (sym.key) text = (text ? text + " " : "") + formatValue(value, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
 		const size = Math.max(6, Number(p.size) || 16);
 		const unknown = sym.key && (value === void 0 || value === null) ? " hmi-unknown" : "";
-		return `<g class="hmi-text hmi-tone-${p.tone === "dim" ? "dim" : "normal"}${unknown}"><rect class="hmi-hitbox" x="0" y="0" width="${f(sym.w)}" height="${f(sym.h)}"/><text x="${f(x)}" y="${f(sym.h / 2)}" font-size="${f(size)}" style="text-anchor:${align}" font-weight="${p.bold === "yes" ? 700 : 400}">${escapeXml(text)}</text></g>`;
+		return `<g class="hmi-text hmi-tone-${p.tone === "dim" ? "dim" : "normal"}${unknown}"><rect class="hmi-hitbox" x="0" y="0" width="${f(sym.w)}" height="${f(sym.h)}"/><text x="${f(x)}" y="${f(sym.h / 2)}" font-size="${f(size)}" style="text-anchor:${align}" font-weight="${p.bold === "yes" ? 700 : 400}">${textLines(text, sym, size, p.bold === "yes", x)}</text></g>`;
 	}
 	function renderLed(sym, value) {
 		const p = sym.props || {};
@@ -7784,7 +8148,8 @@ ${Object.entries({
 		if (fx.hide && !o.editor) return "";
 		const cls = "hmi-symbol" + fx.classes.map((c) => " " + c).join("") + (fx.hide ? " hmi-rule-hidden" : "");
 		const rot = Number(sym.rot) || 0;
-		const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : "");
+		const k = Number(sym._k);
+		const tf = `translate(${f(sym.x)},${f(sym.y)})` + (k > 0 && k < 1 ? ` scale(${Math.round(k * 1e3) / 1e3})` : "") + (rot ? ` rotate(${f(rot)},${f(sym.w / 2)},${f(sym.h / 2)})` : "");
 		const p = sym.props || {};
 		let vars = "";
 		if (!def.line && sym.type !== "frame" && sym.type !== "shape") {
@@ -8423,17 +8788,9 @@ ${Object.entries({
 		const out = [];
 		for (const n of Array.isArray(list) ? list : []) {
 			const t = typeof n === "string" ? n.trim().slice(0, 40) : "";
-			if (t && !out.includes(t) && out.length < 60) out.push(t);
+			if (t && !out.includes(t) && out.length < 20) out.push(t);
 		}
 		return out;
-	}
-	var PHONE_SUFFIX = " · celular";
-	var isPhoneScreen = (n) => typeof n === "string" && n.endsWith(" · celular") && n.length > 10;
-	var phoneScreenOf = (n) => String(n || "") + PHONE_SUFFIX;
-	function contentHeight(symbols) {
-		let h = 0;
-		for (const s of symbols || []) h = Math.max(h, (Number(s.y) || 0) + (Number(s.h) || 0));
-		return Math.ceil(h);
 	}
 	function layerName(s) {
 		const p = s && s.props || {};
@@ -8539,7 +8896,7 @@ ${Object.entries({
 		return isFinite(n) ? n : text;
 	}
 	/**
-	* opts: symbols, getView(screen, symbolsOnIt) -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
+	* opts: symbols, getView() -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
 	*       getValues() -> live values shown instead of test values,
 	*       actions: [{ label, title, primary, onClick(editor) }], title, fill, onChange()
 	*/
@@ -8711,27 +9068,6 @@ ${Object.entries({
 				screenBar.appendChild(b);
 			};
 			mini("+ Tela", "Criar outra tela neste canvas (vira uma aba no dashboard)", addScreen);
-			if (!isPhoneScreen(ed.screen)) {
-				const phone = phoneScreenOf(ed.screen || "Principal");
-				mini(ed.screens.includes(phone) ? "Versão celular ›" : "+ Versão celular", "Tela estreita que o dashboard mostra no lugar desta quando a janela é pequena (celular)", () => {
-					if (!ed.screens.length) {
-						ed.screens = ["Principal"];
-						ed.screen = "Principal";
-						pinScreens();
-					}
-					if (!ed.screens.includes(phone)) {
-						if (phone.length > 40) {
-							msg.textContent = "Nome da tela muito longo para a versão celular.";
-							return;
-						}
-						pinScreens();
-						ed.screens.splice(ed.screens.indexOf(ed.screen) + 1, 0, phone);
-					}
-					ed.screen = phone;
-					select([]);
-					screensChanged();
-				});
-			}
 			if (ed.screens.length) {
 				mini("Renomear", "Renomear a tela aberta", renameScreen);
 				if (ed.screens.length > 1) mini("Apagar tela", "Apagar a tela aberta e os símbolos dela", deleteScreen);
@@ -8801,7 +9137,7 @@ ${Object.entries({
 			if (o.onChange) o.onChange(api);
 		}
 		const view = () => {
-			const v = o.getView && o.getView(ed.screen, onScreen()) || {};
+			const v = o.getView && o.getView() || {};
 			return {
 				w: Math.max(100, Number(v.w) || 1280),
 				h: Math.max(100, Number(v.h) || 720)
@@ -10504,7 +10840,6 @@ ${Object.entries({
 	exports.THEMES = THEMES;
 	exports.alarmIndicator = alarmIndicator;
 	exports.cleanSvg = cleanSvg;
-	exports.contentHeight = contentHeight;
 	exports.createEditor = createEditor;
 	exports.createSymbol = createSymbol;
 	exports.durText = durText;
@@ -10514,7 +10849,6 @@ ${Object.entries({
 	exports.injectStyles = injectStyles;
 	exports.interlockOf = interlockOf;
 	exports.isOn = isOn;
-	exports.isPhoneScreen = isPhoneScreen;
 	exports.linePoints = linePoints;
 	exports.onState = onState;
 	exports.paletteItems = paletteItems;
@@ -10523,7 +10857,7 @@ ${Object.entries({
 	exports.parsePreview = parsePreview;
 	exports.parseStates = parseStates;
 	exports.parseSvg = parseSvg;
-	exports.phoneScreenOf = phoneScreenOf;
+	exports.phoneLayout = phoneLayout;
 	exports.rangeState = rangeState;
 	exports.renderOverlay = renderOverlay;
 	exports.renderSymbol = renderSymbol;

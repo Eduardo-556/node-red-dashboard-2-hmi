@@ -127,20 +127,9 @@ export function cleanScreens (list) {
     const out = []
     for (const n of Array.isArray(list) ? list : []) {
         const t = typeof n === 'string' ? n.trim().slice(0, 40) : ''
-        if (t && !out.includes(t) && out.length < 60) out.push(t)
+        if (t && !out.includes(t) && out.length < 20) out.push(t)
     }
     return out
-}
-// Phone version of a screen: a screen named "<name> · celular". On a narrow
-// window the dashboard shows it instead of <name>; its width is the canvas
-// "phone width" and its height follows the symbols on it.
-export const PHONE_SUFFIX = ' · celular'
-export const isPhoneScreen = n => typeof n === 'string' && n.endsWith(PHONE_SUFFIX) && n.length > PHONE_SUFFIX.length
-export const phoneScreenOf = n => String(n || '') + PHONE_SUFFIX
-export function contentHeight (symbols) {
-    let h = 0
-    for (const s of symbols || []) h = Math.max(h, (Number(s.y) || 0) + (Number(s.h) || 0))
-    return Math.ceil(h)
 }
 export function layerName (s) {
     const p = (s && s.props) || {}
@@ -252,7 +241,7 @@ export function parsePreview (text) {
 }
 
 /**
- * opts: symbols, getView(screen, symbolsOnIt) -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
+ * opts: symbols, getView() -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
  *       getValues() -> live values shown instead of test values,
  *       actions: [{ label, title, primary, onClick(editor) }], title, fill, onChange()
  */
@@ -371,25 +360,6 @@ export function createEditor (root, opts) {
             screenBar.appendChild(b)
         }
         mini('+ Tela', 'Criar outra tela neste canvas (vira uma aba no dashboard)', addScreen)
-        if (!isPhoneScreen(ed.screen)) {
-            const phone = phoneScreenOf(ed.screen || 'Principal')
-            mini(ed.screens.includes(phone) ? 'Versão celular ›' : '+ Versão celular', 'Tela estreita que o dashboard mostra no lugar desta quando a janela é pequena (celular)', () => {
-                if (!ed.screens.length) {
-                    // one screen so far: it gets a name, the phone version is the second
-                    ed.screens = ['Principal']
-                    ed.screen = 'Principal'
-                    pinScreens()
-                }
-                if (!ed.screens.includes(phone)) {
-                    if (phone.length > 40) { msg.textContent = 'Nome da tela muito longo para a versão celular.'; return }
-                    pinScreens()
-                    ed.screens.splice(ed.screens.indexOf(ed.screen) + 1, 0, phone)
-                }
-                ed.screen = phone
-                select([])
-                screensChanged()
-            })
-        }
         if (ed.screens.length) {
             mini('Renomear', 'Renomear a tela aberta', renameScreen)
             if (ed.screens.length > 1) mini('Apagar tela', 'Apagar a tela aberta e os símbolos dela', deleteScreen)
@@ -455,7 +425,7 @@ export function createEditor (root, opts) {
     }
 
     const view = () => {
-        const v = (o.getView && o.getView(ed.screen, onScreen())) || {}
+        const v = (o.getView && o.getView()) || {}
         return { w: Math.max(100, Number(v.w) || 1280), h: Math.max(100, Number(v.h) || 720) }
     }
     const snap = v => gridBox.checked ? Math.round(v / GRID) * GRID : Math.round(v)

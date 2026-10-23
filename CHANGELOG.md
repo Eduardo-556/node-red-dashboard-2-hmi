@@ -2,8 +2,8 @@
 
 ## 0.1.10
 
-- **Versão celular** das telas: o botão **+ Versão celular** do editor cria a tela "*nome* · celular". Numa janela de até 700 px (campo **Celular** do canvas) o dashboard mostra essa tela no lugar da normal, com 400 px de largura, a altura que o conteúdo pedir e rolagem da página. Assim dá para montar as máquinas uma embaixo da outra no celular. As telas de celular não aparecem como abas.
-- `pageBg`, `phoneAt` e `phoneW` também mudam por `msg.ui_update`.
+- **Celular automático**: quando o canvas fica mais estreito que 700 px (campo **Celular**), a tela se reorganiza sozinha em uma coluna e a página rola. Só se desenha a tela larga. Um retângulo com símbolos dentro vira um bloco que se move inteiro; os blocos são lidos em linhas, de cima para baixo e da esquerda para a direita. Valores, gráficos e tabelas ocupam a largura do celular; desenhos de máquina mantêm a forma e diminuem. 0 desliga.
+- `pageBg` e `phoneAt` também mudam por `msg.ui_update`.
 
 ## 0.1.9
 

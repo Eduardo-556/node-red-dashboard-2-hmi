@@ -558,13 +558,27 @@ test('text keys with :t keep ids as typed', async () => {
     assert.equal(fillKeys('op {o:t}', { values: {} }), 'op —')
 })
 
-test('phone versions of screens', async () => {
-    const { isPhoneScreen, phoneScreenOf, contentHeight } = await import('../ui/editor/index.js')
-    assert.strictEqual(phoneScreenOf('Visão geral'), 'Visão geral · celular')
-    assert.strictEqual(isPhoneScreen('Visão geral · celular'), true)
-    assert.strictEqual(isPhoneScreen(' · celular'), false)
-    assert.strictEqual(isPhoneScreen('BT_01'), false)
-    assert.strictEqual(isPhoneScreen(undefined), false)
-    assert.strictEqual(contentHeight([{ y: 10, h: 50 }, { y: 300, h: 40.5 }, { y: 'x' }]), 341)
-    assert.strictEqual(contentHeight([]), 0)
+test('phone layout: one column, blocks keep their symbols', async () => {
+    const { phoneLayout } = await import('../ui/symbols/layout.js')
+    const tile = (id, x) => [
+        { id: id + 'b', type: 'frame', x, y: 100, w: 300, h: 200, props: { shape: 'round' } },
+        { id: id + 't', type: 'tag', x: x + 10, y: 120, w: 100, h: 50, props: {} }
+    ]
+    const syms = [
+        { id: 'h', type: 'frame', x: 0, y: 0, w: 1280, h: 80, props: { shape: 'rect' } },
+        { id: 'title', type: 'text', x: 20, y: 10, w: 600, h: 30, props: { text: 'Linha 1', align: 'start' } },
+        ...tile('a', 20), ...tile('b', 340), ...tile('c', 660)
+    ]
+    const r = phoneLayout(syms, 390, 1280)
+    const by = Object.fromEntries(r.symbols.map(s => [s.id, s]))
+    // the header bar goes edge to edge
+    assert.strictEqual(by.h.x, 0)
+    assert.strictEqual(by.h.w, 390)
+    // tiles one under the other, the tag moves with its tile
+    assert.ok(by.bb.y > by.ab.y + 200 && by.cb.y > by.bb.y + 200)
+    assert.strictEqual(by.at.x - by.ab.x, 10)
+    assert.strictEqual(by.bt.y - by.bb.y, 20)
+    assert.ok(r.height >= by.cb.y + 200)
+    // nothing is wider than the phone
+    for (const s of r.symbols) assert.ok(s.x + s.w * (s._k || 1) <= 390 + 0.5, s.id)
 })
