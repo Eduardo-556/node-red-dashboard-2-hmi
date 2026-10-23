@@ -11,7 +11,7 @@ const setupAdmin = require('./admin')
 const keptTrends = new Map()
 
 // settings a flow may change with msg.ui_update
-const DYNAMIC = ['theme', 'animate', 'screen', 'background', 'viewW', 'viewH', 'fit', 'locale', 'offlineAfter', 'staleAfter', 'alarmSound']
+const DYNAMIC = ['theme', 'animate', 'screen', 'background', 'pageBg', 'viewW', 'viewH', 'phoneAt', 'phoneW', 'fit', 'locale', 'offlineAfter', 'staleAfter', 'alarmSound']
 const QUALITY = ['bad', 'uncertain']
 // hold-to-run: the page repeats "still pressed" every 400 ms; without it the 0 goes out
 const PULSE_WATCHDOG = 1500

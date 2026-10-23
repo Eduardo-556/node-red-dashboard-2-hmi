@@ -16,12 +16,12 @@ const FACEPLATE_KEYS = ['modeKey', 'modeTexts', 'hoursKey', 'startsKey', 'valueK
     // PID / regulator: process value, setpoint, output and auto/manual
     'pvKey', 'spKey', 'opKey', 'pidUnit', 'spTopic', 'spMin', 'spMax', 'opTopic', 'opMin', 'opMax', 'modeTopic', 'autoValue', 'manValue']
 
-// screen names of a canvas: unique strings, at most 20
+// screen names of a canvas: unique strings, at most 60 (phone versions count too)
 function cleanScreens (list) {
     const out = []
     for (const n of Array.isArray(list) ? list : []) {
         const t = typeof n === 'string' ? n.trim().slice(0, 40) : ''
-        if (t && !out.includes(t) && out.length < 20) out.push(t)
+        if (t && !out.includes(t) && out.length < 60) out.push(t)
     }
     return out
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10
+
+- **Versão celular** das telas: o botão **+ Versão celular** do editor cria a tela "*nome* · celular". Numa janela de até 700 px (campo **Celular** do canvas) o dashboard mostra essa tela no lugar da normal, com 400 px de largura, a altura que o conteúdo pedir e rolagem da página. Assim dá para montar as máquinas uma embaixo da outra no celular. As telas de celular não aparecem como abas.
+- `pageBg`, `phoneAt` e `phoneW` também mudam por `msg.ui_update`.
+
 ## 0.1.9
 
 - Opção **Fundo da página** no canvas da página inteira: pinta a página do dashboard atrás do canvas com a cor dele ou com uma cor escolhida. Some a faixa branca em volta do canvas (e a imagem de fundo de um estilo do site), em qualquer tamanho de tela; ao abrir outra página volta o fundo normal.

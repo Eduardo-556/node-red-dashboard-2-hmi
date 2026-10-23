@@ -67,7 +67,9 @@
             symbols: node.symbols,
             screens: node.screens,
             buttonClass: 'red-ui-button',
-            getView: () => ({ w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() }),
+            getView: (scr, syms) => H.isPhoneScreen(scr)
+                ? { w: Number($('#node-input-phoneW').val()) || 400, h: Math.max(800, H.contentHeight(syms) + 300) }
+                : { w: $('#node-input-viewW').val(), h: $('#node-input-viewH').val() },
             getTheme: () => $('#node-input-theme').val(),
             getBackground: () => $('#node-input-background').val(),
             getPages: () => {
@@ -82,7 +84,7 @@
                 { label: 'Editar no dashboard', title: 'Abrir a página do dashboard em outra aba, em modo de edição', onClick: () => openInDashboard(node, editor) }
             ]
         })
-        $('#node-input-theme, #node-input-background, #node-input-viewW, #node-input-viewH, #node-input-locale').on('change input', () => editor.redraw())
+        $('#node-input-theme, #node-input-background, #node-input-viewW, #node-input-viewH, #node-input-phoneW, #node-input-locale').on('change input', () => editor.redraw())
         return editor
     }
 
@@ -122,6 +124,8 @@
             theme: { value: 'isa101' },
             background: { value: 'theme' },
             pageBg: { value: '' },
+            phoneAt: { value: 700, validate: RED.validators.number(true) },
+            phoneW: { value: 400, validate: RED.validators.number(true) },
             animate: { value: 'always' },
             screens: { value: [] },
             screenNav: { value: 'tabs' },
@@ -217,6 +221,11 @@
         <label for="node-input-viewW"><i class="fa fa-arrows-alt"></i> Screen</label>
         <input type="number" id="node-input-viewW" style="width: 90px"> ×
         <input type="number" id="node-input-viewH" style="width: 90px"> px
+    </div>
+    <div class="form-row">
+        <label for="node-input-phoneAt"><i class="fa fa-mobile"></i> Celular</label>
+        até <input type="number" id="node-input-phoneAt" style="width: 70px"> px de largura,
+        tela de <input type="number" id="node-input-phoneW" style="width: 70px"> px
     </div>
     <div class="form-row">
         <label for="node-input-fit"><i class="fa fa-expand"></i> Fit</label>
@@ -332,6 +341,7 @@
     <h3>Editing</h3>
     <p>Drag a symbol from the bar above the canvas, or click it to add it in the middle. Click a symbol to edit its properties on the right. Drag to move it and use the blue square to resize it. <code>Delete</code> removes the selected symbol, arrow keys move it (Shift = 10 px).</p>
     <p><b>Fundo da página</b> (canvas shown on the whole page): paints the dashboard page behind the canvas with the canvas colour or a colour you pick, so no strip of the page background (white, or an image from a site style) shows around it at any window size. It goes back to normal when you open another page.</p>
+    <p><b>Versão celular</b>: the <b>+ Versão celular</b> button next to the screens makes a screen named "<i>name</i> · celular". On a window up to the <b>Celular</b> width (700 px) the canvas shows that screen in place of <i>name</i>: it is <b>phoneW</b> wide (400 px), as tall as its symbols, and the page scrolls. Put the symbols in one column there. Screens without a phone version show as usual. Phone screens are not shown as tabs.</p>
     <p>Each symbol shows the value of its <b>payload key</b>. The test value is only used in the editor preview.</p>
     <h3>Inputs</h3>
     <dl class="message-properties">
@@ -344,7 +354,7 @@
         <dt class="optional">enabled <span class="property-type">boolean</span></dt>
         <dd><code>false</code> turns every command of the canvas off (view only); Node-RED also refuses them.</dd>
         <dt class="optional">ui_update <span class="property-type">object</span></dt>
-        <dd>Changes settings while running: <code>theme</code>, <code>animate</code> (always / classic / never), <code>screen</code> (opens that screen on every page), <code>background</code>, <code>pageBg</code>, <code>viewW</code>, <code>viewH</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
+        <dd>Changes settings while running: <code>theme</code>, <code>animate</code> (always / classic / never), <code>screen</code> (opens that screen on every page), <code>background</code>, <code>pageBg</code>, <code>viewW</code>, <code>viewH</code>, <code>phoneAt</code>, <code>phoneW</code>, <code>fit</code>, <code>locale</code>, <code>offlineAfter</code>, <code>staleAfter</code>, <code>alarmSound</code>.</dd>
         <dt class="optional">_hmiAck <span class="property-type">string</span></dt>
         <dd>Acknowledges alarms from the flow: an alarm id, <code>"symbol:&lt;id&gt;"</code> or <code>"all"</code>.</dd>
     </dl>

@@ -557,3 +557,14 @@ test('text keys with :t keep ids as typed', async () => {
     assert.equal(fillKeys('op {o:t} · {q}', { values: { o: '2888', q: 1450 } }), 'op 2888 · 1.450')
     assert.equal(fillKeys('op {o:t}', { values: {} }), 'op —')
 })
+
+test('phone versions of screens', async () => {
+    const { isPhoneScreen, phoneScreenOf, contentHeight } = await import('../ui/editor/index.js')
+    assert.strictEqual(phoneScreenOf('Visão geral'), 'Visão geral · celular')
+    assert.strictEqual(isPhoneScreen('Visão geral · celular'), true)
+    assert.strictEqual(isPhoneScreen(' · celular'), false)
+    assert.strictEqual(isPhoneScreen('BT_01'), false)
+    assert.strictEqual(isPhoneScreen(undefined), false)
+    assert.strictEqual(contentHeight([{ y: 10, h: 50 }, { y: 300, h: 40.5 }, { y: 'x' }]), 341)
+    assert.strictEqual(contentHeight([]), 0)
+})

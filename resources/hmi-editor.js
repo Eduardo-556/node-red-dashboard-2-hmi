@@ -8423,9 +8423,17 @@ ${Object.entries({
 		const out = [];
 		for (const n of Array.isArray(list) ? list : []) {
 			const t = typeof n === "string" ? n.trim().slice(0, 40) : "";
-			if (t && !out.includes(t) && out.length < 20) out.push(t);
+			if (t && !out.includes(t) && out.length < 60) out.push(t);
 		}
 		return out;
+	}
+	var PHONE_SUFFIX = " · celular";
+	var isPhoneScreen = (n) => typeof n === "string" && n.endsWith(" · celular") && n.length > 10;
+	var phoneScreenOf = (n) => String(n || "") + PHONE_SUFFIX;
+	function contentHeight(symbols) {
+		let h = 0;
+		for (const s of symbols || []) h = Math.max(h, (Number(s.y) || 0) + (Number(s.h) || 0));
+		return Math.ceil(h);
 	}
 	function layerName(s) {
 		const p = s && s.props || {};
@@ -8531,7 +8539,7 @@ ${Object.entries({
 		return isFinite(n) ? n : text;
 	}
 	/**
-	* opts: symbols, getView() -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
+	* opts: symbols, getView(screen, symbolsOnIt) -> {w,h}, getTheme(), getBackground(), getLocale(), buttonClass,
 	*       getValues() -> live values shown instead of test values,
 	*       actions: [{ label, title, primary, onClick(editor) }], title, fill, onChange()
 	*/
@@ -8703,6 +8711,27 @@ ${Object.entries({
 				screenBar.appendChild(b);
 			};
 			mini("+ Tela", "Criar outra tela neste canvas (vira uma aba no dashboard)", addScreen);
+			if (!isPhoneScreen(ed.screen)) {
+				const phone = phoneScreenOf(ed.screen || "Principal");
+				mini(ed.screens.includes(phone) ? "Versão celular ›" : "+ Versão celular", "Tela estreita que o dashboard mostra no lugar desta quando a janela é pequena (celular)", () => {
+					if (!ed.screens.length) {
+						ed.screens = ["Principal"];
+						ed.screen = "Principal";
+						pinScreens();
+					}
+					if (!ed.screens.includes(phone)) {
+						if (phone.length > 40) {
+							msg.textContent = "Nome da tela muito longo para a versão celular.";
+							return;
+						}
+						pinScreens();
+						ed.screens.splice(ed.screens.indexOf(ed.screen) + 1, 0, phone);
+					}
+					ed.screen = phone;
+					select([]);
+					screensChanged();
+				});
+			}
 			if (ed.screens.length) {
 				mini("Renomear", "Renomear a tela aberta", renameScreen);
 				if (ed.screens.length > 1) mini("Apagar tela", "Apagar a tela aberta e os símbolos dela", deleteScreen);
@@ -8772,7 +8801,7 @@ ${Object.entries({
 			if (o.onChange) o.onChange(api);
 		}
 		const view = () => {
-			const v = o.getView && o.getView() || {};
+			const v = o.getView && o.getView(ed.screen, onScreen()) || {};
 			return {
 				w: Math.max(100, Number(v.w) || 1280),
 				h: Math.max(100, Number(v.h) || 720)
@@ -10475,6 +10504,7 @@ ${Object.entries({
 	exports.THEMES = THEMES;
 	exports.alarmIndicator = alarmIndicator;
 	exports.cleanSvg = cleanSvg;
+	exports.contentHeight = contentHeight;
 	exports.createEditor = createEditor;
 	exports.createSymbol = createSymbol;
 	exports.durText = durText;
@@ -10484,6 +10514,7 @@ ${Object.entries({
 	exports.injectStyles = injectStyles;
 	exports.interlockOf = interlockOf;
 	exports.isOn = isOn;
+	exports.isPhoneScreen = isPhoneScreen;
 	exports.linePoints = linePoints;
 	exports.onState = onState;
 	exports.paletteItems = paletteItems;
@@ -10492,6 +10523,7 @@ ${Object.entries({
 	exports.parsePreview = parsePreview;
 	exports.parseStates = parseStates;
 	exports.parseSvg = parseSvg;
+	exports.phoneScreenOf = phoneScreenOf;
 	exports.rangeState = rangeState;
 	exports.renderOverlay = renderOverlay;
 	exports.renderSymbol = renderSymbol;
