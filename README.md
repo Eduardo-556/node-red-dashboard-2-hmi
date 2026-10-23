@@ -195,7 +195,7 @@ Acima do desenho fica a barra **Telas**: **+ Tela** cria outra tela (Principal, 
 | Telas | **Abas no topo** quando o canvas tem mais de uma tela, ou **Sem abas** (troca só por botão ou pelo fluxo). |
 | Background | **Cor do tema**, **Transparente** (aparece o fundo da página do dashboard) ou **Cor do Dashboard** (segue o tema claro/escuro do Dashboard). |
 | Fundo da página | Só com o canvas na página inteira. **Não mudar**, **Mesma cor do canvas** ou **Escolher a cor**: pinta a página do dashboard atrás do canvas, então não sobra faixa branca (nem a imagem de fundo de um estilo do site) em volta dele em nenhum tamanho de tela. Volta ao normal ao abrir outra página. |
-| Celular | Largura (700 px) abaixo da qual a tela se reorganiza sozinha em uma coluna, com rolagem: blocos (retângulos com símbolos dentro) um embaixo do outro, valores e gráficos na largura do celular, desenhos diminuídos. Não precisa desenhar outra tela. 0 desliga. |
+| Celular | Largura (700 px) abaixo da qual a tela se reorganiza sozinha em uma coluna, com rolagem: blocos (retângulos com símbolos dentro) um embaixo do outro, valores e gráficos na largura do celular, desenhos diminuídos. Não precisa desenhar outra tela. Peças encostadas umas nas outras ou ligadas por linhas (um P&ID, uma linha de processo) ficam juntas e diminuem como uma figura só; deixe um espaço entre as partes que podem descer separadas. 0 desliga. |
 | Fit | **Caber na tela**: a tela inteira aparece sem rolar. **Largura toda**: ocupa a largura e a altura acompanha. |
 | Offline after | Segundos sem dados até a tela esmaecer e mostrar SEM COMUNICAÇÃO (0 desliga). |
 | Number format | Formato dos números, ex. `pt-BR` (1.450,5) ou `en-US` (1,450.5). |

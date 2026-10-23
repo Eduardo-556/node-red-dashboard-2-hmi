@@ -1,7 +1,15 @@
 [
  {
+  "id": "hx_tab",
+  "type": "tab",
+  "label": "HMI · tela básica",
+  "disabled": false,
+  "info": ""
+ },
+ {
   "id": "hx_cmt",
   "type": "comment",
+  "z": "hx_tab",
   "name": "Abra o hmi canvas para ver o editor. Dashboard em /dashboard/hmi. Os botões da tela saem no debug.",
   "info": "",
   "x": 300,
@@ -68,6 +76,7 @@
  {
   "id": "hx_canvas",
   "type": "ui-hmi-canvas",
+  "z": "hx_tab",
   "name": "Slitter",
   "order": 1,
   "viewW": 1200,
@@ -476,6 +485,7 @@
  {
   "id": "hx_run",
   "type": "inject",
+  "z": "hx_tab",
   "name": "rodando",
   "props": [
    {
@@ -499,6 +509,7 @@
  {
   "id": "hx_alarm",
   "type": "inject",
+  "z": "hx_tab",
   "name": "falha M1 + emergência",
   "props": [
    {
@@ -521,6 +532,7 @@
  {
   "id": "hx_stop",
   "type": "inject",
+  "z": "hx_tab",
   "name": "parado",
   "props": [
    {
@@ -543,6 +555,7 @@
  {
   "id": "hx_debug",
   "type": "debug",
+  "z": "hx_tab",
   "name": "comandos da tela",
   "active": true,
   "tosidebar": true,

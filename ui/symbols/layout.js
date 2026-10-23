@@ -53,8 +53,18 @@ function boxOf (s) {
         else if (a !== 'start') x += (w - tw) / 2
         w = tw
     }
-    return { x, y, w: Math.max(1, w), h: Math.max(1, h) }
+    // the caption (props.label) is written under the symbol
+    const label = s.props && s.props.label
+    let below = 0
+    if (label && !LABEL_INSIDE.has(s.type) && !num(s.rot)) {
+        below = 24
+        h += below
+    }
+    return { x, y, w: Math.max(1, w), h: Math.max(1, h), below }
 }
+
+// the only symbol that writes props.label inside itself
+const LABEL_INSIDE = new Set(['timeline'])
 
 const isBox = s => s.type === 'frame' && BOX_SHAPES.includes((s.props || {}).shape) && !num(s.rot)
 const inside = (a, b) => a.x >= b.x - 1 && a.y >= b.y - 1 && a.x + a.w <= b.x + b.w + 1 && a.y + a.h <= b.y + b.h + 1
@@ -151,8 +161,9 @@ function leaf (n, avail, stretch) {
             put (ox, oy, out) { out[n.i] = { x: ox, y: oy, w, h, size: fs < 1 ? size * fs : 0, lines } }
         }
     }
-    const w = stretch ? avail : Math.min(avail, n.box.w)
-    return { w, h: n.box.h, fluid: true, put (ox, oy, out) { out[n.i] = { x: ox, y: oy, w, h: n.box.h } } }
+    const w = stretch ? avail : Math.min(avail, n.box.below ? num(s.w) : n.box.w)
+    const h = n.box.h - n.box.below
+    return { w, h: n.box.h, fluid: true, put (ox, oy, out) { out[n.i] = { x: ox, y: oy, w, h } } }
 }
 
 // a rectangle with symbols inside

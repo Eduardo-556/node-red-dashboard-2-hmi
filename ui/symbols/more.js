@@ -817,7 +817,9 @@ export function moreSymbols (H) {
         const tab = (opts.ui && opts.ui.tab) || p.tab || 'active'
         const rowH = Math.max(18, Number(p.rowHeight) || 26)
         const fs = Math.max(10, Math.min(14, rowH * 0.5))
-        const head = 34
+        // narrow list (phone): the tabs go to a second line under the title
+        const narrow = w < 600
+        const head = narrow ? 62 : 34
         const rows = Math.max(1, Math.floor((h - head - 4) / rowH))
         const active = Array.isArray(data.active) ? data.active : []
         const unacked = active.filter(a => !a.acked).length
@@ -826,13 +828,14 @@ export function moreSymbols (H) {
         const perm = opts.perm || {}
         const canAck = perm.ack !== false
         const canShelve = p.shelve !== 'no' && perm.shelve !== false
-        const tx0 = Math.max(150, Math.min(w * 0.32, w - 152 - 340))
+        const tx0 = narrow ? 8 : Math.max(150, Math.min(w * 0.32, w - 152 - 340))
+        const ty = narrow ? 34 : 6
         const btn = (x, y, bw, bh, label, action, cls) => `<g class="hmi-al-btn${cls ? ' ' + cls : ''}" data-hmi="${escapeXml(action)}">${rect('hmi-al-btn-box', x, y, bw, bh, 4)}<text x="${f(x + bw / 2)}" y="${f(y + bh / 2)}" font-size="12">${escapeXml(label)}</text></g>`
         let out = `<g class="hmi-alarmlist">` + rect('hmi-tag-box', 0.5, 0.5, w - 1, h - 1, 4) +
             `<text class="hmi-tag-title hmi-left" x="10" y="21" font-size="13">${escapeXml((p.title || 'ALARMES') + ' (' + active.length + ')')}</text>` +
-            btn(tx0, 6, 78, 22, 'Ativos', 'tab:active', tab === 'active' ? 'hmi-al-sel' : '') +
-            btn(tx0 + 84, 6, 84, 22, 'Histórico', 'tab:history', tab === 'history' ? 'hmi-al-sel' : '') +
-            (p.shelve !== 'no' ? btn(tx0 + 174, 6, 112, 22, 'Suprimidos (' + shelvedList.length + ')', 'tab:shelved', tab === 'shelved' ? 'hmi-al-sel' : '') : '') +
+            btn(tx0, ty, 78, 22, 'Ativos', 'tab:active', tab === 'active' ? 'hmi-al-sel' : '') +
+            btn(tx0 + 84, ty, 84, 22, 'Histórico', 'tab:history', tab === 'history' ? 'hmi-al-sel' : '') +
+            (p.shelve !== 'no' ? btn(tx0 + 174, ty, 112, 22, 'Suprimidos (' + shelvedList.length + ')', 'tab:shelved', tab === 'shelved' ? 'hmi-al-sel' : '') : '') +
             (unacked && canAck ? btn(w - 152, 6, 144, 22, 'Reconhecer todos', 'ack:all', 'hmi-al-ackall') : '') +
             (opts.sound && opts.sound !== 'off' ? btn(w - 190, 6, 32, 22, opts.muted ? '🔕' : '🔔', 'mute', 'hmi-al-shelve') : '') +
             path('hmi-al-line', `M1 ${head}H${f(w - 1)}`)

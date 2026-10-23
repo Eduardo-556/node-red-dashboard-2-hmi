@@ -31,7 +31,9 @@ export function renderOverlay (sym, st) {
     const w = sym.w
     const h = sym.h
     const rot = Number(sym.rot) || 0
-    const tf = `translate(${f(sym.x)},${f(sym.y)})` + (rot ? ` rotate(${f(rot)},${f(w / 2)},${f(h / 2)})` : '')
+    // _k: shrunk by the phone layout, like the symbol
+    const k = Number(sym._k)
+    const tf = `translate(${f(sym.x)},${f(sym.y)})` + (k > 0 && k < 1 ? ` scale(${Math.round(k * 1000) / 1000})` : '') + (rot ? ` rotate(${f(rot)},${f(w / 2)},${f(h / 2)})` : '')
     let out = ''
     const box = (cls, pad) => `<rect class="${cls}" x="${f(-pad)}" y="${f(-pad)}" width="${f(w + pad * 2)}" height="${f(h + pad * 2)}" rx="4"/>`
     if (st.flash) out += box('hmi-ov-flash hmi-blink', 8)
