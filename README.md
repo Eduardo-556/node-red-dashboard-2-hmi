@@ -28,6 +28,8 @@ Build machine HMI screens for **Node-RED Dashboard 2.0** by dragging symbols ont
 4. Ligue no canvas qualquer nó que mande um objeto, por exemplo `{ "rpm": 1450, "velocidade": 42.5 }`. Cada símbolo mostra a chave dele. As chaves vão se somando: uma mensagem só com `rpm` não apaga `velocidade`.
 5. Para mandar um valor solto, use `msg.topic` como chave: `msg.topic = "temp"`, `msg.payload = 21.5`.
 
+Pode mandar várias mensagens, cada uma com só algumas chaves: o canvas junta tudo. **[Que mensagem cada símbolo recebe](docs/mensagens.md)** explica, símbolo por símbolo, o valor que vai na chave (liga/desliga, número, lista), as chaves extras e exemplos de payload.
+
 ### Símbolos
 
 Na barra do editor, cada categoria abre um menu com miniaturas. Arraste o item para a tela ou clique para colocar no meio.
@@ -225,6 +227,8 @@ Pintura, esteira e envase funcionam sem CLP: uma função gera os valores a cada
 2. Build the screen in the node's edit dialog (with a full-screen option), or deploy and click **Editar no dashboard** to edit it on the real dashboard page, with live values, then **Salvar e fazer Deploy**.
 3. Click a symbol to set its payload key, position, size, rotation and options.
 4. Wire any node that sends an object, e.g. `{ "rpm": 1450, "speed": 42.5 }`. Each symbol shows its key. Keys are merged, so a message with only `rpm` keeps `speed`. For a single value, use `msg.topic` as the key.
+
+What each symbol expects in its key (on/off, number, list), its extra keys and payload examples: [docs/mensagens.md](docs/mensagens.md) (Portuguese).
 
 Palette (dropdown per category): 22 shapes; process (compressor, blower, bag filter, control valve, 3-way valve, damper, mixer, heat exchanger, boiler, cooling tower, chiller, cyclone, flowmeter, ISA instrument bubble); factory (overhead crane and hoist, robot, welder, oven, paint booth, 3-roll bending machine, press brake, scale, transfer cart, AGV, forklift, roller table); electrical (VFD, breaker, contactor, transformer, generator, energy meter); ISA-101 analog bar (L/H, LL/HH, setpoint), run-hours (one key in h, min or s, or hours/minutes/seconds in three keys) and start counters, mode and interlock/permissive indicators, pipe fittings and arrows; structures (beam side view, I-beam, U-channel, angle, truss, tube, column, pedestal, bearing pedestal, bracket, A-frame, stand, base plate); reel, roller, motor, valve, pump, tank, conveyor, cylinder, fan, circular knife, heater, sensor; lines (strip, pipe, conveyor, signal; editable points); tag, KPI, text, gauge, vertical bar, trend; LED, status chip, alarm banner, stack light; button, selector switch, setpoint. Editor: multi-select (Shift+click or rubber band), toolbar to align (to each other, or to the screen for one item) and distribute, same width/height/size, groups (Ctrl+G, double click edits one member), 8 resize handles (Shift keeps ratio, works rotated), fixed metal and floor tones plus custom colours, undo/redo, copy/paste, duplicate, bring to front/send to back.
 

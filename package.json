@@ -27,7 +27,8 @@
     "examples",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/mensagens.md"
   ],
   "scripts": {
     "build": "vite build && vite build --config vite.editor.config.mjs",

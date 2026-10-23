@@ -342,7 +342,7 @@
     <h3>Inputs</h3>
     <dl class="message-properties">
         <dt>payload <span class="property-type">object</span></dt>
-        <dd>Values by key, e.g. the output of <code>schneider read</code>: <code>{ "rpm": 1450, "speed": 42.5 }</code>. Keys are merged with the previous values.</dd>
+        <dd>Values by key, e.g. the output of <code>schneider read</code>: <code>{ "rpm": 1450, "speed": 42.5 }</code>. Keys are merged with the previous values: several flows can each send some keys, and <code>null</code> clears a key. A key is the whole property name (<code>"BT_04.estado"</code>); nested objects are not read. What each symbol expects: <a href="https://github.com/Eduardo-556/node-red-dashboard-2-hmi/blob/main/docs/mensagens.md" target="_blank">docs/mensagens.md</a>.</dd>
         <dt class="optional">topic <span class="property-type">string</span></dt>
         <dd>With a non-object payload, the value is stored under this key.</dd>
         <dt class="optional">quality <span class="property-type">object</span></dt>

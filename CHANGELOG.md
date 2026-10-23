@@ -4,6 +4,7 @@
 
 - **Celular automático**: quando o canvas fica mais estreito que 700 px (campo **Celular**), a tela se reorganiza sozinha em uma coluna e a página rola. Só se desenha a tela larga. Um retângulo com símbolos dentro vira um bloco que se move inteiro; os blocos são lidos em linhas, de cima para baixo e da esquerda para a direita. Valores, gráficos e tabelas ocupam a largura do celular; desenhos de máquina mantêm a forma e diminuem. 0 desliga.
 - `pageBg` e `phoneAt` também mudam por `msg.ui_update`.
+- Novo guia [docs/mensagens.md](docs/mensagens.md): como o canvas junta as mensagens (pode mandar várias, cada uma com algumas chaves) e o que cada símbolo recebe na chave, com exemplos.
 - Nomes das cores e formas sem "(slitter)": "Metal", "Aço escuro", "Piso" etc. Os fluxos já salvos continuam iguais.
 
 ## 0.1.9
