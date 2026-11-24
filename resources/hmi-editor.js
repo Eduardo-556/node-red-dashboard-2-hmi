@@ -6946,7 +6946,12 @@ ${Object.entries({
 				decimals: 1,
 				min: "",
 				max: "",
-				window: 60
+				period: "seconds",
+				window: 60,
+				dayStart: 5,
+				hours: 24,
+				timeField: "t",
+				valueField: "v"
 			},
 			fields: [
 				{
@@ -6975,9 +6980,43 @@ ${Object.entries({
 					type: "number"
 				},
 				{
+					key: "period",
+					label: "Período",
+					type: "select",
+					options: [
+						["seconds", "Últimos segundos"],
+						["day", "Dia de produção"],
+						["hours", "Últimas horas"]
+					],
+					refresh: true
+				},
+				{
 					key: "window",
-					label: "Janela (segundos)",
-					type: "number"
+					label: "Janela (segundos, até 86400)",
+					type: "number",
+					when: (p) => !trendPeriodIsClockBased(p)
+				},
+				{
+					key: "dayStart",
+					label: "O dia começa às (hora)",
+					type: "number",
+					when: (p) => p.period === "day"
+				},
+				{
+					key: "hours",
+					label: "Quantas horas",
+					type: "number",
+					when: (p) => p.period === "hours"
+				},
+				{
+					key: "timeField",
+					label: "Lista de objetos: campo da hora",
+					type: "text"
+				},
+				{
+					key: "valueField",
+					label: "Lista de objetos: campo do valor",
+					type: "text"
 				}
 			],
 			render: renderTrend
@@ -7706,24 +7745,86 @@ ${Object.entries({
 		if (state === "alarm") out += alarmIndicator(w - 8, 28, p.priority);
 		return out + "</g>";
 	}
+	var TREND_MAX_SECONDS = 86400;
+	function trendPeriodIsClockBased(props) {
+		return props.period === "day" || props.period === "hours";
+	}
+	function trendWindow(props, now) {
+		if (trendPeriodIsClockBased(props)) return timelineWindow({
+			window: props.period,
+			dayStart: props.dayStart,
+			hours: props.hours
+		}, now);
+		return {
+			start: now - Math.max(5, Math.min(TREND_MAX_SECONDS, Number(props.window) || 60)) * 1e3,
+			end: now
+		};
+	}
+	function trendHistorySpanMs(props) {
+		const visibleWindow = trendWindow(props || {}, 0);
+		return visibleWindow.end - visibleWindow.start;
+	}
+	function trendPointsFromList(list, props) {
+		if (!Array.isArray(list)) return null;
+		const timeField = props && props.timeField || "t";
+		const valueField = props && props.valueField || "v";
+		const points = [];
+		for (const item of list) {
+			const rawTime = Array.isArray(item) ? item[0] : item && typeof item === "object" ? item[timeField] : void 0;
+			const rawValue = Array.isArray(item) ? item[1] : item && typeof item === "object" ? item[valueField] : void 0;
+			const time = timeOf(rawTime);
+			const value = num(rawValue);
+			if (time !== null && value !== null) points.push([time, value]);
+		}
+		return points.sort((first, second) => first[0] - second[0]);
+	}
+	function hourTicksOfTrend(visibleWindow, axisWidth) {
+		const spanHours = (visibleWindow.end - visibleWindow.start) / 36e5;
+		if (spanHours < 2) return [];
+		const pixelsPerHour = axisWidth / spanHours;
+		const hoursBetweenTicks = [
+			1,
+			2,
+			3,
+			4,
+			6,
+			12,
+			24
+		].find((every) => every * pixelsPerHour >= 34) || 24;
+		const firstTick = new Date(visibleWindow.start);
+		firstTick.setMinutes(0, 0, 0);
+		if (firstTick.getTime() < visibleWindow.start) firstTick.setHours(firstTick.getHours() + 1);
+		const ticks = [];
+		let hoursAfterFirstTick = 0;
+		for (let tick = new Date(firstTick); tick.getTime() <= visibleWindow.end; tick.setHours(tick.getHours() + 1), hoursAfterFirstTick++) if (hoursAfterFirstTick % hoursBetweenTicks === 0) ticks.push({
+			time: tick.getTime(),
+			label: String(tick.getHours()).padStart(2, "0") + "h"
+		});
+		return ticks;
+	}
 	function renderTrend(sym, value, opts) {
 		const p = sym.props || {};
 		const w = sym.w;
 		const h = sym.h;
-		const win = Math.max(5, Math.min(3600, Number(p.window) || 60)) * 1e3;
 		const now = opts.now || Date.now();
-		let pts = opts.history && sym.key && opts.history[sym.key] || null;
-		if (!pts && opts.editor) {
-			const base = num(value) === null ? 50 : num(value);
-			pts = Array.from({ length: 40 }, (x, i) => [now - win + win * i / 39, base * (1 + .08 * Math.sin(i / 4))]);
+		const visibleWindow = trendWindow(p, now);
+		const span = visibleWindow.end - visibleWindow.start;
+		const pointsFromList = trendPointsFromList(value, p);
+		const shownValue = pointsFromList ? pointsFromList.length ? pointsFromList[pointsFromList.length - 1][1] : null : value;
+		let pts = pointsFromList || opts.history && sym.key && opts.history[sym.key] || null;
+		if ((!pts || !pts.length) && opts.editor) {
+			const base = num(shownValue) === null ? 50 : num(shownValue);
+			const previewEnd = Math.min(now, visibleWindow.end);
+			pts = Array.from({ length: 40 }, (x, i) => [visibleWindow.start + (previewEnd - visibleWindow.start) * i / 39, base * (1 + .08 * Math.sin(i / 4))]);
 		}
-		pts = (pts || []).filter((q) => q[0] >= now - win);
-		if (pts.length && pts[pts.length - 1][0] < now) pts.push([now, pts[pts.length - 1][1]]);
+		pts = (pts || []).filter((q) => q[0] >= visibleWindow.start && q[0] <= visibleWindow.end);
+		if (!pointsFromList && pts.length && pts[pts.length - 1][0] < now) pts.push([now, pts[pts.length - 1][1]]);
+		const hourTicks = hourTicksOfTrend(visibleWindow, w - 16);
 		const x0 = 8;
 		const x1 = w - 8;
 		const narrow = w < 240;
 		const y0 = narrow ? 44 : 28;
-		const y1 = h - 8;
+		const y1 = h - (hourTicks.length ? 22 : 8);
 		let lo = num(p.min);
 		let hi = num(p.max);
 		if (pts.length && (lo === null || hi === null)) {
@@ -7734,10 +7835,12 @@ ${Object.entries({
 		}
 		if (lo === null) lo = 0;
 		if (hi === null || hi <= lo) hi = lo + 1;
-		const X = (t) => x0 + (t - (now - win)) / win * (x1 - x0);
+		const X = (t) => x0 + (t - visibleWindow.start) / span * (x1 - x0);
 		const Y = (v) => y1 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (y1 - y0);
-		const text = formatValue(value, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
-		let out = `<g class="hmi-trend ${value === void 0 || value === null ? "hmi-unknown" : "hmi-normal"}"><rect class="hmi-tag-box" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="4"/><text class="hmi-tag-title hmi-left" x="10" y="17" font-size="12">${escapeXml(p.title || sym.key || "")}</text>` + (narrow ? `<text class="hmi-tag-value hmi-left" x="10" y="35" font-size="14">${escapeXml(text)}</text>` : `<text class="hmi-tag-value hmi-right" x="${f(w - 10)}" y="18" font-size="15">${escapeXml(text)}</text>`) + `<path class="hmi-trend-grid" d="M${x0} ${f(y0)}H${f(x1)}M${x0} ${f((y0 + y1) / 2)}H${f(x1)}M${x0} ${f(y1)}H${f(x1)}"/>`;
+		const text = formatValue(shownValue, p.decimals, opts.locale) + (p.unit ? " " + p.unit : "");
+		let out = `<g class="hmi-trend ${shownValue === void 0 || shownValue === null ? "hmi-unknown" : "hmi-normal"}"><rect class="hmi-tag-box" x="0.5" y="0.5" width="${f(w - 1)}" height="${f(h - 1)}" rx="4"/><text class="hmi-tag-title hmi-left" x="10" y="17" font-size="12">${escapeXml(p.title || sym.key || "")}</text>` + (narrow ? `<text class="hmi-tag-value hmi-left" x="10" y="35" font-size="14">${escapeXml(text)}</text>` : `<text class="hmi-tag-value hmi-right" x="${f(w - 10)}" y="18" font-size="15">${escapeXml(text)}</text>`) + `<path class="hmi-trend-grid" d="M${x0} ${f(y0)}H${f(x1)}M${x0} ${f((y0 + y1) / 2)}H${f(x1)}M${x0} ${f(y1)}H${f(x1)}"/>`;
+		for (const tick of hourTicks) out += `<path class="hmi-trend-tick" d="M${f(X(tick.time))} ${f(y1)}V${f(y1 + 3)}"/><text class="hmi-trend-hour" x="${f(Math.max(18, Math.min(x1 - 10, X(tick.time))))}" y="${f(h - 6)}" font-size="10" text-anchor="middle">${tick.label}</text>`;
+		if (visibleWindow.end > now) out += `<path class="hmi-trend-now" d="M${f(X(now))} ${f(y0)}V${f(y1)}"/>`;
 		if (pts.length > 1) out += `<path class="hmi-trend-line" d="M${pts.map((q) => f(X(q[0])) + " " + f(Y(q[1]))).join("L")}"/>`;
 		return out + "</g>";
 	}
@@ -8309,6 +8412,9 @@ ${Object.entries({
 .hmi-root .hmi-vbar-limit { stroke: var(--hmi-text-dim); stroke-width: 1.5; }
 .hmi-root .hmi-trend-grid { stroke: var(--hmi-bg); stroke-width: 1; }
 .hmi-root .hmi-trend-line { fill: none; stroke: var(--hmi-info); stroke-width: 2; stroke-linejoin: round; }
+.hmi-root .hmi-trend-tick { stroke: var(--hmi-line); stroke-width: 1; }
+.hmi-root .hmi-trend-hour { fill: var(--hmi-text-dim); }
+.hmi-root .hmi-trend-now { stroke: var(--hmi-text-dim); stroke-width: 1; stroke-dasharray: 3 3; }
 .hmi-root .hmi-lamp { fill: var(--hmi-tag-bg); stroke: var(--hmi-stroke); stroke-width: 1; opacity: .9; }
 .hmi-root .hmi-lamp-alarm.hmi-on { fill: var(--hmi-alarm); }
 .hmi-root .hmi-lamp-warn.hmi-on { fill: var(--hmi-warn); }
@@ -10856,6 +10962,7 @@ ${Object.entries({
 	exports.STYLE_ID = STYLE_ID;
 	exports.SYMBOLS = SYMBOLS;
 	exports.THEMES = THEMES;
+	exports.TREND_MAX_SECONDS = TREND_MAX_SECONDS;
 	exports.alarmIndicator = alarmIndicator;
 	exports.cleanSvg = cleanSvg;
 	exports.createEditor = createEditor;
@@ -10887,6 +10994,10 @@ ${Object.entries({
 	exports.timeOf = timeOf;
 	exports.timelinePieces = timelinePieces;
 	exports.timelineWindow = timelineWindow;
+	exports.trendHistorySpanMs = trendHistorySpanMs;
+	exports.trendPeriodIsClockBased = trendPeriodIsClockBased;
+	exports.trendPointsFromList = trendPointsFromList;
+	exports.trendWindow = trendWindow;
 	exports.unscaleValue = unscaleValue;
 	exports.valueFor = valueFor;
 	return exports;

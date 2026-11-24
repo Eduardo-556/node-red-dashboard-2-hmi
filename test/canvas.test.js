@@ -203,3 +203,17 @@ test('"go to screen" actions are kept when saving from the dashboard', () => {
     assert.strictEqual(out[0].action.mode, 'screen')
     assert.strictEqual(out[0].action.value, 'BT_01')
 })
+
+test('trend history keeps up to 24 h and follows the production day', () => {
+    const { createTrendHistory, historySpanMsOfTrend } = require('../nodes/trend')
+    assert.strictEqual(historySpanMsOfTrend({ window: 86400 }), 86400e3)
+    assert.strictEqual(historySpanMsOfTrend({ window: 100000 }), 86400e3)
+    assert.strictEqual(historySpanMsOfTrend({ period: 'day' }), 86400e3)
+    assert.strictEqual(historySpanMsOfTrend({ period: 'hours', hours: 6 }), 6 * 3600e3)
+    const history = createTrendHistory([{ id: 't', type: 'trend', key: 'temp', props: { period: 'day' } }])
+    history.record({ temp: 70 }, 0)
+    history.record({ temp: 71 }, 23 * 3600e3)
+    assert.strictEqual(history.snapshot().temp.length, 2)
+    history.record({ temp: [['2026-11-23 05:00', 70]] }, 25 * 3600e3)
+    assert.deepStrictEqual(history.snapshot().temp, [[23 * 3600e3, 71]])
+})

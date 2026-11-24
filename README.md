@@ -94,6 +94,8 @@ Barras e rosca também aceitam uma chave com uma lista de objetos: **campo do r�
 
 O nó guarda os últimos minutos de cada chave usada numa **Tendência** (a janela do símbolo), então quem abre a tela depois já vê a curva cheia.
 
+**Período** escolhe o que aparece: os últimos segundos da **Janela** (até 24 h), o **dia de produção** (ex. das 05:00 às 05:00) ou as **últimas horas**. Com 2 h ou mais aparecem as horas embaixo. A chave também aceita uma **lista pronta** de pontos (`[["2026-11-23 05:00", 71.2], ...]` ou objetos com **campo da hora** e **campo do valor**), por exemplo o dia inteiro vindo do banco, que não se perde quando o Node-RED reinicia. Ver [docs/mensagens.md](docs/mensagens.md).
+
 ### Regras
 
 Qualquer símbolo pode ter **regras**: quando uma chave (ou a do próprio símbolo) estiver ligada, desligada, igual, diferente, maior ou menor que um valor, o símbolo fica vermelho, amarelo, azul, verde, apagado, pisca ou some. Ex.: esconder a bobina quando `temBobina` = 0. As regras usam o valor do CLP, sem escala. No editor, símbolos escondidos aparecem transparentes. **Copiar** (numa regra) ou **Copiar todas** guarda as regras; **Colar regra** adiciona em outro símbolo, ou em todos os selecionados. Regra com chave vazia passa a usar a chave do símbolo onde foi colada.

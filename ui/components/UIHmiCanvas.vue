@@ -81,7 +81,7 @@
 
 <script>
 import { createEditor } from '../editor/index.js'
-import { injectStyles, renderSymbol, phoneLayout, renderOverlay, interlockOf, valueFor, onState, formatValue, isOn, scaleValue } from '../symbols/index.js'
+import { injectStyles, renderSymbol, phoneLayout, renderOverlay, interlockOf, valueFor, onState, formatValue, isOn, scaleValue, trendHistorySpanMs } from '../symbols/index.js'
 
 // same as nodes/trend.js: at most this many samples per trend window
 const TREND_POINTS = 1500
@@ -197,7 +197,7 @@ export default {
         trendKeys () {
             const out = {}
             for (const s of this.symbols) {
-                if (s.type === 'trend' && s.key) out[s.key] = Math.max(out[s.key] || 0, Math.max(5, Math.min(3600, Number(s.props && s.props.window) || 60)) * 1000)
+                if (s.type === 'trend' && s.key) out[s.key] = Math.max(out[s.key] || 0, trendHistorySpanMs(s.props))
             }
             return out
         },

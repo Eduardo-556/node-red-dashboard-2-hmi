@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12
+
+- **Tendência de até 24 h**: a Janela vai até 86400 s (antes parava em 1 h), e o novo campo **Período** mostra o **dia de produção** (do horário de início escolhido, ex. 05:00, até o mesmo horário do dia seguinte, com a marca de agora) ou as **últimas horas**. Com 2 h ou mais aparecem as horas embaixo.
+- A chave da Tendência aceita uma **lista pronta** de pontos: `[["2026-11-23 05:00", 71.2], ...]` ou objetos (`{ "t": ..., "v": ... }`, campos configuráveis). A lista é desenhada como veio, então o histórico pode vir do banco e não some quando o Node-RED reinicia.
+
 ## 0.1.11
 
 - Correção: um canvas com mais de 20 telas perdia as telas a partir da 21ª ao salvar, e os símbolos delas iam parar na primeira tela (a visão geral ficava com tudo misturado). Agora cabem 100 telas, e uma tela que algum símbolo ainda usa nunca é perdida: ela volta para a lista.

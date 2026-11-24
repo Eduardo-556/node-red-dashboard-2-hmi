@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert'
-import { CATEGORIES, paletteItems, SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml, valueFor, scaleValue, unscaleValue, ruleEffects, safeImageSrc } from '../ui/symbols/index.js'
+import { CATEGORIES, paletteItems, SYMBOLS, createSymbol, isOn, formatValue, rangeState, renderSymbol, escapeXml, valueFor, scaleValue, unscaleValue, ruleEffects, safeImageSrc, trendWindow, trendHistorySpanMs, trendPointsFromList } from '../ui/symbols/index.js'
 
 test('on/off rules', () => {
     assert.strictEqual(isOn(1450, 'nonzero'), true)
@@ -590,4 +590,34 @@ test('screens: a list cut short keeps the screens its symbols name', async () =>
     assert.deepStrictEqual(screensOf(['A', 'B'], [{ screen: 'A' }, { screen: 'C' }, {}]), ['A', 'B', 'C'])
     // no screens: one screen, nothing added
     assert.deepStrictEqual(screensOf([], [{ screen: 'C' }]), [])
+})
+
+test('trend: a ready list of points draws the whole production day', () => {
+    const now = new Date(2026, 10, 23, 14, 30).getTime()
+    const dayProps = { period: 'day', dayStart: 5 }
+    const productionDay = trendWindow(dayProps, now)
+    assert.strictEqual(productionDay.start, new Date(2026, 10, 23, 5, 0).getTime())
+    assert.strictEqual(productionDay.end, new Date(2026, 10, 24, 5, 0).getTime())
+    assert.strictEqual(trendWindow(dayProps, new Date(2026, 10, 24, 3, 0).getTime()).start, productionDay.start)
+    assert.strictEqual(trendHistorySpanMs(dayProps), 24 * 3600e3)
+    assert.strictEqual(trendHistorySpanMs({ window: 86400 }), 86400e3)
+    assert.strictEqual(trendHistorySpanMs({ window: 999999 }), 86400e3)
+    assert.strictEqual(trendHistorySpanMs({}), 60e3)
+
+    assert.deepStrictEqual(trendPointsFromList([['2026-11-23 06:00', '71.5'], [new Date(2026, 10, 23, 5, 30).getTime(), 70], ['x', 1], ['2026-11-23 07:00', 'sem número']], {}),
+        [[new Date(2026, 10, 23, 5, 30).getTime(), 70], [new Date(2026, 10, 23, 6, 0).getTime(), 71.5]])
+    assert.deepStrictEqual(trendPointsFromList([{ hora: '2026-11-23 06:00', temp: 72 }], { timeField: 'hora', valueField: 'temp' }),
+        [[new Date(2026, 10, 23, 6, 0).getTime(), 72]])
+    assert.strictEqual(trendPointsFromList(42, {}), null)
+
+    const trend = createSymbol('trend', 0, 0)
+    trend.key = 'temp'
+    trend.props = { ...trend.props, period: 'day', dayStart: 5, decimals: 1, unit: '°C' }
+    const drawn = renderSymbol(trend, [['2026-11-23 05:00', 70], ['2026-11-23 10:00', 75], ['2026-11-23 14:00', 73.4]], { now })
+    assert.match(drawn, /hmi-trend-line/)
+    assert.match(drawn, /73,4 °C|73\.4 °C/)
+    assert.match(drawn, /hmi-trend-hour[^>]*>05h</)
+    assert.match(drawn, /hmi-trend-now/)
+    const linePoints = drawn.match(/hmi-trend-line" d="M([^"]+)"/)[1].split('L')
+    assert.strictEqual(linePoints.length, 3)
 })

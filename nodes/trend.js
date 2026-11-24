@@ -5,12 +5,21 @@
 // (one sample per window / POINTS), so a 1 h trend really covers the hour.
 // The page (UIHmiCanvas.vue) keeps its own samples the same way.
 const POINTS = 1500
+const TREND_MAX_SECONDS = 86400
+const HOUR_MS = 3600e3
+
+function historySpanMsOfTrend (props) {
+    const trendProps = props || {}
+    if (trendProps.period === 'day') return 24 * HOUR_MS
+    if (trendProps.period === 'hours') return Math.max(1, Math.min(24 * 14, Number(trendProps.hours) || 8)) * HOUR_MS
+    return Math.max(5, Math.min(TREND_MAX_SECONDS, Number(trendProps.window) || 60)) * 1000
+}
 
 function windowsOf (symbols) {
     const windows = {}
     for (const s of Array.isArray(symbols) ? symbols : []) {
         if (!s || s.type !== 'trend' || !s.key) continue
-        const win = Math.max(5, Math.min(3600, Number(s.props && s.props.window) || 60)) * 1000
+        const win = historySpanMsOfTrend(s.props)
         windows[s.key] = Math.max(windows[s.key] || 0, win)
     }
     return windows
@@ -51,4 +60,4 @@ function createTrendHistory (symbols, saved) {
     }
 }
 
-module.exports = { createTrendHistory, addSample, POINTS }
+module.exports = { createTrendHistory, addSample, historySpanMsOfTrend, POINTS }

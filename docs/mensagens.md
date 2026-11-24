@@ -133,8 +133,24 @@ escreve no símbolo e manda no mesmo payload.
 | Texto | opcional: um valor mostrado depois do texto. O texto pode ter `{chave}`; `{chave:1}` mostra 1 casa decimal e `{chave:t}` mostra como veio (sem separador de milhar) | as do texto | texto `operador {op:t}` com `{ "op": 2888 }` |
 | Medidor, Barra | número entre **Mínimo** e **Máximo** | — | `{ "pressao": 6.2 }` |
 | Barra ISA-101 | número | **Chave do setpoint** (número) | `{ "temp": 72, "tempSP": 75 }` |
-| Tendência | número; o nó guarda os últimos segundos da **Janela** e desenha a curva | — | `{ "vel": 42.5 }` a cada segundo |
+| Tendência | número; o nó guarda o **Período** (até 24 h) e desenha a curva. Ou uma **lista pronta** de pontos `[hora, valor]` ou `{ t, v }`, que é desenhada como veio | — | `{ "vel": 42.5 }` a cada segundo, ou ver abaixo |
 | Tabela | **lista de objetos**. **Colunas** = `campo:Rótulo:alinhamento:largura` | — | ver abaixo |
+
+Tendência de 24 horas com o histórico vindo do banco (Período = **Dia de produção**, o dia começa às 5):
+
+```json
+{ "temperatura": [ ["2026-11-23 05:00", 71.2], ["2026-11-23 05:05", 72.0], ["2026-11-23 05:10", 71.8] ] }
+```
+
+- Cada ponto é `[hora, valor]` ou um objeto. Com objetos, **campo da hora** e **campo do valor** dizem
+  onde estão (padrão `t` e `v`): `[{ "hora": "2026-11-23 05:00", "temp": 71.2 }]` com `hora` e `temp`.
+- A hora pode ser texto local (`"2026-11-23 05:00"`), milissegundos, segundos ou `Date`.
+- A lista é trocada inteira a cada mensagem: mande o dia todo de novo (ex. a cada minuto, de uma consulta ao banco).
+  O valor mostrado no canto é o do último ponto.
+- **Período**: *Últimos segundos* (Janela, até 86400 = 24 h), *Dia de produção* (do horário de início até
+  o mesmo horário do dia seguinte, com a marca de agora) ou *Últimas horas*. Com 2 h ou mais aparecem as horas embaixo.
+- Mandando só um número, o nó continua montando a curva sozinho, agora até 24 h (no máximo 1500 pontos,
+  e o histórico some quando o Node-RED reinicia). Para não perder o dia num restart, use a lista vinda do banco.
 | Contador | horas (ou minutos, ou segundos, conforme **O CLP manda em**), ou número de partidas | **Chave dos minutos**, **Chave dos segundos** (quando vem separado) | `{ "horimetro": 1520 }` |
 
 Tabela:
